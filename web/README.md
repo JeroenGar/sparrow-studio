@@ -1,6 +1,6 @@
 # sparrow-studio
 
-An interactive browser demo of sparrow, not production CAD software. Developed from [the design plan](../notes/web-app-design.md). The app is independent of the original sparroWASM wrapper. Contact links to Jeroen’s LinkedIn and email appear after interaction.
+An interactive browser demo of the sparrow nesting algorithm, developed from [the design plan](../notes/web-app-design.md). The app is independent of the original sparroWASM wrapper. Contact links to Jeroen’s LinkedIn and email appear after interaction.
 
 ## Build and run
 

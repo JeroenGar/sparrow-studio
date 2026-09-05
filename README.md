@@ -1,6 +1,6 @@
 # sparrow-studio
 
-An interactive browser demo of [sparrow](https://github.com/JeroenGar/sparrow), the irregular nesting algorithm. Files and nesting calculations stay on your device. sparrow-studio is not production CAD software.
+An interactive browser demo of [sparrow](https://github.com/JeroenGar/sparrow), the irregular nesting algorithm. Files and nesting calculations stay on your device.
 
 The application lives in `web/`. See [build, development and testing instructions](web/README.md). Design notes and prior acceptance records live in `notes/`.
 
