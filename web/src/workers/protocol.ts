@@ -12,7 +12,7 @@ export type Start = Identity & { seed: string; threads?: number } & (
 export type Placement = { item_id: number; transformation: { rotation: number; translation: [number, number] } };
 export type SolverMessage = Identity & (
   | { type: 'ready'; threads: number; fallbackReason?: string }
-  | { type: 'phase'; phase: string; initializationMs: number }
+  | { type: 'phase'; phase: string; workers: number; initializationMs: number }
   | (({ type:'candidate' }|{ type:'live' }) & { sequence:number; report:string; elapsedMs:number;
       solution: { strip_width: number; layout: { placed_items: Placement[] } } })
   | { type: 'finished' }

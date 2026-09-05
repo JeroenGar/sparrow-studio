@@ -34,3 +34,27 @@ fn clearance_is_a_full_gap_and_a_full_edge_allowance() {
     assert!((2.0-1e-4..2.1).contains(&gap));
     assert!((2.0-1e-4..2.1).contains(&edge));
 }
+
+#[test]
+fn fast_preset_matches_imported_search_config_and_respects_worker_limit() {
+    let fast = solver_config("fast", 3, None).unwrap();
+    assert_eq!(fast.expl_cfg.shrink_step, 0.01);
+    assert_eq!(fast.expl_cfg.max_conseq_failed_attempts, Some(10));
+    assert_eq!(fast.expl_cfg.separator_config.iter_no_imprv_limit, 50);
+    assert_eq!(fast.expl_cfg.separator_config.strike_limit, 2);
+    assert_eq!(fast.expl_cfg.separator_config.n_workers, 2);
+    assert_eq!(fast.cmpr_cfg.separator_config.n_workers, 3);
+    assert_eq!(fast.cmpr_cfg.shrink_range, (0.0005, 0.0001));
+    assert!(matches!(fast.cmpr_cfg.shrink_decay, ShrinkDecayStrategy::FailureBased(0.9)));
+    assert_eq!(fast.cmpr_cfg.separator_config.iter_no_imprv_limit, 50);
+    assert_eq!(fast.cmpr_cfg.separator_config.strike_limit, 2);
+    assert_eq!(fast.cde_config.cd_threshold, 16);
+    let serial = solver_config("fast", 1, Some(300)).unwrap();
+    assert_eq!(serial.expl_cfg.separator_config.n_workers, 1);
+    assert_eq!(serial.cmpr_cfg.separator_config.n_workers, 1);
+    assert_eq!(serial.expl_cfg.time_limit, Duration::from_secs(240));
+    let standard = solver_config("standard", 3, None).unwrap();
+    assert_eq!(standard.expl_cfg.shrink_step, DEFAULT_SPARROW_CONFIG.expl_cfg.shrink_step);
+    assert_eq!(standard.cmpr_cfg.separator_config.strike_limit, DEFAULT_SPARROW_CONFIG.cmpr_cfg.separator_config.strike_limit);
+    assert!(solver_config("unknown", 3, None).is_err());
+}

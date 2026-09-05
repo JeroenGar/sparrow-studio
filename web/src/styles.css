@@ -74,3 +74,7 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 
 .header nav svg{flex:none}
 @media(min-width:700px) and (max-width:1299px){.header{height:auto;min-height:56px;flex-wrap:wrap;padding-block:8px;gap:8px 16px}.header nav{margin-left:auto}}
+
+.statusbar>.run-status{display:flex;flex-direction:column;align-items:flex-start;gap:0;white-space:normal}.run-state{display:flex;align-items:center;white-space:nowrap}.worker-status{font-size:10px;color:var(--muted);line-height:1.35}
+
+.header nav .hello-button{gap:10px;padding-inline:12px;color:var(--ink);background:color-mix(in srgb,var(--accent) 22%,var(--panel));border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}.header nav .hello-button:hover{background:color-mix(in srgb,var(--accent) 34%,var(--panel));border-color:var(--accent)}.header nav .hello-button span{width:20px;flex:none}

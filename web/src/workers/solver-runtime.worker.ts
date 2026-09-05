@@ -21,7 +21,7 @@ self.onmessage = async ({ data }: MessageEvent<Start>) => {
     send({ type: 'ready', threads: wasm.thread_count() });
     const doc=data.type==='start'?normalizeDocument(data.document):null;
     const input=doc?solverInput(doc):(data as Extract<Start,{type:'bridge'}>).input;
-    wasm.run(input, data.type==='bridge'?data.seconds:doc!.settings.timeLimitSeconds??undefined, data.seed, doc?.settings.clearanceMm ?? 0, (json: string) => {
+    wasm.run(input, data.type==='bridge'?data.seconds:doc!.settings.timeLimitSeconds??undefined, data.seed, doc?.settings.clearanceMm ?? 0, doc?.settings.solverPreset??'standard', (json: string) => {
       const message = JSON.parse(json) as SolverMessage;
       send(message);
     });

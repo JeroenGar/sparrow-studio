@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
-for(const limit of ['auto','300','600'])test(`native auto-termination retains a checked export with ${limit} limit`,async({page},testInfo)=>{
+for(const limit of ['auto','300','600','fast'])test(`native auto-termination retains a checked export with ${limit} limit`,async({page},testInfo)=>{
   await page.goto('/');
   await page.locator('input[type=file]').first().setInputFiles({
     name:'one-rectangle.json',mimeType:'application/json',
@@ -14,7 +14,12 @@ for(const limit of ['auto','300','600'])test(`native auto-termination retains a 
   await page.getByRole('button',{name:'Open as new project',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('Ready');
   await expect(page.getByLabel('Stop condition')).toHaveValue('auto');
-  await page.getByLabel('Stop condition').selectOption(limit);
+  await page.getByLabel('Stop condition').selectOption(limit==='fast'?'auto':limit);
+  if(limit==='fast'){
+    await page.locator('.solver-options>summary').click();
+    await page.getByLabel('Search preset').selectOption('fast');
+    await expect(page.locator('#preset-description')).toContainText('greedier');
+  }
   const started=Date.now();
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   // Automatic stopping must finish normally without a JavaScript time cap.
@@ -31,7 +36,8 @@ for(const limit of ['auto','300','600'])test(`native auto-termination retains a 
   const diagnostics=JSON.parse(await readFile(diagnosticsPath,'utf8'));
   await expect(page.locator('[data-worker-count]')).toHaveAttribute('data-worker-count',diagnostics.buildMode.match(/^(\d+)/)[1]);
   expect(diagnostics.stopReason).toBe('Complete');
-  expect(diagnostics.document.settings.timeLimitSeconds).toBe(limit==='auto'?null:Number(limit));
+  expect(diagnostics.document.settings.timeLimitSeconds).toBe(limit==='auto'||limit==='fast'?null:Number(limit));
+  expect(diagnostics.document.settings.solverPreset??'standard').toBe(limit==='fast'?'fast':'standard');
   expect(diagnostics.result.validation.status).toBe('passed');
   expect(diagnostics.result.placements).toHaveLength(1);
   expect(diagnostics.result.placements[0].angleDeg).toBe(0);

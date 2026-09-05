@@ -33,3 +33,10 @@ it('saves and opens an empty project while rejecting an empty layout',()=>{
   expect(importProject(JSON.stringify(p)).warnings[0]).toContain('Empty projects');
   expect(()=>exportProject({...p,settings:{...p.settings,materialWidthMm:0}},9)).toThrow();
 });
+
+it('keeps the search preset in saved projects and rejects unknown presets',()=>{
+  const p=project();p.settings={...p.settings,solverPreset:'fast'};
+  expect(importProject(exportProject(p,p.revision)).document.settings.solverPreset).toBe('fast');
+  const invalid=JSON.parse(exportProject(p,p.revision));invalid.settings.solverPreset='unknown';
+  expect(()=>importProject(JSON.stringify(invalid))).toThrow('Invalid solver preset');
+});
