@@ -1,5 +1,5 @@
 import {expect,type Page} from '@playwright/test';
-export async function openExamples(page:Page){await page.locator('.project-menu>summary').click();await page.getByRole('button',{name:'Try example',exact:true}).click();}
+export async function openExamples(page:Page){await page.getByRole('button',{name:'Load example project',exact:true}).click();}
 export async function finishSwitch(page:Page){
   const guard=page.getByRole('dialog',{name:'Unsaved project',exact:true});
   await expect.poll(async()=>await guard.isVisible()||await page.getByRole('dialog').count()===0).toBe(true);

@@ -25,7 +25,7 @@ export function exportSVG(doc: Document,result: Result): ExportBundle {
     return `<path id="part-${i}" fill="${colors[index%colors.length]}" fill-rule="evenodd" d="${pathData([p.outer,...p.holes])}"><title>${xmlText(part.name)} · copy ${p.copyIndex+1}</title></path>`;
   }).join('\n');
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${pageWidth}mm" height="${pageHeight}mm" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%" role="img" aria-labelledby="layout-title layout-description">
-<title id="layout-title">${xmlText(doc.name)} — sparrow-studio</title>
+<title id="layout-title">${xmlText(doc.name)} — sparrow / studio</title>
 <desc id="layout-description">${xmlText(summary)}. Checked nesting layout; geometry is in millimetres.</desc>
 <g data-sparrow-decoration="true" aria-hidden="true">
 <rect x="${-padX}" y="${-padY}" width="${pageWidth}" height="${pageHeight}" fill="#ffffff"/>

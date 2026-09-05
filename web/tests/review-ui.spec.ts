@@ -22,7 +22,7 @@ test('quantity errors, immediate contour review, and mobile diagnostics are acce
   await dialog.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(dialog).toHaveCount(0);
   await page.setViewportSize({width:390,height:844});
-  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+  await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();
   await expect(page.getByRole('link',{name:'Open-source licenses and source code'})).toHaveAttribute('href','./THIRD_PARTY_NOTICES.txt');
   const pending=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download diagnostics',exact:true}).click();

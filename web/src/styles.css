@@ -79,3 +79,8 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .statusbar>.run-status{display:flex;flex-direction:column;align-items:flex-start;gap:0;white-space:normal}.run-state{display:flex;align-items:center;white-space:nowrap}.worker-status{font-size:10px;color:var(--muted);line-height:1.35}
 
 .header nav .hello-button{gap:10px;padding-inline:12px;color:var(--ink);background:color-mix(in srgb,var(--accent) 22%,var(--panel));border-color:color-mix(in srgb,var(--accent) 45%,var(--border))}.header nav .hello-button:hover{background:color-mix(in srgb,var(--accent) 34%,var(--panel));border-color:var(--accent)}.header nav .hello-button span{width:20px;flex:none}
+
+/* Keep pointer focus quiet; keyboard navigation retains a themed focus ring. */
+.workspace-svg:focus{outline:none}.workspace-svg:focus-visible{outline:1px solid var(--accent);outline-offset:-1px}
+.header{height:auto;flex-wrap:wrap;gap:12px;padding-block:8px}.header nav{flex-wrap:wrap}.project-menu>summary{font-size:14px;line-height:1.45;min-height:36px;padding:7px 12px}.header .theme-toggle{display:grid;place-items:center;padding:8px}
+.statusbar>.run-status{display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:8px;align-items:center}.status-symbol{grid-column:1;grid-row:1 / span 2;width:32px;height:32px}.run-state,.worker-status{grid-column:2}.run-status i.active{width:28px;height:28px;border-width:3px}

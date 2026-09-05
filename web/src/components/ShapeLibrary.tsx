@@ -91,7 +91,7 @@ export default function ShapeLibrary({selectedParts=[],onAdd,onClose,unit='mm'}:
   return <Modal title="Shape library" onClose={onClose} locked={busy}>
     <div className="shape-library">
       <div className="library-toolbar">
-        <p className="library-note">Pick reusable shapes to add to the current project. Sample projects stay available from “Try an example”.</p>
+        <p className="library-note">Pick reusable shapes to add to the current project. Sample projects stay available from “Load example project”.</p>
         {selectedParts.length>0&&<button disabled={blocked||!!storageError} onClick={()=>save(selectedParts)}>Save selected {selectedParts.length===1?'shape':'shapes'}</button>}
       </div>
       <p className="library-note library-normalization-note">{source==='mine'?'Saved in this browser on this device. Download projects as backups.':<>Each source file uses one scale factor. The median shape-type net area (outer minus holes) is {areaText} {unit}²; demand is ignored, so relative sizes and proportions stay intact.</>}</p>

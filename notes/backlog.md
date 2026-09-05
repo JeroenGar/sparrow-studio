@@ -53,7 +53,7 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 
 - Compact rotation-freedom labels below dimensions in the parts list.
 - Compact Safari dialogs: content-sized flex layout avoids stretched grid tracks and controls.
-- Load `swim.json` on startup without automatically solving; New project still starts empty.
+- Load `gardeyn2.json` on startup without automatically solving; New project still starts empty.
 - Automatic solver termination by default, with optional time caps and manual Stop.
 - Restore the original small circular spinner alongside the run button.
 
@@ -62,3 +62,9 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 - Shift-drag a selection rectangle around multiple individual copies; plain background drag continues to pan.
 - Delete, clone or move selected copies together; preserve their relative positions when moving or cloning.
 - Integrate with the new per-copy placement model, shape-type quantities, selection state, undo/redo and checked-result invalidation.
+
+## Header and display polish — implemented
+
+- Default to gardeyn2; use “sparrow / studio” in visible app branding.
+- Dedicated example-project and light/dark buttons, matching project/save button heights.
+- Transparent, larger nest favicon; quiet canvas pointer focus; larger spinner beside both status lines.

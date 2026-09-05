@@ -16,7 +16,7 @@ test('inch display preserves checked millimetre geometry, converts edits, and pe
   await page.locator('.part-select').first().click();
   const firstWidthMm=Number(await page.getByRole('spinbutton',{name:'Width, mm',exact:true}).inputValue());
   const firstWidthIn=Number((firstWidthMm/25.4).toPrecision(9)).toString();
-  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();await page.getByRole('combobox',{name:'Display units',exact:true}).selectOption('in');await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();await page.getByRole('combobox',{name:'Display units',exact:true}).selectOption('in');await page.getByRole('button',{name:'Close',exact:true}).click();
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   await expect(page.getByRole('img',{name:'Checked nesting result'})).toContainText('in ×');
   expect(Number(await page.getByRole('spinbutton',{name:'Width, in',exact:true}).inputValue())).toBeCloseTo(Number(firstWidthIn),3);

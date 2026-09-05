@@ -7,7 +7,7 @@ test('system is the default; borders follow the theme and explicit choices persi
   await expect.poll(background).toBe('rgb(245, 246, 248)');
   const border=page.locator('.workspace-svg g[data-part] > path').first();
   await expect(border).toHaveCSS('stroke','rgb(100, 116, 139)');
-  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+  await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();
   await expect(page.getByLabel('Appearance')).toHaveValue('system');
   await expect.poll(background).toBe('rgb(245, 246, 248)');
   await page.emulateMedia({colorScheme:'dark'});
@@ -22,13 +22,13 @@ test('system is the default; borders follow the theme and explicit choices persi
   await page.reload();
   await page.emulateMedia({colorScheme:'light'});
   await expect.poll(background).toBe('rgb(245, 246, 248)');
-  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+  await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();
   await expect(page.getByLabel('Appearance')).toHaveValue('system');
   await page.getByLabel('Appearance').selectOption('light');
   await page.emulateMedia({colorScheme:'dark'});
   await expect.poll(background).toBe('rgb(245, 246, 248)');
   await page.reload();await expect.poll(background).toBe('rgb(245, 246, 248)');
-  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+  await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();
   await page.getByLabel('Appearance').selectOption('dark');
   await page.emulateMedia({colorScheme:'light'});
   await page.reload();await expect.poll(background).toBe('rgb(17, 25, 31)');
