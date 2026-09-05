@@ -1,6 +1,6 @@
 # sparrow-studio
 
-A local browser CAD and irregular nesting prototype, developed from [the design plan](../notes/web-app-design.md). The app is independent of the original sparroWASM wrapper. No deployment has been performed. Contact links to Jeroen’s LinkedIn and email appear after interaction.
+An interactive browser demo of sparrow, not production CAD software. Developed from [the design plan](../notes/web-app-design.md). The app is independent of the original sparroWASM wrapper. Contact links to Jeroen’s LinkedIn and email appear after interaction.
 
 ## Build and run
 
@@ -55,13 +55,13 @@ Limits are 10 MiB/file, 25 MiB/import batch, 500 demanded copies, 5,000 vertices
 
 ## Verification
 
-On 2026-09-05, `npm test` passed **86 tests in 11 files**. The final `npm run test:e2e` rebuilt both WASM variants, type-checked the application and passed **100 browser checks** across Chromium, Firefox and WebKit. Two instances of the Chromium-specific touch-input test are intentionally skipped in the other engines. Coverage includes imports/exports, checked-result ownership, Stop/restart, thread fallback and disposal, privacy, CAD gestures and rapid numeric edits, copy labels, local library persistence, display units, keyboard and 390 px layouts.
+On 2026-09-05, `npm test` passed **88 tests in 12 files**. The production build compiled both WASM variants and type-checked the application; Playwright passed **130 browser checks** across Chromium, Firefox and WebKit. Two instances of the Chromium-specific touch-input test are intentionally skipped in the other engines. Coverage includes imports/exports, checked-result ownership, Stop/restart, thread fallback and disposal, privacy, CAD gestures and rapid numeric edits, copy labels, local library persistence, display units, keyboard and 390 px layouts.
 
 Native Safari 26.6 also completed a production run, Stop and restart using three solver threads. Desktop and mobile normal/ghost views were inspected with computer use. All three browser engines passed a separate `/repo/` static-host test, including isolation-worker scope and thread restart; Chromium additionally verified worker-pool disposal directly.
 
 Independent XML/GEOS checks passed 12 exported SVGs, and ezdxf/GEOS checks passed three holed DXF exports. An extracted source archive successfully rebuilt both WASM variants and the complete static app using only its contents and the documented installed toolchains/dependency caches.
 
-Two generated 100,000-vertex preparation workloads imported and remained interactive with no measured main-thread task over 50 ms. Those extreme workloads reached the solver initialization watchdog before producing a candidate; being under the import limits does not guarantee a completed nesting result. Stop remained responsive. High-limit candidate-validation responsiveness was therefore not measured. See [the performance record](../notes/preparation-performance.md) and [acceptance audit](../notes/web-app-acceptance-audit.md) for the machine, methods and precise scope. Physical iPhone/iPad testing and public deployment have not been performed.
+Two generated 100,000-vertex preparation workloads imported and remained interactive with no measured main-thread task over 50 ms. Those extreme workloads reached the solver initialization watchdog before producing a candidate; being under the import limits does not guarantee a completed nesting result. Stop remained responsive. High-limit candidate-validation responsiveness was therefore not measured. See [the performance record](../notes/preparation-performance.md) and [acceptance audit](../notes/web-app-acceptance-audit.md) for the machine, methods and precise scope. Physical iPhone/iPad testing has not been performed.
 
 Independent export checks, from `web/`:
 
@@ -91,7 +91,7 @@ python3 web/scripts/generate-notices.py
 python3 web/scripts/generate-notices.py --check
 ```
 
-See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The build includes corresponding application source in `sparrow-source.zip`, linked from About and the notices. Preserve that archive and the notice files when publishing, and verify their deployed relative links. This prototype has not been published.
+See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The build includes corresponding application source in `sparrow-source.zip`, linked from About and the notices. Preserve that archive and the notice files when publishing, and verify their deployed relative links. The public demo includes the source archive.
 
 ## Downloadable build source
 
