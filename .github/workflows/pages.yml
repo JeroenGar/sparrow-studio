@@ -32,23 +32,29 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --target wasm32-unknown-unknown
           rustup toolchain install nightly-2026-08-30 --profile minimal --component rust-src --target wasm32-unknown-unknown
-      - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830
+      - uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830
+        id: rust-cache
         with:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            ~/.cargo/bin/wasm-pack
             web/wasm/target
           key: pages-rust-v1-${{ runner.os }}-${{ hashFiles('web/wasm/Cargo.lock', 'web/scripts/build-wasm.mjs') }}
       - name: Install wasm-pack
-        run: |
-          if ! wasm-pack --version 2>/dev/null | grep -q 'wasm-pack 0.15.0'; then
-            cargo +stable install wasm-pack --version 0.15.0 --locked --force
-          fi
+        run: npm install --global wasm-pack@0.15.0
       - run: npm ci
       - run: npm test
       - name: Build both solver variants and site
         run: npm run build
+      - name: Save compiled Rust cache
+        if: steps.rust-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            web/wasm/target
+          key: pages-rust-v1-${{ runner.os }}-${{ hashFiles('web/wasm/Cargo.lock', 'web/scripts/build-wasm.mjs') }}
       - name: Check the production app
         run: |
           npx playwright install --with-deps chromium

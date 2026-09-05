@@ -11,6 +11,8 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
   await page.goto('/');
   await expect(page.locator('.project-menu>summary')).toBeVisible();
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(isolated);
+  await page.locator('.solver-options>summary').click();
+  await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption('2');
   for (let attempt = 0; attempt < 2; attempt++) {
     await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
     await expect(page.getByRole('dialog',{name:'Try an example'})).toHaveCount(0);
@@ -24,7 +26,7 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
     const path = testInfo.outputPath(`threads-${attempt}.json`);
     await (await pending).saveAs(path);
     const diagnostic = JSON.parse(await readFile(path, 'utf8'));
-    expect(diagnostic.buildMode).toMatch(isolated ? /^[2-3] solver threads, no SIMD$/ : /^1 solver thread, no SIMD$/);
+    expect(diagnostic.buildMode).toMatch(isolated ? /^2 solver threads, no SIMD$/ : /^1 solver thread, no SIMD$/);
     expect(diagnostic.result.validation.status).toBe('passed');
     expect(diagnostic.result.placements).toHaveLength(12);
   }
@@ -50,6 +52,8 @@ test('failed pool initialization disposes the pool and retries serially', async 
   await page.goto(`http://127.0.0.1:${address.port}/`);
   await page.locator('.project-menu>summary').waitFor();
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
+  await page.locator('.solver-options>summary').click();
+  await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption('2');
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button', { name: 'Checked ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
