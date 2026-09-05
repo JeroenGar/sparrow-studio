@@ -32,6 +32,16 @@ Development sends cross-origin isolation headers. Production preview deliberatel
 
 Solver options offer Automatic or 1–3 threads. Automatic reserves one reported logical core and caps the solver at three threads. Diagnostics report the actual pool and fallback reason. Stop disposes both the solver coordinator and its Rayon workers; starting again creates a fresh pool. Native failure-based auto-termination can finish before the selected time cap. This is not a claim that threaded search is always faster.
 
+## Deployment
+
+`.github/workflows/pages.yml` builds and publishes GitHub Pages on pushes to `main`, or through its manual Run workflow action. It installs Node 24, stable Rust, nightly 2026-08-30 and wasm-pack 0.15.0, uses the dependency lockfiles, and builds both solver variants. Unit tests and the Chromium production browser suite must pass before the Pages artifact is published. A failed build leaves the previous deployment in place.
+
+The initial Pages address is https://jeroengar.github.io/sparrow-studio/. The custom domain is `sparrowstudio.app`, registered at Spaceship. GitHub Pages remains the host when a custom domain is connected. The repository stays private; the website and its linked build-source download are public.
+
+Domain setup uses GitHub's repository Pages setting, four apex A records pointing to `185.199.108.153`, `185.199.109.153`, `185.199.110.153` and `185.199.111.153`, and a `www` CNAME pointing to `jeroengar.github.io`. Keep the `_github-pages-challenge-JeroenGar` TXT record used for account-level domain verification. HTTPS is provided by GitHub Pages. The custom domain is configured in GitHub settings; Actions publishing does not use a CNAME file in the build.
+
+After deployment, check a fresh browser session for startup isolation, a checked nesting result, Stop/restart, dataset loading and downloads. Browser-stored shapes are tied to the origin: localhost, github.io and the custom domain have separate libraries.
+
 ## Supported work
 
 - Start with an empty project. The project-name menu groups New, Open, Rename and examples; Save downloads a named `.sparrow-project.json` file, including empty projects. Replacing unsaved work offers Download and continue, Discard, or Cancel. Undo stays within the current project.
