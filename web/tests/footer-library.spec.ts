@@ -22,14 +22,14 @@ test('footer aligns actions and shows a reduced-motion-aware spinner while solvi
 test('library modifier selection imports one atomic batch and clears across collections',async({page})=>{
   await page.goto('/');await workshop(page);await expect(page.locator('.part-select').first()).toBeVisible();const before=await page.locator('.part-select').count();
   await page.getByRole('button',{name:'Shape library',exact:true}).click();
-  const library=page.getByRole('dialog',{name:'Shape library'});await library.getByRole('combobox',{name:'Collection',exact:true}).selectOption('albano');
+  const library=page.getByRole('dialog',{name:'Shape library'});await library.getByRole('navigation',{name:'Source files'}).getByRole('button',{name:/^albano albano\.json/}).click();
   const cards=library.locator('.library-grid button');await expect(cards.first()).toBeEnabled();
   await cards.nth(0).click();await cards.nth(2).dispatchEvent('click',{ctrlKey:true});await expect(library.locator('.library-grid [aria-pressed=true]')).toHaveCount(2);
   await cards.nth(2).click({modifiers:['Meta']});await expect(library.locator('.library-grid [aria-pressed=true]')).toHaveCount(1);
   await cards.nth(1).click();await cards.nth(3).click({modifiers:['Shift']});await expect(library.locator('.library-grid [aria-pressed=true]')).toHaveCount(3);
   const names=await library.locator('.library-grid [aria-pressed=true] span').allTextContents();
   await library.getByRole('button',{name:'Add 3 selected shapes to project',exact:true}).click();await expect(library.getByText('3 shapes added to your project.',{exact:true})).toBeVisible();
-  await library.getByRole('combobox',{name:'Collection',exact:true}).selectOption('mine');await expect(library.locator('.library-grid [aria-pressed=true]')).toHaveCount(0);
+  await library.getByRole('navigation',{name:'Source files'}).getByRole('button',{name:/^My shapes/}).click();await expect(library.locator('.library-grid [aria-pressed=true]')).toHaveCount(0);
   await library.getByRole('button',{name:'Done',exact:true}).click();await expect(page.locator('.part-select')).toHaveCount(before+3);
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();const saved=JSON.parse(await readFile((await (await pending).path())!,'utf8'));
   expect(saved.parts.slice(-3).map((p:{name:string})=>p.name)).toEqual(names);expect(new Set(saved.parts.map((p:{id:string})=>p.id)).size).toBe(before+3);

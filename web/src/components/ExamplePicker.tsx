@@ -1,20 +1,17 @@
 import {useEffect,useState} from 'react';
 import {example,type Document} from '../model';
-import {geometryTask} from '../workers/geometryTask';
+import {loadCatalog,loadExample,type Dataset} from '../datasets';
 import Modal from './Modal';
 
-type Dataset={id:string;file:string;group:string;continuous:boolean;partTypes:number;copies:number};
 export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document,nest:boolean)=>void|Promise<void>;onClose:()=>void}) {
   const [catalog,setCatalog]=useState<Dataset[]>([]),[selected,setSelected]=useState('workshop');
   const [doc,setDoc]=useState<Document|undefined>(example),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[catalogError,setCatalogError]=useState(''),[warnings,setWarnings]=useState<string[]>([]);
   useEffect(()=>{
-    const controller=new AbortController();
-    fetch(new URL('examples/catalog.json',document.baseURI),{signal:controller.signal})
-      .then(async response=>{if(!response.ok)throw Error('Could not load benchmarks.');return response.json();})
-      .then(data=>setCatalog(data.datasets))
-      .catch(e=>{if(!controller.signal.aborted)setCatalogError(e instanceof Error?e.message:String(e));});
-    return()=>controller.abort();
+    let current=true;
+    loadCatalog().then(data=>{if(current)setCatalog(data);})
+      .catch(e=>{if(current)setCatalogError(e instanceof Error?e.message:String(e));});
+    return()=>{current=false;};
   },[]);
   async function choose(id:string) {
     setSelected(id);setError('');setWarnings([]);setDoc(undefined);
@@ -22,12 +19,8 @@ export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document
     const dataset=catalog.find(d=>d.id===id);if(!dataset)return;
     setBusy(true);
     try {
-      const response=await fetch(new URL(`examples/${dataset.file}`,document.baseURI));
-      if(!response.ok)throw Error(`Could not load ${dataset.id}.`);
-      const reply=await geometryTask({type:'import',runId:0,documentRevision:0,scale:1,files:[{name:dataset.file,text:await response.text()}]});
-      if(reply.type!=='import-review')throw Error('Could not read this benchmark.');
-      if(reply.review.issues?.length)throw Error(reply.review.issues.join(' '));
-      setDoc(reply.review.document);setWarnings(reply.review.warnings);
+      const reply=await loadExample(dataset);
+      setDoc(reply.document);setWarnings(reply.warnings);
     } catch(e){setError(e instanceof Error?e.message:String(e));}
     finally{setBusy(false);}
   }

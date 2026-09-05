@@ -58,7 +58,7 @@ test('new, duplicated, and library parts are separated from the existing drawing
   await labelsInside(page,6);await separated(page);
   await page.getByRole('button',{name:'Shape library',exact:true}).click();
   const dialog=page.getByRole('dialog',{name:'Shape library',exact:true});
-  await dialog.getByRole('combobox',{name:'Collection',exact:true}).selectOption('albano');
+  await dialog.getByRole('navigation',{name:'Source files'}).getByRole('button',{name:/^albano albano\.json/}).click();
   await dialog.locator('.library-grid button').first().click();
   await dialog.getByRole('button',{name:'Add shape to project',exact:true}).click();
   await expect(dialog.getByText('Shape added to your project.',{exact:true})).toBeVisible();
@@ -66,7 +66,26 @@ test('new, duplicated, and library parts are separated from the existing drawing
   await labelsInside(page,7);await separated(page);
 });
 
-test('dragging onto a part preserves the dragged position, nudges its neighbour, and undoes both together',async({page})=>{
+test('preparation shortcuts rotate and change copies, skip editable fields, and preserve overlap drags',async({page})=>{
+  await page.goto('/');await workshop(page);
+  await expect(page.locator('.canvas-hint')).toContainText('R rotate 90°');
+  await page.locator('.part-select').first().click();
+  const quantity=page.locator('.parts-list input[type=number]').first(),before=await state(page);
+  await expect(quantity).toHaveValue('3');
+  await page.keyboard.press('r');
+  await expect.poll(async()=>(await state(page))[0].d).not.toBe(before[0].d);
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await expect.poll(async()=>(await state(page))[0].d).toBe(before[0].d);
+  await page.keyboard.press('+');await expect(quantity).toHaveValue('4');
+  await page.keyboard.press('-');await expect(quantity).toHaveValue('3');
+  await page.keyboard.press('+');await expect(quantity).toHaveValue('4');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(quantity).toHaveValue('3');
+  const width=page.getByRole('spinbutton',{name:'Width, mm',exact:true}),editableBefore=await state(page);
+  await width.focus();await page.keyboard.press('r');await page.keyboard.press('+');await page.keyboard.press('-');
+  expect(await state(page)).toEqual(editableBefore);await expect(quantity).toHaveValue('3');
+});
+
+test('dragging onto a part preserves the dragged position, allows overlap, and undoes the edit',async({page})=>{
   await page.goto('/');await workshop(page);await labelsInside(page,4);
   await page.locator('.cad-snapping summary').click();await page.getByLabel('Enable snapping',{exact:true}).uncheck();await page.locator('.cad-snapping summary').click();
   const before=await state(page),points=await drawing(page).locator('g[data-part]').evaluateAll(nodes=>nodes.slice(0,2).map(node=>{
@@ -81,10 +100,13 @@ test('dragging onto a part preserves the dragged position, nudges its neighbour,
     svg.addEventListener('pointermove',e=>{if((e as PointerEvent).buttons)Reflect.set(window,'dragEnd',sample(e as PointerEvent));});
   });
   await page.mouse.move(...points[0].screen as [number,number]);await page.mouse.down();await page.mouse.move(...points[1].screen as [number,number],{steps:8});await page.mouse.up();
-  await expect.poll(async()=>(await state(page))[1].position).not.toEqual(before[1].position);
+  await expect.poll(async()=>(await state(page))[0].position).not.toEqual(before[0].position);
   const delivered=await page.evaluate(()=>({start:Reflect.get(window,'dragStart') as number[],end:Reflect.get(window,'dragEnd') as number[]}));
   const after=await state(page);for(let i=0;i<2;i++)expect(after[0].position[i]).toBeCloseTo(before[0].position[i]+delivered.end[i]-delivered.start[i],9);
-  await separated(page);await page.getByRole('button',{name:'Undo',exact:true}).click();expect(await state(page)).toEqual(before);
+  expect(after[1].position).toEqual(before[1].position);
+  expect(after[0].box[0]).toBeLessThan(after[1].box[2]);expect(after[1].box[0]).toBeLessThan(after[0].box[2]);
+  expect(after[0].box[1]).toBeLessThan(after[1].box[3]);expect(after[1].box[1]).toBeLessThan(after[0].box[3]);
+  await page.getByRole('button',{name:'Undo',exact:true}).click();expect(await state(page)).toEqual(before);
   await page.locator('.part-select').first().click();await page.locator('.part-select').nth(1).click({modifiers:['Shift']});
   const width=Number(await page.getByRole('spinbutton',{name:'Width, mm',exact:true}).inputValue());
   await page.getByRole('spinbutton',{name:'Width, mm',exact:true}).fill(String(width*1.2));await page.getByRole('spinbutton',{name:'Width, mm',exact:true}).press('Enter');

@@ -5,7 +5,7 @@ import { worldParts } from '../geometry/validate';
 import { pathData } from '../geometry/path';
 import type {LiveGeometry} from '../geometry/live';
 import {selectionBounds,type GeometryEdit} from '../geometry/manipulate';
-import {moveDelta,resizeEdit,rotationEdit,screenTransform,pinchCamera,type Camera} from '../geometry/gestures';
+import {moveDelta,preparationCopyOffset,resizeEdit,rotationEdit,screenTransform,pinchCamera,type Camera} from '../geometry/gestures';
 import {geometryTask} from '../workers/geometryTask';
 import type {LabelPoint} from '../geometry/preparation';
 import {displayLength,unitScale,type DisplayUnit} from '../units';
@@ -55,10 +55,18 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
   useEffect(()=>{const observer=new ResizeObserver(([entry])=>setSize({width:entry.contentRect.width,height:entry.contentRect.height}));observer.observe(svg.current!);return()=>observer.disconnect();},[]);
   const moved=useMemo(()=>new Map(displayedDrag?.parts.map(p=>[p.id,[p.position[0]+displayedDrag.delta[0],p.position[1]+displayedDrag.delta[1]] as Point])),[displayedDrag]);
   const world=useMemo(()=>view==='result'&&result?(live?.world??worldParts(doc,result)):undefined,[view,result,live?.world,doc]);
+  const partPaths=useMemo(()=>doc.parts.map(part=>pathData([part.outer,...part.holes])),[doc.parts]);
   const drawings=useMemo(()=>{
-    const parts=world?.map(p=>({...p,position:[0,0] as Point})) ?? doc.parts.map(p=>({...p,partId:p.id,copyIndex:0,position:p.preparationPosition}));
-    return parts.map(p=>({...p,index:doc.parts.findIndex(part=>part.id===p.partId),path:pathData([p.outer,...p.holes]),box:bounds(p.outer)}));
-  },[world,doc.parts]);
+    if(world)return world.map(p=>{const index=doc.parts.findIndex(part=>part.id===p.partId);return {...p,index,path:pathData([p.outer,...p.holes]),box:bounds(p.outer),position:[0,0] as Point,stackOffset:[0,0] as Point};});
+    return doc.parts.flatMap((part,index)=>{
+      const box=bounds(part.outer) as [number,number,number,number],count=Number.isInteger(part.quantity)&&part.quantity>0?Math.min(500,part.quantity):1;
+      return Array.from({length:count},(_,copyIndex)=>{
+        const stackOffset=preparationCopyOffset(copyIndex,count,box);
+        return {partId:part.id,copyIndex,index,path:partPaths[index],outer:part.outer,holes:part.holes,box,stackOffset,
+          position:[part.preparationPosition[0]+stackOffset[0],part.preparationPosition[1]+stackOffset[1]] as Point};
+      }).reverse();
+    });
+  },[world,doc.parts,partPaths]);
   function fit() {
     const all=drawings.flatMap(p=>p.outer.map(([x,y])=>[x+p.position[0],-y-p.position[1]] as Point));
     if(world) all.push([0,0],[result!.usedLengthMm,-doc.settings.materialWidthMm]);
@@ -88,15 +96,17 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
   },[camera]);
   const shapes=useMemo(()=>drawings.map(p=>{
         const index=p.index,active=selected.includes(p.partId);
-        const pos=moved.get(p.partId)??p.position;
-        const [x0,y0,x1,y1]=p.box,label=!world?labels.get(p.partId):undefined;
+        const base=moved.get(p.partId),pos=base?[base[0]+p.stackOffset[0],base[1]+p.stackOffset[1]]:p.position;
+        const stacked=!world&&p.copyIndex>0,[x0,y0,x1,y1]=p.box,label=!stacked&&!world?labels.get(p.partId):undefined;
         const quantity=doc.parts[index]?.quantity,copyText=Number.isInteger(quantity)&&quantity>0?`×${quantity}`:'—';
         const labelSize=label?`min(calc(var(--camera-unit) * 14), ${label.radius>0?label.radius*1.4/Math.max(1,copyText.length*.55):1e9}px)`:0;
-        return <g key={`${p.partId}:${p.copyIndex}`} opacity={selected.length&&!active?0.5:1} transform={active?screenTransform(preview):undefined}><g data-part={p.partId} transform={`translate(${pos[0]} ${-pos[1]}) scale(1 -1)`}>
-          <path d={p.path} fillRule="evenodd" fill={outlines?'white':colors[index%colors.length]} fillOpacity={outlines ? 0.1 : 1} pointerEvents="all" stroke={outlines?(active?'var(--accent)':'var(--muted)'):active?'var(--ink)':`light-dark(#334155, color-mix(in srgb, ${colors[index%colors.length]} 60%, white))`} strokeWidth={outlines?(active?1.5:1):(active?3:2)} vectorEffect="non-scaling-stroke"/>
+        const fill=outlines?'white':colors[index%colors.length],fillOpacity=outlines?.1:1,stroke=outlines?(active?'var(--accent)':'var(--muted)'):active?'var(--ink)':`light-dark(#334155, color-mix(in srgb, ${colors[index%colors.length]} 60%, white))`,strokeWidth=outlines?(active?1.5:1):(active?3:2);
+        const opacity=stacked?.32*(selected.length&&!active?.5:1):selected.length&&!active?.5:1;
+        return <g key={`${p.partId}:${p.copyIndex}`} data-preparation-copy={!world?p.copyIndex:undefined} aria-hidden={stacked||undefined} opacity={opacity} transform={active?screenTransform(preview):undefined}><g data-part={stacked?undefined:p.partId} data-copy-index={p.copyIndex} pointerEvents={stacked?'none':undefined} transform={`translate(${pos[0]} ${-pos[1]}) scale(1 -1)`}>
+          {stacked?<use href={`#workspace-shape-${index}`} fill={fill} fillOpacity={fillOpacity} stroke={stroke} strokeWidth={strokeWidth} vectorEffect="non-scaling-stroke"/>:<path d={p.path} fillRule="evenodd" fill={fill} fillOpacity={fillOpacity} pointerEvents="all" stroke={stroke} strokeWidth={strokeWidth} vectorEffect="non-scaling-stroke"/>}
           {label&&<text data-copy-count={quantity} x={label.point[0]} y={-label.point[1]} transform="scale(1 -1)" textAnchor="middle" dominantBaseline="central" fontSize={labelSize} fontWeight="650" fill={outlines?'var(--ink)':'#172029'} pointerEvents="none">{copyText}</text>}
-          {active && <rect x={x0} y={y0} width={x1-x0} height={y1-y0} fill="none" stroke="var(--accent)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke"/>}
-          <title>{doc.parts[index]?.name}{world?` · copy ${p.copyIndex+1}`:''}{active?' · selected':''}</title>
+          {active&&!stacked && <rect x={x0} y={y0} width={x1-x0} height={y1-y0} fill="none" stroke="var(--accent)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke"/>}
+          {!stacked&&<title>{doc.parts[index]?.name}{world?` · copy ${p.copyIndex+1}`:''}{active?' · selected':''}</title>}
         </g></g>;
       }),[drawings,selected,preview,moved,outlines,labels,world,doc.parts]);
   return <div className="canvas-wrap">
@@ -178,6 +188,7 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
         setDrag(undefined);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
       onPointerCancel={e=>{touches.current.delete(e.pointerId);if(!touches.current.size)pinch.current=undefined;touchDraw.current=undefined;setDrag(undefined);}}
       onLostPointerCapture={e=>{touches.current.delete(e.pointerId);if(!touches.current.size)pinch.current=undefined;touchDraw.current=undefined;setDrag(undefined);}}>
+      <defs>{partPaths.map((path,index)=><path key={index} id={`workspace-shape-${index}`} d={path} fillRule="evenodd"/>)}</defs>
       {world && <><rect x="0" y={-doc.settings.materialWidthMm} width={result!.usedLengthMm} height={doc.settings.materialWidthMm} fill={outlines?'none':'var(--material-fill)'} stroke="var(--secondary)" vectorEffect="non-scaling-stroke"/>
         <text x="0" y={-doc.settings.materialWidthMm-2} fontSize={camera.w/70} fill="var(--muted)">{(result!.usedLengthMm/unitScale(displayUnit)).toFixed(2)} {displayUnit} × {displayLength(doc.settings.materialWidthMm,displayUnit)} {displayUnit}</text></>}
       {showWidth&&<g className="material-width-band" data-material-width-band={doc.settings.materialWidthMm} pointerEvents="none" aria-hidden="true">
@@ -213,6 +224,6 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
       {coordinates.y.filter(t=>t.major).map(t=>{const y=(-t.mm-coordinates.top)/unit;return y<22?null:<text key={t.value} transform={`translate(10 ${y-3}) rotate(-90)`} data-axis="y" data-value={t.value}>{t.value}</text>;})}
       <rect width="20" height="20"/><text x="10" y="12" textAnchor="middle">{displayUnit}</text>
     </svg>
-    <p className="canvas-hint">{polygon?'Click vertices · Enter to finish · Escape to cancel':view==='prepare'?'Select a part to adjust it. Drag to arrange.':live?'Live search · overlapping areas shown in red.':'Geometry checked against the imported polygons.'} <span>Drag outside the bin to pan · scroll or pinch to zoom</span></p>
+    <p className="canvas-hint">{polygon?'Click vertices · Enter to finish · Escape to cancel':view==='prepare'?<>Select a part to adjust it. Drag to arrange. <span className="preparation-shortcuts"><kbd>R</kbd> rotate 90° · <kbd>+</kbd>/<kbd>−</kbd> copies</span></>:live?'Live search · overlapping areas shown in red.':'Geometry checked against the imported polygons.'} <span>Drag outside the bin to pan · scroll or pinch to zoom</span></p>
   </div>;
 }

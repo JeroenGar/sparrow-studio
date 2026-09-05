@@ -1,6 +1,25 @@
 import type {Point} from '../model';
 import type {GeometryEdit} from './manipulate';
 
+export type PreparationShortcut='rotate'|'increase-quantity'|'decrease-quantity';
+export function preparationShortcut(key:string):PreparationShortcut|undefined {
+  if(key.toLowerCase()==='r')return 'rotate';
+  if(key==='+'||key==='='||key==='Add')return 'increase-quantity';
+  if(key==='-'||key==='_'||key==='Subtract')return 'decrease-quantity';
+}
+export function isEditableTarget(target:EventTarget|null):boolean {
+  if(!(target instanceof HTMLElement))return false;
+  return target.isContentEditable||['INPUT','TEXTAREA','SELECT','OPTION'].includes(target.tagName);
+}
+export function preparationCopyOffset(copyIndex:number,quantity:number,box:[number,number,number,number]):Point {
+  const count=Number.isInteger(quantity)&&quantity>0?quantity:1;
+  if(copyIndex<=0||count<=1)return [0,0];
+  const short=Math.max(0,Math.min(box[2]-box[0],box[3]-box[1]));
+  const span=short*.12;
+  const progress=Math.min(1,Math.max(0,copyIndex/(count-1)));
+  return [-span*progress,-span*progress];
+}
+
 export function snap(value:number,step:number):number {return step>0?Math.round(value/step)*step:value;}
 export function moveDelta(start:Point,current:Point,anchor:Point,grid:number):Point {
   return [snap(anchor[0]+current[0]-start[0],grid)-anchor[0],snap(anchor[1]+current[1]-start[1],grid)-anchor[1]];

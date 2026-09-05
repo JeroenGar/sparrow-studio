@@ -1,5 +1,5 @@
 import {expect,test} from 'vitest';
-import {moveDelta,resizeEdit,rotationEdit,pinchCamera} from '../src/geometry/gestures';
+import {moveDelta,preparationCopyOffset,preparationShortcut,resizeEdit,rotationEdit,pinchCamera} from '../src/geometry/gestures';
 
 test('gesture snapping preserves group spacing, uniform scale and rotation pivot',()=>{
   expect(moveDelta([8,12],[10.2,15.3],[.3,.4],1)).toEqual([2.7,3.6]);
@@ -10,6 +10,19 @@ test('gesture snapping preserves group spacing, uniform scale and rotation pivot
   expect(crossing.kind==='scale'&&crossing.factor).toBeGreaterThan(0);
   expect(rotationEdit([1,0],[0,1],[0,0],15)).toEqual({kind:'rotate',degrees:90,pivot:[0,0]});
   expect(rotationEdit([1,0],[Math.cos(.4),Math.sin(.4)],[0,0],15)).toEqual({kind:'rotate',degrees:30,pivot:[0,0]});
+});
+
+test('preparation copies use a bounded bottom-left stack and plain-key shortcuts',()=>{
+  const offsets=Array.from({length:500},(_,i)=>preparationCopyOffset(i,500,[0,0,10,20]));
+  expect(offsets[0]).toEqual([0,0]);
+  expect(offsets.at(-1)).toEqual([-1.2,-1.2]);
+  expect(offsets.every((offset,i)=>i===0||offset[0]<offsets[i-1][0])).toBe(true);
+  expect(preparationCopyOffset(1,2,[0,0,100,100])[0]).toBe(-12);
+  expect(preparationCopyOffset(499,500,[0,0,1000,2000])[0]).toBeCloseTo(offsets.at(-1)![0]*100);
+  expect(preparationShortcut('R')).toBe('rotate');
+  expect(preparationShortcut('+')).toBe('increase-quantity');
+  expect(preparationShortcut('_')).toBe('decrease-quantity');
+  expect(preparationShortcut('ArrowUp')).toBeUndefined();
 });
 
  test('pinch zoom preserves the touch anchor and pans through letterboxing',()=>{
