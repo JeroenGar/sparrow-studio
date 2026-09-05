@@ -1,5 +1,10 @@
 # Backlog
 
+## Ghost mode during live optimization
+
+- Default to ghost mode while showing Live optimization so collisions are easier to see.
+- Treat this as a temporary view override: restore the previous ghost/normal preference when leaving Live, switching to Checked, or stopping/completing the solve. Do not overwrite the saved display preference.
+
 ## Exact material fit in the native solver — implemented
 
 Fixed zero-range sampling and rectangular material-boundary contact in the vendored native dependencies, without padding the requested dimensions. Quadtree traversal also handles edges collinear with a node bisector. Native checks cover exact fits, out-of-bounds rejection and item collisions; the SVG browser workflow nests a 100 × 60 mm holed part in exactly 60 mm material.
