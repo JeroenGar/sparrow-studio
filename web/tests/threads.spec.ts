@@ -26,7 +26,9 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
     const path = testInfo.outputPath(`threads-${attempt}.json`);
     await (await pending).saveAs(path);
     const diagnostic = JSON.parse(await readFile(path, 'utf8'));
-    expect(diagnostic.buildMode).toMatch(isolated ? /^2 solver threads, no SIMD$/ : /^1 solver thread, no SIMD$/);
+    expect(diagnostic.buildMode).toMatch(isolated ? /^2 solver threads, no SIMD$/ : /^1 solver thread, no SIMD; serial fallback:/);
+    await expect(page.locator('[data-worker-count]')).toHaveAttribute('data-worker-count',isolated?'2':'1');
+    await expect(page.locator('[data-worker-count]')).toContainText('/ 2 requested');
     expect(diagnostic.result.validation.status).toBe('passed');
     expect(diagnostic.result.placements).toHaveLength(12);
   }
@@ -62,6 +64,7 @@ test('failed pool initialization disposes the pool and retries serially', async 
   const path = testInfo.outputPath('fallback.json');
   await (await pending).saveAs(path);
   const diagnostic = JSON.parse(await readFile(path, 'utf8'));
+  await expect(page.locator('[data-worker-count]')).toContainText('1 solver worker / 2 requested · fallback');
   expect(diagnostic.buildMode).toContain('1 solver thread, no SIMD; serial fallback:');
   expect(diagnostic.result.validation.status).toBe('passed');
   } finally { await context.close(); await host.close(); }

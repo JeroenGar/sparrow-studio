@@ -5,7 +5,7 @@ import { worldParts } from '../geometry/validate';
 import { pathData } from '../geometry/path';
 import type {LiveGeometry} from '../geometry/live';
 import {selectionBounds,type GeometryEdit} from '../geometry/manipulate';
-import {moveDelta,resizeEdit,rotationEdit,screenTransform} from '../geometry/gestures';
+import {moveDelta,resizeEdit,rotationEdit,screenTransform,pinchCamera,type Camera} from '../geometry/gestures';
 import {geometryTask} from '../workers/geometryTask';
 import type {LabelPoint} from '../geometry/preparation';
 import {displayLength,unitScale,type DisplayUnit} from '../units';
@@ -24,6 +24,9 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
   polygon?:Point[];onDraw?:(point:Point)=>void;
 }) {
   const svg=useRef<SVGSVGElement>(null),space=useRef(false);
+  const touches=useRef(new Map<number,Point>());
+  const pinch=useRef<{camera:Camera;size:{width:number;height:number};start:[Point,Point]}|undefined>(undefined);
+  const touchDraw=useRef<{pointer:number;screen:Point;world:Point}|undefined>(undefined);
   const [outlines,setOutlines]=useState(false);
   const [labels,setLabels]=useState(new Map<string,LabelPoint>());
   const labelCache=useRef(new Map<string,{outer:Part['outer'];holes:Part['holes'];label:LabelPoint}>());
@@ -65,9 +68,9 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
   }
   useEffect(fit,[view,doc.parts.length,!!world,fitRequest]);
   useEffect(()=>{
-    const down=(e:KeyboardEvent)=>{if(e.key==='Escape')setDrag(undefined);if(e.code==='Space' && e.target===document.body) {space.current=true;e.preventDefault();}};
+    const down=(e:KeyboardEvent)=>{if(e.key==='Escape'){setDrag(undefined);touches.current.clear();pinch.current=undefined;touchDraw.current=undefined;}if(e.code==='Space' && e.target===document.body) {space.current=true;e.preventDefault();}};
     const up=(e:KeyboardEvent)=>{if(e.code==='Space') space.current=false;};
-    const blur=()=>{space.current=false;setDrag(undefined);};
+    const blur=()=>{space.current=false;setDrag(undefined);touches.current.clear();pinch.current=undefined;touchDraw.current=undefined;};
     window.addEventListener('keydown',down);window.addEventListener('keyup',up);window.addEventListener('blur',blur);
     return ()=>{window.removeEventListener('keydown',down);window.removeEventListener('keyup',up);window.removeEventListener('blur',blur);};
   },[]);
@@ -101,6 +104,17 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
     <svg ref={svg} className="workspace-svg" aria-label={view==='prepare'?'Preparation drawing':live?'Live nesting search':'Checked nesting result'} role="img" data-live-sequence={live?.sequence}
       style={{'--camera-unit':`${unit}px`} as CSSProperties} viewBox={`${camera.x} ${camera.y} ${camera.w} ${camera.h}`}
       onPointerDown={e=>{
+        if(e.pointerType==='touch'){
+          if(touches.current.size>=2)return;
+          e.preventDefault();const rect=e.currentTarget.getBoundingClientRect();
+          touches.current.set(e.pointerId,[e.clientX-rect.left,e.clientY-rect.top]);
+          e.currentTarget.setPointerCapture(e.pointerId);
+          if(touches.current.size===2){
+            pinch.current={camera,size,start:[...touches.current.values()] as [Point,Point]};
+            touchDraw.current=undefined;setDrag(undefined);return;
+          }
+          if(pinch.current)return;
+        }
         if((e.button!==0&&e.button!==1)||drag||pending)return;
         const handle=(e.target as Element).closest('[data-handle]')?.getAttribute('data-handle');
         if(handle&&selection&&!disabled&&view==='prepare'&&e.button===0&&!space.current){
@@ -115,7 +129,7 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
         const id=(e.target as Element).closest('[data-part]')?.getAttribute('data-part') ?? undefined;
         const outsideBin=!world||cursor[0]<0||cursor[0]>result!.usedLengthMm||cursor[1]>0||cursor[1]<-doc.settings.materialWidthMm;
         const pan=space.current||e.button===1||(!id&&!polygon&&outsideBin);
-        if(polygon&&!pan) {const p=point(e.clientX,e.clientY);onDraw?.([p[0],-p[1]]);return;}
+        if(polygon&&!pan) {const p=point(e.clientX,e.clientY);if(e.pointerType==='touch')touchDraw.current={pointer:e.pointerId,screen:[e.clientX,e.clientY],world:[p[0],-p[1]]};else onDraw?.([p[0],-p[1]]);return;}
         if(!pan&&e.shiftKey){onSelect(id,true);return;}
         if(!pan&&(!id||!selected.includes(id)))onSelect(id);
         if(pan || (!disabled && view==='prepare' && id)) {
@@ -128,6 +142,15 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
         }
       }}
       onPointerMove={e=>{
+        if(touches.current.has(e.pointerId)){
+          const rect=e.currentTarget.getBoundingClientRect();
+          touches.current.set(e.pointerId,[e.clientX-rect.left,e.clientY-rect.top]);
+          if(pinch.current){
+            if(touches.current.size===2)setCamera(pinchCamera(pinch.current.camera,pinch.current.size,pinch.current.start,[...touches.current.values()] as [Point,Point]));
+            return;
+          }
+          if(touchDraw.current&&Math.hypot(e.clientX-touchDraw.current.screen[0],e.clientY-touchDraw.current.screen[1])>6)touchDraw.current=undefined;
+        }
         if(!drag||e.pointerId!==drag.pointer) return;
         if(drag.transform){
           const p=point(e.clientX,e.clientY),current:Point=[p[0],-p[1]],enabled=snapping&&!e.altKey;
@@ -138,7 +161,14 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
         if(drag.parts.length) setDrag({...drag,delta:moveDelta([drag.start[0],-drag.start[1]],[p[0],-p[1]],drag.anchor,snapping&&!e.altKey?grid:0)});
         else setCamera({...camera,x:camera.x-dx,y:camera.y-dy});
       }}
-      onPointerUp={e=>{if(!drag||e.pointerId!==drag.pointer)return;const edit=drag.transform?.edit;
+      onPointerUp={e=>{
+        touches.current.delete(e.pointerId);
+        if(pinch.current){
+          if(!touches.current.size)pinch.current=undefined;
+          setDrag(undefined);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);return;
+        }
+        if(touchDraw.current?.pointer===e.pointerId){onDraw?.(touchDraw.current.world);touchDraw.current=undefined;}
+        if(!drag||e.pointerId!==drag.pointer)return;const edit=drag.transform?.edit;
         if(drag.backgroundStart&&Math.hypot(e.clientX-drag.backgroundStart[0],e.clientY-drag.backgroundStart[1])<3)onSelect();
         const transformed=edit&&(edit.kind==='scale'?edit.factor!==1:edit.degrees!==0),translated=drag.parts.length&&drag.delta.some(v=>v!==0);
         if(transformed||translated){
@@ -146,7 +176,8 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
           void Promise.resolve(transformed?onTransform(edit):onMove([...moved].map(([id,position])=>({id,position})))).finally(()=>setPending(undefined));
         }
         setDrag(undefined);if(e.currentTarget.hasPointerCapture(e.pointerId))e.currentTarget.releasePointerCapture(e.pointerId);}}
-      onPointerCancel={()=>setDrag(undefined)} onLostPointerCapture={()=>setDrag(undefined)}>
+      onPointerCancel={e=>{touches.current.delete(e.pointerId);if(!touches.current.size)pinch.current=undefined;touchDraw.current=undefined;setDrag(undefined);}}
+      onLostPointerCapture={e=>{touches.current.delete(e.pointerId);if(!touches.current.size)pinch.current=undefined;touchDraw.current=undefined;setDrag(undefined);}}>
       {world && <><rect x="0" y={-doc.settings.materialWidthMm} width={result!.usedLengthMm} height={doc.settings.materialWidthMm} fill={outlines?'none':'var(--material-fill)'} stroke="var(--secondary)" vectorEffect="non-scaling-stroke"/>
         <text x="0" y={-doc.settings.materialWidthMm-2} fontSize={camera.w/70} fill="var(--muted)">{(result!.usedLengthMm/unitScale(displayUnit)).toFixed(2)} {displayUnit} × {displayLength(doc.settings.materialWidthMm,displayUnit)} {displayUnit}</text></>}
       {showWidth&&<g className="material-width-band" data-material-width-band={doc.settings.materialWidthMm} pointerEvents="none" aria-hidden="true">
@@ -182,6 +213,6 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
       {coordinates.y.filter(t=>t.major).map(t=>{const y=(-t.mm-coordinates.top)/unit;return y<22?null:<text key={t.value} transform={`translate(10 ${y-3}) rotate(-90)`} data-axis="y" data-value={t.value}>{t.value}</text>;})}
       <rect width="20" height="20"/><text x="10" y="12" textAnchor="middle">{displayUnit}</text>
     </svg>
-    <p className="canvas-hint">{polygon?'Click vertices · Enter to finish · Escape to cancel':view==='prepare'?'Select a part to adjust it. Drag to arrange.':live?'Live search · overlapping areas shown in red.':'Geometry checked against the imported polygons.'} <span>Drag outside the bin to pan · scroll to zoom</span></p>
+    <p className="canvas-hint">{polygon?'Click vertices · Enter to finish · Escape to cancel':view==='prepare'?'Select a part to adjust it. Drag to arrange.':live?'Live search · overlapping areas shown in red.':'Geometry checked against the imported polygons.'} <span>Drag outside the bin to pan · scroll or pinch to zoom</span></p>
   </div>;
 }

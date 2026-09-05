@@ -29,6 +29,7 @@ for(const limit of ['auto','300','600'])test(`native auto-termination retains a 
   const diagnosticsPath=testInfo.outputPath('diagnostics.json');
   await(await diagnosticsDownload).saveAs(diagnosticsPath);
   const diagnostics=JSON.parse(await readFile(diagnosticsPath,'utf8'));
+  await expect(page.locator('[data-worker-count]')).toHaveAttribute('data-worker-count',diagnostics.buildMode.match(/^(\d+)/)[1]);
   expect(diagnostics.stopReason).toBe('Complete');
   expect(diagnostics.document.settings.timeLimitSeconds).toBe(limit==='auto'?null:Number(limit));
   expect(diagnostics.result.validation.status).toBe('passed');

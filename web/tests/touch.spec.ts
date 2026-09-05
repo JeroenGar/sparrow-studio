@@ -24,3 +24,25 @@ test('vertical touch dragging moves a part without scrolling the page',async({pa
   await expect(part).toHaveAttribute('transform',before!);
   await session.detach();
 });
+
+test('two-finger pinch zooms without moving parts and permits another gesture',async({page,browserName})=>{
+  test.skip(browserName!=='chromium','Uses real multi-touch input through CDP.');
+  await page.goto('/');await workshop(page);
+  const canvas=page.locator('.workspace-svg');
+  await expect(page.locator('[data-copy-count]').first()).toBeVisible();
+  const box=(await canvas.boundingBox())!,x=box.x+box.width/2,y=box.y+box.height/2;
+  const width=async()=>Number((await canvas.getAttribute('viewBox'))!.split(' ')[2]);
+  const before=await width(),parts=await page.locator('[data-part]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('transform')));
+  const session=await page.context().newCDPSession(page);
+  const points=(distance:number)=>[{id:1,x:x-distance,y},{id:2,x:x+distance,y}];
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(30)});
+  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(60)});
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await expect.poll(width).toBeCloseTo(before/2);
+  expect(await page.locator('[data-part]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('transform')))).toEqual(parts);
+  await session.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:points(60)});
+  await session.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:points(30)});
+  await session.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+  await expect.poll(width).toBeCloseTo(before);
+  await session.detach();
+});

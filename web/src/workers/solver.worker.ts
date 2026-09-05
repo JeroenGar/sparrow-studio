@@ -54,5 +54,5 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' }>) => {
     runtime.postMessage({ ...start, threads: count });
   }
   dispose();
-  launch(threads);
+  launch(threads,threads<requested?'Shared memory is unavailable in this browser session.':undefined);
 };

@@ -24,6 +24,7 @@ export function candidateResult(doc:Document,candidate:Candidate,seed:string):Re
 export function useSolver() {
   const [state,setState]=useState<RunState>('Ready'),[result,setResult]=useState<Result>(),[elapsed,setElapsed]=useState(0),[error,setError]=useState('');
   const [live,setLive]=useState<LiveFrame>(),[liveError,setLiveError]=useState('');
+  const [workers,setWorkers]=useState<{actual:number;requested?:number;reason?:string}>();
   const run=useRef<Run|undefined>(undefined),serial=useRef(0);
   const diagnostics=useRef<Diagnostics|undefined>(undefined);
   function clear() {
@@ -72,7 +73,7 @@ export function useSolver() {
     r.checker.postMessage({type:'validate',runId:r.id,documentRevision:r.revision,sequence:candidate.sequence,document:r.doc,result});
   }
   function start(doc:Document,revision:number,threads?:number) {
-    clear();setResult(undefined);setLive(undefined);setLiveError('');setError('');setElapsed(0);setState('Initializing');
+    clear();setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setError('');setElapsed(0);setState('Initializing');
     const id=++serial.current,seed=crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     const solver=new Worker(new URL('./solver.worker.ts',import.meta.url),{type:'module'});
     const checker=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
@@ -104,7 +105,7 @@ export function useSolver() {
     solver.onmessage=({data}:MessageEvent<SolverMessage>)=>{
       if(run.current!==r || !r.solver || data.runId!==r.id || data.documentRevision!==r.revision) return;
       switch(data.type) {
-        case 'ready': r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, no SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
+        case 'ready': setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, no SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
           if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);if(doc.settings.timeLimitSeconds!==null)r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}
           setState('Running');break;
@@ -120,10 +121,10 @@ export function useSolver() {
     solver.onerror=e=>{if(run.current===r && r.solver) end('Error',e.message||'A background worker could not be loaded. Reload the page and try again.');};
     solver.postMessage({type:'start',runId:id,documentRevision:revision,document:doc,seed,threads});
   }
-  function invalidate() {clear();setResult(undefined);setLive(undefined);setLiveError('');setState('Ready');setError('');}
+  function invalidate() {clear();setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setState('Ready');setError('');}
   function load(checked:Result) {
-    clear();setLive(undefined);setLiveError('');setResult(checked);setElapsed(checked.elapsedSeconds);setState('Complete');setError('');
+    clear();setWorkers(undefined);setLive(undefined);setLiveError('');setResult(checked);setElapsed(checked.elapsedSeconds);setState('Complete');setError('');
     diagnostics.current={solverRevision:checked.solverRevision,seed:checked.seed,buildMode:'Loaded project; result rechecked locally',stopReason:'Loaded project',history:[]};
   }
-  return {state,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
+  return {state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
 }

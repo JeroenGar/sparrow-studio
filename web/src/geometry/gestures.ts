@@ -22,3 +22,17 @@ export function screenTransform(edit?:GeometryEdit):string|undefined {
   const [x,y]=edit.pivot;
   return `translate(${x} ${-y}) ${edit.kind==='rotate'?`rotate(${-edit.degrees})`:`scale(${edit.factor})`} translate(${-x} ${y})`;
 }
+
+export type Camera={x:number;y:number;w:number;h:number};
+export function pinchCamera(camera:Camera,size:{width:number;height:number},start:[Point,Point],current:[Point,Point]):Camera {
+  const distance=(points:[Point,Point])=>Math.hypot(points[1][0]-points[0][0],points[1][1]-points[0][1]);
+  const before=distance(start),after=distance(current);
+  if(before===0||after===0)return camera;
+  const factor=Math.max(.01/camera.w,Math.min(1e7/camera.w,before/after));
+  const unit=Math.max(camera.w/size.width,camera.h/size.height);
+  const midpoint:Point=[(start[0][0]+start[1][0])/2,(start[0][1]+start[1][1])/2];
+  const anchor:Point=[camera.x+camera.w/2+(midpoint[0]-size.width/2)*unit,camera.y+camera.h/2+(midpoint[1]-size.height/2)*unit];
+  return {x:anchor[0]+(camera.x-anchor[0])*factor-((current[0][0]+current[1][0])/2-midpoint[0])*unit*factor,
+    y:anchor[1]+(camera.y-anchor[1])*factor-((current[0][1]+current[1][1])/2-midpoint[1])*unit*factor,
+    w:camera.w*factor,h:camera.h*factor};
+}
