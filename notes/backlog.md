@@ -1,6 +1,6 @@
 # Backlog
 
-## Ghost mode during live optimization
+## Ghost mode during live optimization — implemented
 
 - Default to ghost mode while showing Live optimization so collisions are easier to see.
 - Treat this as a temporary view override: restore the previous ghost/normal preference when leaving Live, switching to Checked, or stopping/completing the solve. Do not overwrite the saved display preference.
@@ -73,3 +73,7 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 - Default to gardeyn2; use “sparrow/studio” in visible app branding.
 - Dedicated example-project and light/dark buttons, matching project/save button heights.
 - Transparent, larger nest favicon; quiet canvas pointer focus; larger spinner beside both status lines.
+
+## Nesting viewport — implemented
+
+- Put the origin 10% from the left at solve start and after viewport resizing, preserving zoom and vertical positioning. Subsequent candidates and manual panning do not recenter it.

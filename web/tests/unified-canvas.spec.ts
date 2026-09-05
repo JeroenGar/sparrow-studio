@@ -97,10 +97,11 @@ test('saving and reopening preserves per-copy placement identities and transform
 test('solver completion keeps the same canvas and a manual result edit invalidates export without snapping back',async({page})=>{
   await page.goto('/');await workshop(page);
   await expect.poll(async()=>copies(page).count()).toBe(12);
-  const canvas=page.locator('.workspace-svg'),camera=await canvas.getAttribute('viewBox');
+  const canvas=page.locator('.workspace-svg');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click();
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});
+  const camera=await canvas.getAttribute('viewBox');
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   expect(await canvas.getAttribute('viewBox')).toBe(camera);

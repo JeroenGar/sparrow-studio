@@ -17,18 +17,26 @@ test('live search shows red overlaps and toggles to independently checked output
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible({timeout:20_000});
   await page.waitForFunction(()=>{const seen=(window as unknown as {liveSeen:{frames:Set<string>;overlap:boolean}}).liveSeen;return seen.overlap&&seen.frames.size>=3;},{},{timeout:15_000});
+  const ghost=page.getByRole('button',{name:'👻 mode',exact:true});
+  await expect(ghost).toHaveAttribute('aria-pressed','true');
+  await expect.poll(()=>page.locator('.workspace-svg').evaluate(node=>{
+    const svg=node as SVGSVGElement,box=svg.getBoundingClientRect();
+    return (new DOMPoint(0,0).matrixTransform(svg.getScreenCTM()!).x-box.left)/box.width;
+  })).toBeCloseTo(.1,2);
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('live.png'),fullPage:true});
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click();
   await expect(page.getByRole('img',{name:'Checked nesting result'})).toBeVisible();
+  await expect(ghost).toHaveAttribute('aria-pressed','false');
   await expect(page.locator('[data-overlap]')).toHaveCount(0);
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Live',exact:true}).click();
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible();
-  await page.waitForTimeout(350);
+  await expect(ghost).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('.workspace-svg')).toBeVisible();
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
+  await expect(ghost).toHaveAttribute('aria-pressed','false');
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
   const path=testInfo.outputPath('checked.sparrow-project.json');await(await pending).saveAs(path);
   const saved=JSON.parse(await readFile(path,'utf8'));

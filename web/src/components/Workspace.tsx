@@ -20,8 +20,8 @@ import { colors } from '../colors';
 export { colors } from '../colors';
 
 export default function Workspace({ document: doc, result, live, selected, selectedCopies, onSelect, onSelectCopies, onMove, onTransform,
-  disabled, polygon, onDraw, fitRequest, unit: displayUnit = 'mm', materialWidthFocused = false }: {
-  materialWidthFocused?: boolean; unit?: DisplayUnit; fitRequest: number; document: Document; result?: Result;
+  disabled, optimizing, polygon, onDraw, fitRequest, unit: displayUnit = 'mm', materialWidthFocused = false }: {
+  optimizing: boolean; materialWidthFocused?: boolean; unit?: DisplayUnit; fitRequest: number; document: Document; result?: Result;
   live?: LiveGeometry & { sequence: number }; selected: string[]; selectedCopies: CopyRef[];
   onSelect: (copy?: CopyRef, toggle?: boolean) => void;
   onSelectCopies: (copies: CopyRef[]) => void;
@@ -33,7 +33,11 @@ export default function Workspace({ document: doc, result, live, selected, selec
   const touches = useRef(new Map<number, Point>());
   const pinch = useRef<{ camera: Camera; size: { width: number; height: number }; start: [Point, Point] } | undefined>(undefined);
   const touchDraw = useRef<{ pointer: number; screen: Point; world: Point } | undefined>(undefined);
-  const [outlines, setOutlines] = useState(false);
+  const [normalOutlines, setNormalOutlines] = useState(false), [liveOutlines, setLiveOutlines] = useState(true);
+  const liveGhost = optimizing && !!live;
+  const outlines = liveGhost ? liveOutlines : normalOutlines;
+  const setOutlines = liveGhost ? setLiveOutlines : setNormalOutlines;
+  useEffect(() => { setLiveOutlines(true); }, [liveGhost]);
   const [snapping, setSnapping] = useState(true), [grid, setGrid] = useState(1), [angleStep, setAngleStep] = useState(15);
   const [size, setSize] = useState({ width: 800, height: 500 });
   const [camera, setCamera] = useState<Camera>({ x: -20, y: -120, w: 220, h: 160 });
@@ -76,9 +80,18 @@ export default function Workspace({ document: doc, result, live, selected, selec
     const [x0, y0, x1, y1] = bounds(all), pad = Math.max(x1 - x0, y1 - y0) * .07 + 2;
     setCamera({ x: x0 - pad, y: y0 - pad, w: x1 - x0 + 2 * pad, h: y1 - y0 + 2 * pad });
   }
-  // A solve result and a manual move must not reframe the drawing. Fit is explicit,
+  // Manual moves and candidate updates preserve the camera. Fit is explicit,
   // and a project switch increments fitRequest even when it has the same part count.
   useEffect(fit, [doc.parts.length, fitRequest]);
+  // Align once at solve start / first layout, and after viewport resizing.
+  // Normalize the horizontal viewBox to account for SVG aspect-ratio padding.
+  useEffect(() => {
+    if (!optimizing || !size.width || !size.height) return;
+    setCamera(previous => {
+      const width = Math.max(previous.w / size.width, previous.h / size.height) * size.width;
+      return { ...previous, x: -width * .1, w: width };
+    });
+  }, [optimizing, world, size.width, size.height]);
 
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
