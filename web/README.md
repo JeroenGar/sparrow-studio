@@ -34,7 +34,9 @@ Solver options offer Automatic or 1–3 threads. Automatic reserves one reported
 
 ## Supported work
 
-- Import sparrow instance JSON, closed-contour SVG, the documented planar ASCII DXF subset, and schema-1 `.sparrow-project.json` files. Import is reviewed before changing the drawing.
+- Start with an empty project. The project-name menu groups New, Open, Rename and examples; Save downloads a named `.sparrow-project.json` file, including empty projects. Replacing unsaved work offers Download and continue, Discard, or Cancel. Undo stays within the current project.
+- Import shapes adds sparrow instance JSON, closed-contour SVG and the documented planar ASCII DXF subset without changing the current name or material settings. Import is reviewed before changing the drawing. Saved project files restore a complete job; instance JSON also offers an explicit Open as new project action.
+- Examples can be opened for preparation or opened and nested. Shape-library collections provide reusable ingredients; Command/Control-click toggles selection and Shift-click selects a range for one bulk import.
 - Prepare parts with exact position and proportional size fields, group movement, rotation, drag handles, grid/angle snapping, duplicate/delete, and undo/redo. New/imported parts are arranged compactly without overlap; moving or resizing a part displaces neighbours as needed. Copy counts are placed inside each part, outside its holes.
 - The coordinate grid subdivides as you zoom, with linear top/left rulers in the active units. Part properties open separately from Material & run; click the selected part in the list, click the canvas background, press Escape, or close the inspector to deselect. The orange nesting action stays at the bottom left.
 - Switch between millimetres and inches in About. Display preferences persist; geometry and exports stay in canonical millimetres. Changing units or leaving an unchanged numeric field does not round geometry or invalidate checked results.

@@ -3,18 +3,18 @@ import {readFile} from 'node:fs/promises';
 
 test('DXF layer review, explicit exclusions, real nesting and export round trip',async({page},testInfo)=>{
   await page.goto('/');
-  await page.locator('input[type=file]').setInputFiles('tests/fixtures/plate.dxf');
+  await page.locator('input[type=file]').first().setInputFiles('tests/fixtures/plate.dxf');
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   const dialog=page.getByRole('dialog');
   await expect(dialog).toContainText('1 holes');
   await expect(dialog).toContainText('ambiguous junctions');
-  await expect(page.getByRole('button',{name:'Import parts',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:/^Add \d+ shapes? to project$/})).toBeDisabled();
   await page.getByLabel('Exclude the listed invalid contours').check();
-  await expect(page.getByRole('button',{name:'Import parts',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:/^Add \d+ shapes? to project$/})).toBeEnabled();
   await page.getByLabel('CONSTRUCTION',{exact:true}).uncheck();
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(dialog).not.toContainText('ambiguous junctions');
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
   await page.getByLabel('Run for').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
@@ -27,10 +27,9 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   const path=testInfo.outputPath('plate.dxf');await(await pending).saveAs(path);
   const exported=await readFile(path,'utf8');expect(exported.match(/LWPOLYLINE/g)).toHaveLength(2);
   expect(exported).toContain('$INSUNITS\n70\n4');
-  await page.locator('input[type=file]').setInputFiles(path);
+  await page.locator('input[type=file]').first().setInputFiles(path);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(dialog).toContainText('1 part types · 1 copies · 1 holes');
-  await page.getByLabel('Append to current parts').uncheck();
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
 });

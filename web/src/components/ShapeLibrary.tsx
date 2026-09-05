@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';
+import {useEffect,useRef,useState} from 'react';
 import {DEFAULT_SETTINGS,type Part} from '../model';
 import {bounds} from '../geometry/normalize';
 import {pathData} from '../geometry/path';
@@ -10,12 +10,13 @@ import {unitScale,type DisplayUnit} from '../units';
 import './ShapeLibrary.css';
 
 type Dataset={id:string;file:string;group:string;continuous:boolean};
-export default function ShapeLibrary({selectedParts=[],onAdd,onClose,onExample,unit='mm'}:{unit?:DisplayUnit;selectedParts?:Part[];onAdd:(part:Part)=>void|Promise<void>;onClose:()=>void;onExample?:(text:string,fileName:string)=>void|Promise<void>}) {
+export default function ShapeLibrary({selectedParts=[],onAdd,onClose,unit='mm'}:{unit?:DisplayUnit;selectedParts?:Part[];onAdd:(parts:Part[])=>void|Promise<void>;onClose:()=>void}) {
   const [catalog,setCatalog]=useState<Dataset[]>([]),[source,setSource]=useState('mine');
-  const [mine,setMine]=useState<Part[]>([]),[parts,setParts]=useState<Part[]>([]),[chosen,setChosen]=useState<Part>();
+  const [mine,setMine]=useState<Part[]>([]),[parts,setParts]=useState<Part[]>([]),[selected,setSelected]=useState<Part[]>([]);
+  const anchor=useRef(0);
+  const chosen=selected.length===1?selected[0]:undefined;
   const [busy,setBusy]=useState(false),[loading,setLoading]=useState(true),[valid,setValid]=useState(true);
   const [error,setError]=useState(''),[storageError,setStorageError]=useState(''),[notice,setNotice]=useState('');
-  const [raw,setRaw]=useState<{text:string;fileName:string}>();
   useEffect(()=>{
     let current=true;
     readShapes().then(p=>{if(current)setMine(p);}).catch(e=>{if(current)setStorageError(String(e.message??e));}).finally(()=>{if(current)setLoading(false);});
@@ -23,7 +24,7 @@ export default function ShapeLibrary({selectedParts=[],onAdd,onClose,onExample,u
     return()=>{current=false;};
   },[]);
   useEffect(()=>{
-    let current=true;setChosen(undefined);setRaw(undefined);setError('');setNotice('');
+    let current=true;setSelected([]);anchor.current=0;setError('');setNotice('');
     if(source==='mine'){setParts(mine);return;}
     const dataset=catalog.find(d=>d.id===source);if(!dataset)return;
     setParts([]);setBusy(true);
@@ -32,7 +33,7 @@ export default function ShapeLibrary({selectedParts=[],onAdd,onClose,onExample,u
       if(!response.ok)throw Error(`Could not load ${dataset.id}.`);
       const text=await response.text();
       const reply=await geometryTask({type:'library',runId:0,documentRevision:0,text,fileName:dataset.file});
-      if(current&&reply.type==='normalized'){setParts(reply.document.parts);setRaw({text,fileName:dataset.file});}
+      if(current&&reply.type==='normalized'){setParts(reply.document.parts);}
     })().catch(e=>{if(current)setError(String(e.message??e));}).finally(()=>{if(current)setBusy(false);});
     return()=>{current=false;};
   },[source,mine,catalog]);
@@ -50,7 +51,7 @@ export default function ShapeLibrary({selectedParts=[],onAdd,onClose,onExample,u
     const b=bounds(chosen.outer);if(sizeMm===b[axis+2]-b[axis])return;
     void perform(async()=>{
       const reply=await geometryTask({type:'resize',runId:0,documentRevision:0,document:{name:'Library shape',parts:[chosen],settings:DEFAULT_SETTINGS},partId:chosen.id,axis,sizeMm});
-      if(reply.type==='normalized')setChosen(reply.document.parts[0]);
+      if(reply.type==='normalized')setSelected([reply.document.parts[0]]);
     });
   }
   const blocked=busy||loading;
@@ -64,17 +65,23 @@ export default function ShapeLibrary({selectedParts=[],onAdd,onClose,onExample,u
       {error&&<p role="alert" className="field-error">{error}</p>}
       {(busy||loading)&&<p role="status">Loading shapes…</p>}
       {notice&&<p role="status">{notice}</p>}
+      <p className="library-note">Click to select. ⌘/Ctrl-click toggles shapes; Shift-click selects a range.</p>
       <div className="library-layout"><div className="library-grid" aria-label="Library shapes">
-        {parts.map(p=><button key={p.id} aria-pressed={chosen?.id===p.id} disabled={blocked} onClick={()=>{setChosen(p);setNotice('');}}><Preview part={p}/><span>{p.name}</span></button>)}
-        {!parts.length&&!blocked&&<p>{source==='mine'?'Select shapes in your drawing and save them here, or choose a dataset.':'No shapes in this collection.'}</p>}
+        {parts.map((p,index)=><button key={p.id} aria-pressed={selected.some(part=>part.id===p.id)} disabled={blocked} onClick={e=>{
+          const additive=e.metaKey||e.ctrlKey;
+          if(e.shiftKey){const range=parts.slice(Math.min(anchor.current,index),Math.max(anchor.current,index)+1);setSelected(additive?[...selected,...range.filter(part=>!selected.some(item=>item.id===part.id))]:range);}
+          else{anchor.current=index;setSelected(additive?(selected.some(part=>part.id===p.id)?selected.filter(part=>part.id!==p.id):[...selected,p]):[p]);}
+          setNotice('');
+        }}><Preview part={p}/><span>{p.name}</span></button>)}
+        {!parts.length&&!blocked&&<p>{source==='mine'?'Select shapes in your project and save them here, or choose a dataset.':'No shapes in this collection.'}</p>}
       </div>
-      {chosen&&<div className="library-detail"><h3>{chosen.name}</h3><Preview part={chosen}/><SizeControls unit={unit} key={chosen.id} part={chosen} disabled={blocked} onApply={resize} onValidity={setValid}/>
-        <small>{chosen.holes.length?`${chosen.holes.length} hole${chosen.holes.length===1?'':'s'} · `:''}{chosen.rotations.kind==='continuous'?'Free rotation':`${chosen.rotations.degrees.join('°, ')}°`}</small>
-        <button className="primary" disabled={blocked||!valid} onClick={()=>void perform(async()=>{await onAdd({...chosen,id:crypto.randomUUID(),quantity:1,preparationPosition:[0,0]});setNotice('Shape added to your drawing.');})}>Add to drawing</button>
-        <button disabled={blocked||!valid||!!storageError} onClick={()=>save([chosen])}>Save as new personal shape</button>
-        {source==='mine'&&<button disabled={blocked||!!storageError} onClick={()=>void perform(async()=>{await removeShape(chosen.id);setChosen(undefined);setMine(await readShapes());})}>Remove saved shape</button>}
+      {selected.length>0&&<div className="library-detail"><h3>{chosen?chosen.name:`${selected.length} shapes selected`}</h3>{chosen&&<><Preview part={chosen}/><SizeControls unit={unit} key={chosen.id} part={chosen} disabled={blocked} onApply={resize} onValidity={setValid}/>
+        <small>{chosen.holes.length?`${chosen.holes.length} hole${chosen.holes.length===1?'':'s'} · `:''}{chosen.rotations.kind==='continuous'?'Free rotation':`${chosen.rotations.degrees.join('°, ')}°`}</small></>}
+        <button className="primary" disabled={blocked||!!chosen&&!valid} onClick={()=>void perform(async()=>{await onAdd(selected.map(part=>({...part,id:crypto.randomUUID(),quantity:1,preparationPosition:[0,0]})));setNotice(`${selected.length===1?'Shape':`${selected.length} shapes`} added to your project.`);})}>{chosen?'Add shape to project':`Add ${selected.length} selected shapes to project`}</button>
+        {chosen&&<button disabled={blocked||!valid||!!storageError} onClick={()=>save([chosen])}>Save as new personal shape</button>}
+        {chosen&&source==='mine'&&<button disabled={blocked||!!storageError} onClick={()=>void perform(async()=>{await removeShape(chosen.id);setSelected([]);anchor.current=0;setMine(await readShapes());})}>Remove saved shape</button>}
       </div>}</div>
-      <div className="library-footer">{raw&&onExample&&<button disabled={blocked} onClick={()=>void perform(async()=>{await onExample(raw.text,raw.fileName);})}>Open original benchmark</button>}<button disabled={busy} onClick={onClose}>Done</button></div>
+      <div className="library-footer"><button disabled={busy} onClick={onClose}>Done</button></div>
     </div>
   </Modal>;
 }

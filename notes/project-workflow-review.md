@@ -69,3 +69,11 @@ Acceptance journeys:
 6. My shapes survive project switches; a dataset resize affects only the added copy. Full examples retain original scale and material settings.
 7. Wrong JSON kind, mixed project/drawing drop, unsupported CAD format and invalid import entities produce specific recovery paths without changing the current project.
 8. Every essential command is reachable at 390 px and by keyboard; the project name is visibly editable, and library persistence is not presented as project autosave.
+
+## Implemented follow-up
+
+The project-name menu now groups New, Open, Rename and examples. Save downloads a filename derived from the project name. Empty projects can be saved and reopened. New/Open/example replacement shares an unsaved-work dialog, and switching projects clears undo history. Geometry edits and newly checked results mark the current project as changed.
+
+Draw shape, Import shapes and Shape library live together in the Parts pane. Drawing imports always append, including after a save, while preserving project name and material settings. Instance JSON can explicitly open as a new project; saved projects restore the whole job. Library collections support modifier-based multi-selection and atomic bulk addition. Browser-stored shapes remain separate from project downloads.
+
+Deployment remains deferred until the prototype feature work is complete.

@@ -7,8 +7,11 @@
 .canvas-wrap>.workspace-svg{top:0;height:calc(100% - 24px)}
 .coordinate-rulers{position:absolute;left:0;top:0;width:100%;height:calc(100% - 24px);pointer-events:none;overflow:hidden}
 .coordinate-rulers rect{fill:var(--panel)}
-.coordinate-rulers line{stroke:var(--muted);stroke-width:1}
+.coordinate-rulers path{stroke:var(--muted);stroke-width:1}
 .coordinate-rulers text{fill:var(--muted);font:9px ui-monospace,monospace}
-.coordinate-grid line{stroke:var(--muted);stroke-width:1}
+.coordinate-grid path{stroke:var(--muted);stroke-width:1}
 .coordinate-grid .minor{opacity:.075}.coordinate-grid .major{opacity:.16}.coordinate-grid .origin{opacity:.32}
 .canvas-wrap>.canvas-tools{top:30px;right:12px;filter:drop-shadow(0 2px 5px #0002)}
+
+.material-width-band rect{fill:#f87171;opacity:.08}.material-width-band path{stroke:#f87171;stroke-width:2;fill:none}
+.material-width-outside{fill:var(--page);opacity:.55}

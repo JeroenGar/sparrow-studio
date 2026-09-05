@@ -1,3 +1,4 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { preview } from 'vite';
@@ -8,16 +9,16 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
   const cdp = isolated && testInfo.project.name === 'chromium' ? await browser.newBrowserCDPSession() : undefined;
   const poolCount = async () => cdp ? (await cdp.send('Target.getTargets')).targetInfos.filter(t => t.type === 'worker' && t.url.includes('rayon.worker')).length : 0;
   await page.goto('/');
-  await expect(page.getByRole('button', { name: 'Try example', exact: true })).toBeVisible();
+  await expect(page.locator('.project-menu>summary')).toBeVisible();
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(isolated);
   for (let attempt = 0; attempt < 2; attempt++) {
-    await page.getByRole('button', { name: 'Try example', exact: true }).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+    await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
     await expect(page.getByRole('dialog',{name:'Try an example'})).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Checked ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
     if (cdp) await expect.poll(poolCount).toBeGreaterThan(1);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     if (cdp) await expect.poll(poolCount).toBe(0);
-    await expect(page.getByRole('button', { name: 'Try example', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Save project', exact: true })).toBeEnabled();
     const pending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
     const path = testInfo.outputPath(`threads-${attempt}.json`);
@@ -47,9 +48,9 @@ test('failed pool initialization disposes the pool and retries serially', async 
   const address = host.httpServer.address();
   if (!address || typeof address === 'string') throw new Error('Missing preview port');
   await page.goto(`http://127.0.0.1:${address.port}/`);
-  await page.getByRole('button', { name: 'Try example', exact: true }).waitFor();
+  await page.locator('.project-menu>summary').waitFor();
   expect(await page.evaluate(() => crossOriginIsolated)).toBe(true);
-  await page.getByRole('button', { name: 'Try example', exact: true }).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button', { name: 'Checked ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   const pending = page.waitForEvent('download');

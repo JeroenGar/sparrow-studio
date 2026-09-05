@@ -4,7 +4,7 @@ import {geometryTask} from '../workers/geometryTask';
 import Modal from './Modal';
 
 type Dataset={id:string;file:string;group:string;continuous:boolean;partTypes:number;copies:number};
-export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document)=>void|Promise<void>;onClose:()=>void}) {
+export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document,nest:boolean)=>void|Promise<void>;onClose:()=>void}) {
   const [catalog,setCatalog]=useState<Dataset[]>([]),[selected,setSelected]=useState('workshop');
   const [doc,setDoc]=useState<Document|undefined>(example),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[catalogError,setCatalogError]=useState(''),[warnings,setWarnings]=useState<string[]>([]);
@@ -31,9 +31,9 @@ export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document
     } catch(e){setError(e instanceof Error?e.message:String(e));}
     finally{setBusy(false);}
   }
-  async function run() {
+  async function open(nest=false) {
     if(!doc||busy)return;setBusy(true);
-    try{await onChoose(doc);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
+    try{await onChoose(doc,nest);}catch(e){setError(e instanceof Error?e.message:String(e));}finally{setBusy(false);}
   }
   const dataset=catalog.find(d=>d.id===selected);
   return <Modal title="Try an example" onClose={onClose} locked={busy}>
@@ -41,11 +41,11 @@ export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document
       <option value="workshop">Workshop example</option>
       {['Main','Gardeyn'].map(group=><optgroup key={group} label={group}>{catalog.filter(d=>d.group===group).map(d=><option key={d.id} value={d.id}>{d.id}{d.continuous?' · free rotation':''}</option>)}</optgroup>)}
     </select></label>
-    <p>{dataset?`${dataset.partTypes} shapes · ${dataset.copies} copies`:'4 shapes · 12 copies'} · up to 10 seconds</p>
+    <p>{dataset?`${dataset.partTypes} shapes · ${dataset.copies} copies`:'4 shapes · 12 copies'} · nesting runs for up to 10 seconds</p>
     {busy&&<p role="status">Loading example…</p>}
     {catalogError&&<p role="alert" className="field-error">{catalogError} The workshop example is still available.</p>}
     {error&&<p role="alert" className="field-error">{error}</p>}
     {!!warnings.length&&<ul>{warnings.map(warning=><li key={warning}>{warning}</li>)}</ul>}
-    <div className="modal-actions"><button disabled={busy} onClick={onClose}>Cancel</button><button className="primary" disabled={busy||!doc} onClick={()=>void run()}>Run example</button></div>
+    <div className="modal-actions"><button disabled={busy} onClick={onClose}>Cancel</button><button disabled={busy||!doc} onClick={()=>void open(true)}>Open and nest</button><button className="primary" disabled={busy||!doc} onClick={()=>void open()}>Open example</button></div>
   </Modal>;
 }

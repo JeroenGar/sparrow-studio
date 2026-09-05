@@ -1,3 +1,4 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile,readdir} from 'node:fs/promises';
 
@@ -8,10 +9,10 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   const assets=new Set((await readdir('dist',{recursive:true})).map(path=>`/${path}`));assets.add('/');
   await page.goto('/');
   const source=`<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><path id="${marker}" fill-rule="evenodd" d="M0 0H100V60H0Z M20 20H40V40H20Z"/></svg>`;
-  await page.locator('input[type=file]').setInputFiles({name:`${marker}.svg`,mimeType:'image/svg+xml',buffer:Buffer.from(source)});
+  await page.locator('input[type=file]').first().setInputFiles({name:`${marker}.svg`,mimeType:'image/svg+xml',buffer:Buffer.from(source)});
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByLabel('Run for').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
@@ -28,17 +29,15 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   const diagnosticDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   const diagnostics=testInfo.outputPath('diagnostics.json');await(await diagnosticDownload).saveAs(diagnostics);
   expect(await readFile(diagnostics,'utf8')).toContain(marker);
-  await page.locator('input[type=file]').setInputFiles(testInfo.outputPath(`${marker}.dxf`));
+  await page.locator('input[type=file]').first().setInputFiles(testInfo.outputPath(`${marker}.dxf`));
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
-  await page.getByLabel('Append to current parts').uncheck();
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.locator('input[type=file]').setInputFiles(project);
+  await page.locator('input[type=file]').first().setInputFiles(project);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('Saved result rechecked successfully');
-  await page.getByLabel('Replace my unsaved changes').check();
-  await page.getByRole('button',{name:'Load project',exact:true}).click();
+  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button',{name:'Download DXF',exact:true})).toBeEnabled();
   expect(sockets).toEqual([]);
   expect(requests.length).toBeGreaterThan(0);

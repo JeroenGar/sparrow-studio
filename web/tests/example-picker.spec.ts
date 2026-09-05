@@ -1,3 +1,4 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {importSparrow} from '../src/import/sparrow';
@@ -5,16 +6,16 @@ import {importSparrow} from '../src/import/sparrow';
 test('top-bar examples include every benchmark and keep original dimensions and demand',async({page},testInfo)=>{
   const catalog=JSON.parse(await readFile('public/examples/catalog.json','utf8'));
   await page.goto('/');
-  await page.getByRole('button',{name:'Try example',exact:true}).click();
+  await openExamples(page);
   const dialog=page.getByRole('dialog',{name:'Try an example'}),select=dialog.getByLabel('Dataset');
   await expect(select.locator('option')).toHaveCount(catalog.datasets.length+1);
   await expect(select).toHaveValue('workshop');
   expect(await select.locator('option').evaluateAll(options=>options.map(option=>(option as HTMLOptionElement).value)))
     .toEqual(['workshop',...['Main','Gardeyn'].flatMap(group=>catalog.datasets.filter((d:{group:string})=>d.group===group).map((d:{id:string})=>d.id))]);
   await select.selectOption('gardeyn0_c');
-  await expect(dialog.getByRole('button',{name:'Run example',exact:true})).toBeEnabled();
+  await expect(dialog.getByRole('button',{name:'Open and nest',exact:true})).toBeEnabled();
   await expect(dialog).toContainText('5 shapes · 50 copies');
-  await dialog.getByRole('button',{name:'Run example',exact:true}).click();
+  await dialog.getByRole('button',{name:'Open and nest',exact:true}).click();
   await expect(dialog).toHaveCount(0);
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   const pending=page.waitForEvent('download');

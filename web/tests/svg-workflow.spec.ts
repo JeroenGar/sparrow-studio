@@ -4,10 +4,10 @@ import {readFile} from 'node:fs/promises';
 test('100 mm SVG preserves size and holes through nesting and export',async({page},testInfo)=>{
   const source='<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><path fill-rule="evenodd" d="M0 0H100V60H0Z M20 20H40V40H20Z"/></svg>';
   await page.goto('/');
-  await page.locator('input[type=file]').setInputFiles({name:'plate.svg',mimeType:'image/svg+xml',buffer:Buffer.from(source)});
+  await page.locator('input[type=file]').first().setInputFiles({name:'plate.svg',mimeType:'image/svg+xml',buffer:Buffer.from(source)});
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
   await page.getByLabel('Run for').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
@@ -19,17 +19,16 @@ test('100 mm SVG preserves size and holes through nesting and export',async({pag
   const path=testInfo.outputPath('plate.svg');await(await pending).saveAs(path);
   const exported=await readFile(path,'utf8');
   expect(exported.match(/Z/g)).toHaveLength(2);
-  await page.locator('input[type=file]').setInputFiles(path);
+  await page.locator('input[type=file]').first().setInputFiles(path);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
-  await page.getByLabel('Append to current parts').uncheck();
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
-  await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
+  await expect(page.getByText('100 × 60 mm',{exact:true})).toHaveCount(2);
 });
 
 test('native dialogs, shape creation, proportional sizing, undo and polygon cancellation',async({page})=>{
   await page.goto('/');
-  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.getByRole('button',{name:'Draw shape',exact:true}).click();
   await page.getByRole('dialog').getByLabel('Width, mm').fill('75');
   await page.getByRole('dialog').getByLabel('Height, mm').fill('25');
   await page.getByRole('dialog').getByRole('button',{name:'Add shape',exact:true}).click();
@@ -39,13 +38,13 @@ test('native dialogs, shape creation, proportional sizing, undo and polygon canc
   await expect(page.getByText('150 × 50 mm',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Undo',exact:true}).click();
   await expect(page.getByText('75 × 25 mm',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.getByRole('button',{name:'Draw shape',exact:true}).click();
   await page.getByRole('dialog').getByRole('combobox',{name:'Shape',exact:true}).selectOption('polygon');
   await page.getByRole('button',{name:'Start drawing'}).click();
   const canvas=page.getByRole('img',{name:'Preparation drawing'});
   await canvas.click({position:{x:100,y:100}});await canvas.click({position:{x:180,y:100}});await canvas.click({position:{x:140,y:180}});
   await page.getByRole('button',{name:'Finish polygon'}).click();
   await expect(page.getByRole('button',{name:/Polygon/})).toBeVisible();
-  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.getByRole('button',{name:'Draw shape',exact:true}).click();
   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
 });

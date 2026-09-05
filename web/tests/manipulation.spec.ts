@@ -1,7 +1,8 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
 test('a selected group moves together, preserves a checked result, and undoes as one edit',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await page.goto('/');await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
@@ -26,7 +27,7 @@ test('a selected group moves together, preserves a checked result, and undoes as
 });
 
 test('numeric position, size and rotation preserve geometry and undo restores it',async({page})=>{
-  await page.goto('/');
+  await page.goto('/');await workshop(page);
   await page.locator('.part-select').first().click();
   await page.getByRole('spinbutton',{name:'X, mm',exact:true}).fill('25');
   await page.getByRole('spinbutton',{name:'X, mm',exact:true}).press('Enter');

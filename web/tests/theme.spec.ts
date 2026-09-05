@@ -1,3 +1,4 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
 test('dark is the default; explicit system and light choices persist',async({page})=>{
@@ -23,8 +24,8 @@ test('dark is the default; explicit system and light choices persist',async({pag
 
 test('dark palette and ghost mode remain clear on desktop and mobile',async({page},testInfo)=>{
   await page.goto('/');
-  await page.getByRole('button',{name:'Try example',exact:true}).click();
-  await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await openExamples(page);
+  await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByRole('img',{name:'Checked nesting result'})).toBeVisible();
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();

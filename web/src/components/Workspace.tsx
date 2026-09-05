@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Document, Part, Point, Result } from '../model';
 import { bounds } from '../geometry/normalize';
 import { worldParts } from '../geometry/validate';
@@ -15,8 +15,8 @@ import {coordinateGrid} from '../geometry/grid';
 type Gesture={backgroundStart?:Point;pointer:number;start:Point;parts:{id:string;position:Point}[];delta:Point;anchor:Point;transform?:{kind:'scale'|'rotate';pivot:Point;edit?:GeometryEdit}};
 
 export const colors=['#fb923c','#f472b6','#a78bfa','#38bdf8','#facc15','#34d399'];
-export default function Workspace({document:doc,result,live,view,selected,onSelect,onMove,onTransform,disabled,polygon,onDraw,fitRequest,unit:displayUnit='mm'}: {
-  unit?:DisplayUnit;fitRequest:number;document:Document;result?:Result;view:'prepare'|'result';selected:string[];
+export default function Workspace({document:doc,result,live,view,selected,onSelect,onMove,onTransform,disabled,polygon,onDraw,fitRequest,unit:displayUnit='mm',materialWidthFocused=false}: {
+  materialWidthFocused?:boolean;unit?:DisplayUnit;fitRequest:number;document:Document;result?:Result;view:'prepare'|'result';selected:string[];
   live?:LiveGeometry & {sequence:number};
   onSelect:(id?:string,toggle?:boolean)=>void;onMove:(positions:{id:string;position:Point}[])=>void|Promise<void>;disabled:boolean;
   onTransform:(edit:GeometryEdit)=>void|Promise<void>;
@@ -46,11 +46,15 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
   const displayedDrag=drag??pending;
   const selection=selectionBounds(doc,selected),unit=Math.max(camera.w/size.width,camera.h/size.height);
   const coordinates=coordinateGrid(camera,size.width,size.height,unitScale(displayUnit));
+  const showWidth=materialWidthFocused&&Number.isFinite(doc.settings.materialWidthMm)&&doc.settings.materialWidthMm>0;
   const preview=displayedDrag?.transform?.edit,hit=(size.width<700?22:11)*unit;
   useEffect(()=>{const observer=new ResizeObserver(([entry])=>setSize({width:entry.contentRect.width,height:entry.contentRect.height}));observer.observe(svg.current!);return()=>observer.disconnect();},[]);
-  const moved=new Map(displayedDrag?.parts.map(p=>[p.id,[p.position[0]+displayedDrag.delta[0],p.position[1]+displayedDrag.delta[1]] as Point]));
-  const world=view==='result'&&result?(live?.world??worldParts(doc,result)):undefined;
-  const drawings=world?.map(p=>({...p,position:[0,0] as Point})) ?? doc.parts.map(p=>({...p,partId:p.id,copyIndex:0,position:p.preparationPosition}));
+  const moved=useMemo(()=>new Map(displayedDrag?.parts.map(p=>[p.id,[p.position[0]+displayedDrag.delta[0],p.position[1]+displayedDrag.delta[1]] as Point])),[displayedDrag]);
+  const world=useMemo(()=>view==='result'&&result?(live?.world??worldParts(doc,result)):undefined,[view,result,live?.world,doc]);
+  const drawings=useMemo(()=>{
+    const parts=world?.map(p=>({...p,position:[0,0] as Point})) ?? doc.parts.map(p=>({...p,partId:p.id,copyIndex:0,position:p.preparationPosition}));
+    return parts.map(p=>({...p,index:doc.parts.findIndex(part=>part.id===p.partId),path:pathData([p.outer,...p.holes]),box:bounds(p.outer)}));
+  },[world,doc.parts]);
   function fit() {
     const all=drawings.flatMap(p=>p.outer.map(([x,y])=>[x+p.position[0],-y-p.position[1]] as Point));
     if(world) all.push([0,0],[result!.usedLengthMm,-doc.settings.materialWidthMm]);
@@ -70,18 +74,31 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
     const p=new DOMPoint(x,y).matrixTransform(svg.current!.getScreenCTM()!.inverse());return [p.x,p.y];
   }
   function zoom(factor:number,at:Point=[camera.x+camera.w/2,camera.y+camera.h/2]) {
-    if(camera.w*factor<0.01 || camera.w*factor>1e7) return;
-    setCamera({x:at[0]+(camera.x-at[0])*factor,y:at[1]+(camera.y-at[1])*factor,w:camera.w*factor,h:camera.h*factor});
+    const fx=(at[0]-camera.x)/camera.w,fy=(at[1]-camera.y)/camera.h;
+    setCamera(previous=>previous.w*factor<0.01||previous.w*factor>1e7?previous:({x:previous.x+fx*previous.w*(1-factor),y:previous.y+fy*previous.h*(1-factor),w:previous.w*factor,h:previous.h*factor}));
   }
   useEffect(()=>{
     const element=svg.current!;
     const wheel=(e:WheelEvent)=>{e.preventDefault();zoom(Math.exp(Math.max(-1,Math.min(1,e.deltaY/500))),point(e.clientX,e.clientY));};
     element.addEventListener('wheel',wheel,{passive:false});return ()=>element.removeEventListener('wheel',wheel);
   },[camera]);
+  const shapes=useMemo(()=>drawings.map(p=>{
+        const index=p.index,active=selected.includes(p.partId);
+        const pos=moved.get(p.partId)??p.position;
+        const [x0,y0,x1,y1]=p.box,label=!world?labels.get(p.partId):undefined;
+        const quantity=doc.parts[index]?.quantity,copyText=Number.isInteger(quantity)&&quantity>0?`×${quantity}`:'—';
+        const labelSize=label?`min(calc(var(--camera-unit) * 14), ${label.radius>0?label.radius*1.4/Math.max(1,copyText.length*.55):1e9}px)`:0;
+        return <g key={`${p.partId}:${p.copyIndex}`} opacity={selected.length&&!active?0.5:1} transform={active?screenTransform(preview):undefined}><g data-part={p.partId} transform={`translate(${pos[0]} ${-pos[1]}) scale(1 -1)`}>
+          <path d={p.path} fillRule="evenodd" fill={outlines?'white':colors[index%colors.length]} fillOpacity={outlines ? 0.1 : 1} pointerEvents="all" stroke={outlines?(active?'var(--accent)':'var(--muted)'):active?'var(--ink)':`color-mix(in srgb, ${colors[index%colors.length]} 60%, white)`} strokeWidth={outlines?(active?1.5:1):(active?3:2)} vectorEffect="non-scaling-stroke"/>
+          {label&&<text data-copy-count={quantity} x={label.point[0]} y={-label.point[1]} transform="scale(1 -1)" textAnchor="middle" dominantBaseline="central" fontSize={labelSize} fontWeight="650" fill={outlines?'var(--ink)':'#172029'} pointerEvents="none">{copyText}</text>}
+          {active && <rect x={x0} y={y0} width={x1-x0} height={y1-y0} fill="none" stroke="var(--accent)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke"/>}
+          <title>{doc.parts[index]?.name}{world?` · copy ${p.copyIndex+1}`:''}{active?' · selected':''}</title>
+        </g></g>;
+      }),[drawings,selected,preview,moved,outlines,labels,world,doc.parts]);
   return <div className="canvas-wrap">
     <div className="canvas-tools">{view==='prepare'&&<details className="cad-snapping"><summary>Snap{snapping?' on':' off'}</summary><div><label className="checkbox"><input type="checkbox" checked={snapping} onChange={e=>setSnapping(e.target.checked)}/>Enable snapping</label><label>Grid, {displayUnit}<select value={grid} onChange={e=>setGrid(Number(e.target.value))}>{[.1,1,5,10].map(v=><option key={v} value={v}>{displayLength(v,displayUnit)}</option>)}</select></label><label>Angle step<select value={angleStep} onChange={e=>setAngleStep(Number(e.target.value))}>{[1,5,15,45,90].map(v=><option key={v} value={v}>{v}°</option>)}</select></label><small>Hold Alt to bypass. Numeric fields stay exact.</small></div></details>}<button aria-pressed={outlines} title="Show outlines with a faint fill" onClick={()=>setOutlines(!outlines)}>👻 mode</button><button onClick={fit}>Fit</button><button aria-label="Zoom out" onClick={()=>zoom(1.25)}>−</button><button aria-label="Zoom in" onClick={()=>zoom(.8)}>+</button></div>
     <svg ref={svg} className="workspace-svg" aria-label={view==='prepare'?'Preparation drawing':live?'Live nesting search':'Checked nesting result'} role="img" data-live-sequence={live?.sequence}
-      viewBox={`${camera.x} ${camera.y} ${camera.w} ${camera.h}`}
+      style={{'--camera-unit':`${unit}px`} as CSSProperties} viewBox={`${camera.x} ${camera.y} ${camera.w} ${camera.h}`}
       onPointerDown={e=>{
         if((e.button!==0&&e.button!==1)||drag||pending)return;
         const handle=(e.target as Element).closest('[data-handle]')?.getAttribute('data-handle');
@@ -131,23 +148,21 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
       onPointerCancel={()=>setDrag(undefined)} onLostPointerCapture={()=>setDrag(undefined)}>
       {world && <><rect x="0" y={-doc.settings.materialWidthMm} width={result!.usedLengthMm} height={doc.settings.materialWidthMm} fill={outlines?'none':'var(--material-fill)'} stroke="var(--secondary)" vectorEffect="non-scaling-stroke"/>
         <text x="0" y={-doc.settings.materialWidthMm-2} fontSize={camera.w/70} fill="var(--muted)">{(result!.usedLengthMm/unitScale(displayUnit)).toFixed(2)} {displayUnit} × {displayLength(doc.settings.materialWidthMm,displayUnit)} {displayUnit}</text></>}
+      {showWidth&&<g className="material-width-band" data-material-width-band={doc.settings.materialWidthMm} pointerEvents="none" aria-hidden="true">
+        <rect x={coordinates.left} y={-doc.settings.materialWidthMm} width={size.width*unit} height={doc.settings.materialWidthMm}/>
+        <path d={`M${coordinates.left},0h${size.width*unit}M${coordinates.left},${-doc.settings.materialWidthMm}h${size.width*unit}`} vectorEffect="non-scaling-stroke"/>
+      </g>}
       <g className="coordinate-grid" aria-hidden="true" pointerEvents="none" data-grid-step={coordinates.major}>
-        {coordinates.x.map(t=><line key={`x${t.value}`} x1={t.mm} x2={t.mm} y1={coordinates.top} y2={coordinates.top+size.height*unit} className={t.value===0?'origin':t.major?'major':'minor'} vectorEffect="non-scaling-stroke"/>)}
-        {coordinates.y.map(t=><line key={`y${t.value}`} y1={-t.mm} y2={-t.mm} x1={coordinates.left} x2={coordinates.left+size.width*unit} className={t.value===0?'origin':t.major?'major':'minor'} vectorEffect="non-scaling-stroke"/>)}
+        {(['minor','major','origin'] as const).map(kind=><path key={kind} className={kind} fill="none" vectorEffect="non-scaling-stroke" d={[
+          ...coordinates.x.filter(t=>(t.value===0?'origin':t.major?'major':'minor')===kind).map(t=>`M${t.mm},${coordinates.top}v${size.height*unit}`),
+          ...coordinates.y.filter(t=>(t.value===0?'origin':t.major?'major':'minor')===kind).map(t=>`M${coordinates.left},${-t.mm}h${size.width*unit}`),
+        ].join(' ')}/>)}
       </g>
-      {drawings.map(p=>{
-        const index=doc.parts.findIndex(part=>part.id===p.partId),active=selected.includes(p.partId);
-        const pos=moved.get(p.partId)??p.position;
-        const [x0,y0,x1,y1]=bounds(p.outer),label=!world?labels.get(p.partId):undefined;
-        const quantity=doc.parts[index]?.quantity,copyText=Number.isInteger(quantity)&&quantity>0?`×${quantity}`:'—';
-        const labelSize=label?Math.min(14*unit,label.radius>0?label.radius*1.4/Math.max(1,copyText.length*.55):14*unit):0;
-        return <g key={`${p.partId}:${p.copyIndex}`} opacity={selected.length&&!active?0.5:1} transform={active?screenTransform(preview):undefined}><g data-part={p.partId} transform={`translate(${pos[0]} ${-pos[1]}) scale(1 -1)`}>
-          <path d={pathData([p.outer,...p.holes])} fillRule="evenodd" fill={outlines?'white':colors[index%colors.length]} fillOpacity={outlines ? 0.1 : 1} pointerEvents="all" stroke={outlines?(active?'var(--accent)':'var(--muted)'):active?'var(--ink)':`color-mix(in srgb, ${colors[index%colors.length]} 60%, white)`} strokeWidth={outlines?(active?1.5:1):(active?3:2)} vectorEffect="non-scaling-stroke"/>
-          {label&&<text data-copy-count={quantity} x={label.point[0]} y={-label.point[1]} transform="scale(1 -1)" textAnchor="middle" dominantBaseline="central" fontSize={labelSize} fontWeight="650" fill={outlines?'var(--ink)':'#172029'} pointerEvents="none">{copyText}</text>}
-          {active && <rect x={x0} y={y0} width={x1-x0} height={y1-y0} fill="none" stroke="var(--accent)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke"/>}
-          <title>{doc.parts[index]?.name}{world?` · copy ${p.copyIndex+1}`:''}{active?' · selected':''}</title>
-        </g></g>;
-      })}
+      {shapes}
+      {showWidth&&<g className="material-width-outside" pointerEvents="none" aria-hidden="true">
+        <rect x={coordinates.left} y={coordinates.top} width={size.width*unit} height={Math.max(0,-doc.settings.materialWidthMm-coordinates.top)}/>
+        <rect x={coordinates.left} y="0" width={size.width*unit} height={Math.max(0,coordinates.top+size.height*unit)}/>
+      </g>}
       {!world&&!disabled&&!polygon&&selection&&<g transform={screenTransform(preview)} className="cad-handles">
         <rect x={selection[0]+(drag?.parts.length?drag.delta[0]:0)} y={-selection[3]-(drag?.parts.length?drag.delta[1]:0)} width={selection[2]-selection[0]} height={selection[3]-selection[1]} fill="none" stroke="var(--accent)" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" pointerEvents="none"/>
         {!drag?.parts.length&&<>{(['sw','se','nw','ne'] as const).map(corner=>{const x=corner.includes('e')?selection[2]:selection[0],y=-(corner.includes('n')?selection[3]:selection[1]);return <g key={corner} data-handle={corner} style={{cursor:corner==='ne'||corner==='sw'?'nesw-resize':'nwse-resize'}}><rect x={x-hit} y={y-hit} width={2*hit} height={2*hit} fill="transparent"/><rect x={x-4*unit} y={y-4*unit} width={8*unit} height={8*unit} fill="var(--panel)" stroke="var(--accent)" vectorEffect="non-scaling-stroke"/><title>Resize {corner} corner</title></g>;})}
@@ -158,8 +173,12 @@ export default function Workspace({document:doc,result,live,view,selected,onSele
     </svg>
     <svg className="coordinate-rulers" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" aria-label={`Coordinate rulers, ${displayUnit}`} role="img">
       <rect x="0" y="0" width={size.width} height="20"/><rect x="0" y="0" width="20" height={size.height}/>
-      {coordinates.x.map(t=>{const x=(t.mm-coordinates.left)/unit;return x<22?null:<g key={t.value}><line x1={x} x2={x} y1={t.major?14:17} y2="20"/>{t.major&&<text x={x+3} y="10" data-axis="x" data-value={t.value}>{t.value}</text>}</g>;})}
-      {coordinates.y.map(t=>{const y=(-t.mm-coordinates.top)/unit;return y<22?null:<g key={t.value}><line x1={t.major?14:17} x2="20" y1={y} y2={y}/>{t.major&&<text transform={`translate(10 ${y-3}) rotate(-90)`} data-axis="y" data-value={t.value}>{t.value}</text>}</g>;})}
+      <path fill="none" d={[
+        ...coordinates.x.map(t=>{const x=(t.mm-coordinates.left)/unit;return x<22?'':`M${x},${t.major?14:17}V20`;}),
+        ...coordinates.y.map(t=>{const y=(-t.mm-coordinates.top)/unit;return y<22?'':`M${t.major?14:17},${y}H20`;}),
+      ].join(' ')}/>
+      {coordinates.x.filter(t=>t.major).map(t=>{const x=(t.mm-coordinates.left)/unit;return x<22?null:<text key={t.value} x={x+3} y="10" data-axis="x" data-value={t.value}>{t.value}</text>;})}
+      {coordinates.y.filter(t=>t.major).map(t=>{const y=(-t.mm-coordinates.top)/unit;return y<22?null:<text key={t.value} transform={`translate(10 ${y-3}) rotate(-90)`} data-axis="y" data-value={t.value}>{t.value}</text>;})}
       <rect width="20" height="20"/><text x="10" y="12" textAnchor="middle">{displayUnit}</text>
     </svg>
     <p className="canvas-hint">{polygon?'Click vertices · Enter to finish · Escape to cancel':view==='prepare'?'Select a part to adjust it. Drag to arrange.':live?'Live search · overlapping areas shown in red.':'Geometry checked against the imported polygons.'} <span>Drag outside the bin to pan · scroll to zoom</span></p>

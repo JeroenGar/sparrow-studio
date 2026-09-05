@@ -1,9 +1,10 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
 test('live search shows red overlaps and toggles to independently checked output',async({page},testInfo)=>{
   await page.goto('/');
-  await expect(page.getByRole('button',{name:'Try example',exact:true})).toBeVisible();
+  await expect(page.locator('.project-menu>summary')).toBeVisible();
   await page.evaluate(()=>{
     const seen={frames:new Set<string>(),overlap:false};
     Object.assign(window,{liveSeen:seen});
@@ -13,7 +14,7 @@ test('live search shows red overlaps and toggles to independently checked output
       if(document.querySelector('[data-overlap]'))seen.overlap=true;
     }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['data-live-sequence']});
   });
-  await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible({timeout:20_000});
   await page.waitForFunction(()=>{const seen=(window as unknown as {liveSeen:{frames:Set<string>;overlap:boolean}}).liveSeen;return seen.overlap&&seen.frames.size>=3;},{},{timeout:15_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);

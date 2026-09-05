@@ -1,9 +1,10 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
 test('dragging outside the bin pans without Space and preserves the checked layout',async({page})=>{
   await page.goto('/');
-  await page.getByRole('button',{name:'Try example',exact:true}).click();
-  await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await openExamples(page);
+  await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   const svg=page.getByRole('img',{name:'Checked nesting result'});
   const before=await svg.getAttribute('viewBox');

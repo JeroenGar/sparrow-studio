@@ -1,3 +1,4 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect,type Page} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import type {Project} from '../src/model';
@@ -8,7 +9,7 @@ async function project(page:Page):Promise<Project> {
 }
 
 test('inch display preserves checked millimetre geometry, converts edits, and persists',async({page})=>{
-  await page.goto('/');await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await page.goto('/');await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   const before=await project(page);expect(before.result?.validation.status).toBe('passed');
@@ -31,14 +32,14 @@ test('inch display preserves checked millimetre geometry, converts edits, and pe
   await expect(library.getByRole('spinbutton',{name:'Width, in',exact:true})).toHaveValue('1.41732283');
   await library.getByRole('spinbutton',{name:'Width, in',exact:true}).fill('2');await library.getByRole('spinbutton',{name:'Width, in',exact:true}).press('Enter');
   await expect(library.getByRole('spinbutton',{name:'Width, in',exact:true})).toHaveValue('2');
-  await library.getByRole('button',{name:'Add to drawing',exact:true}).click();await expect(library.getByText('Shape added to your drawing.',{exact:true})).toBeVisible();
+  await library.getByRole('button',{name:'Add shape to project',exact:true}).click();await expect(library.getByText('Shape added to your project.',{exact:true})).toBeVisible();
   await library.getByRole('button',{name:'Done',exact:true}).click();
   const resized=await project(page),part=resized.parts.at(-1)!;
   expect(Math.max(...part.outer.map(p=>p[0]))-Math.min(...part.outer.map(p=>p[0]))).toBeCloseTo(50.8,10);
   expect(resized.parts.slice(0,-1).map(p=>p.outer)).toEqual(before.parts.map(p=>p.outer));
-  await page.getByRole('button',{name:'Add shape',exact:true}).click();const shape=page.getByRole('dialog',{name:'Add shape',exact:true});
+  await page.getByRole('button',{name:'Draw shape',exact:true}).click();const shape=page.getByRole('dialog',{name:'Add shape',exact:true});
   await shape.getByRole('spinbutton',{name:'Width, in',exact:true}).fill('2');await shape.getByRole('spinbutton',{name:'Height, in',exact:true}).fill('1');
   await shape.getByRole('button',{name:'Add shape',exact:true}).click();await expect(shape).toHaveCount(0);
   const created=await project(page);expect(created.parts.at(-1)!.outer).toEqual([[0,0],[50.8,0],[50.8,25.4],[0,25.4]]);
-  await page.reload();await page.locator('.part-select').first().click();await expect(page.getByRole('spinbutton',{name:'Width, in',exact:true})).toHaveValue('1.41732283');
+  await page.reload();await workshop(page);await page.locator('.part-select').first().click();await expect(page.getByRole('spinbutton',{name:'Width, in',exact:true})).toHaveValue('1.41732283');
 });

@@ -25,3 +25,11 @@ it('rejects unknown versions and malformed documents, and saves without a result
   expect(importProject(exportProject(p,9)).result).toBeUndefined();
   expect(()=>exportProject(p,10,p.result)).toThrow('older document');
 });
+
+it('saves and opens an empty project while rejecting an empty layout',()=>{
+  const p={...project(),parts:[]};
+  expect(importProject(exportProject(p,9)).document.parts).toEqual([]);
+  expect(()=>exportProject(p,9,p.result)).toThrow('Empty projects');
+  expect(importProject(JSON.stringify(p)).warnings[0]).toContain('Empty projects');
+  expect(()=>exportProject({...p,settings:{...p.settings,materialWidthMm:0}},9)).toThrow();
+});

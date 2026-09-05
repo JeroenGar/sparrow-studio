@@ -1,10 +1,11 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect,type Page} from '@playwright/test';
 
 async function screen(page:Page,x:number,y:number) {
   return page.locator('.workspace-svg').evaluate((svg,p)=>{const point=new DOMPoint(p.x,-p.y).matrixTransform((svg as SVGSVGElement).getScreenCTM()!);return {x:point.x,y:point.y};},{x,y});
 }
 test('corner and rotation gestures preview, commit once, and cancel without changing geometry',async({page},testInfo)=>{
-  await page.goto('/');await page.locator('.part-select').first().click();
+  await page.goto('/');await workshop(page);await page.locator('.part-select').first().click();
   const width=page.getByRole('spinbutton',{name:'Width, mm',exact:true}),height=page.getByRole('spinbutton',{name:'Height, mm',exact:true});
   const start=await screen(page,36,38),end=await screen(page,72,76);
   await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:5});
@@ -29,7 +30,7 @@ test('corner and rotation gestures preview, commit once, and cancel without chan
 });
 
 test('grid snaps a selected group anchor and Alt bypasses it',async({page})=>{
-  await page.goto('/');await page.locator('.part-select').first().click();await page.locator('.part-select').nth(1).click({modifiers:['Shift']});
+  await page.goto('/');await workshop(page);await page.locator('.part-select').first().click();await page.locator('.part-select').nth(1).click({modifiers:['Shift']});
   await page.locator('.cad-snapping summary').click();await page.getByRole('combobox',{name:'Grid, mm',exact:true}).selectOption('5');await page.locator('.cad-snapping summary').click();
   const start=await screen(page,6,20),end=await screen(page,9.2,24.1);
   await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:5});await page.mouse.up();

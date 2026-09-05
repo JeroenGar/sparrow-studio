@@ -71,8 +71,8 @@ export function scalePart(part:Part,factor:number):Part {
   const scale=(ring:Ring):Ring=>ring.map(([x,y])=>[x*factor,y*factor]);
   return normalizePart({...part,outer:scale(part.outer),holes:part.holes.map(scale),approximationToleranceMm:part.approximationToleranceMm*factor});
 }
-export function normalizeDocument(doc: Document): Document {
-  if (typeof doc.name !== 'string' || !Array.isArray(doc.parts) || !doc.parts.length || doc.parts.length > 500) throw Error('Project needs 1–500 part types.');
+export function normalizeDocument(doc: Document, allowEmpty=false): Document {
+  if (typeof doc.name !== 'string' || !doc.name.trim() || !Array.isArray(doc.parts) || (!allowEmpty&&!doc.parts.length) || doc.parts.length > 500) throw Error('Project needs 1–500 part types.');
   const s = doc.settings;
   if (!s || !Number.isFinite(s.materialWidthMm) || s.materialWidthMm <= 0 || s.materialWidthMm > LIMITS.extent || !Number.isFinite(s.clearanceMm) || s.clearanceMm < 0 || s.clearanceMm >= s.materialWidthMm || ![10,30,60,120].includes(s.timeLimitSeconds)) throw Error('Invalid material width, clearance, or run duration.');
   const parts = doc.parts.map(normalizePart);

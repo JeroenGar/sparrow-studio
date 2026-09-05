@@ -1,9 +1,10 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
 test.use({viewport:{width:390,height:844},hasTouch:true});
 test('vertical touch dragging moves a part without scrolling the page',async({page,browserName})=>{
   test.skip(browserName!=='chromium','Uses Chromium touch input to exercise browser gesture arbitration.');
-  await page.goto('/');
+  await page.goto('/');await workshop(page);
   const part=page.locator('[data-part]').nth(3);
   await expect(part.locator('[data-copy-count]')).toBeVisible();
   const before=await part.getAttribute('transform');

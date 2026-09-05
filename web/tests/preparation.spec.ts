@@ -1,3 +1,4 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect,type Page} from '@playwright/test';
 
 const drawing=(page:Page)=>page.getByRole('img',{name:'Preparation drawing'});
@@ -24,11 +25,11 @@ async function labelsInside(page:Page,count:number) {
 
 test('preparation labels stay inside holes and concavities, update counts, and remain visible in ghost mode',async({page},testInfo)=>{
   await page.addInitScript(`window.labelRequests=0;const send=Worker.prototype.postMessage;Worker.prototype.postMessage=function(message,...args){if(message?.type==='label-points')window.labelRequests++;return send.call(this,message,...args);};`);
-  await page.goto('/');await labelsInside(page,4);await separated(page);
-  await page.locator('input[type=file]').setInputFiles({name:'label-parts.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50"><path fill-rule="evenodd" d="M0 0H40V40H0Z M8 8H32V32H8Z"/><path d="M50 0H90V8H58V40H50Z"/></svg>')});
+  await page.goto('/');await workshop(page);await labelsInside(page,4);await separated(page);
+  await page.locator('input[type=file]').first().setInputFiles({name:'label-parts.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50"><path fill-rule="evenodd" d="M0 0H40V40H0Z M8 8H32V32H8Z"/><path d="M50 0H90V8H58V40H50Z"/></svg>')});
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
-  await labelsInside(page,2);await separated(page);
+  await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
+  await labelsInside(page,6);await separated(page);
   const requests=await page.evaluate(()=>Reflect.get(window,'labelRequests'));
   await page.locator('.parts-list input[type=number]').first().fill('0');
   await expect(page.getByRole('alert')).toContainText('Enter a whole number from 1 to 500.');
@@ -43,14 +44,14 @@ test('preparation labels stay inside holes and concavities, update counts, and r
   expect(rendered.every(n=>n.size>0&&n.rect.width>0&&n.rect.height>0)).toBe(true);
   await page.screenshot({path:testInfo.outputPath('preparation-ghost-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Settings',exact:true}).click();
-  await page.getByRole('button',{name:'Fit',exact:true}).click();await labelsInside(page,2);
+  await page.getByRole('button',{name:'Fit',exact:true}).click();await labelsInside(page,6);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({path:testInfo.outputPath('preparation-ghost-mobile.png'),fullPage:true});
 });
 
 test('new, duplicated, and library parts are separated from the existing drawing',async({page})=>{
-  await page.goto('/');await labelsInside(page,4);
-  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.goto('/');await workshop(page);await labelsInside(page,4);
+  await page.getByRole('button',{name:'Draw shape',exact:true}).click();
   await page.getByRole('dialog').getByRole('button',{name:'Add shape',exact:true}).click();
   await labelsInside(page,5);await separated(page);
   await page.getByRole('button',{name:'Duplicate',exact:true}).click();
@@ -59,14 +60,14 @@ test('new, duplicated, and library parts are separated from the existing drawing
   const dialog=page.getByRole('dialog',{name:'Shape library',exact:true});
   await dialog.getByRole('combobox',{name:'Collection',exact:true}).selectOption('albano');
   await dialog.locator('.library-grid button').first().click();
-  await dialog.getByRole('button',{name:'Add to drawing',exact:true}).click();
-  await expect(dialog.getByText('Shape added to your drawing.',{exact:true})).toBeVisible();
+  await dialog.getByRole('button',{name:'Add shape to project',exact:true}).click();
+  await expect(dialog.getByText('Shape added to your project.',{exact:true})).toBeVisible();
   await dialog.getByRole('button',{name:'Done',exact:true}).click();
   await labelsInside(page,7);await separated(page);
 });
 
 test('dragging onto a part preserves the dragged position, nudges its neighbour, and undoes both together',async({page})=>{
-  await page.goto('/');await labelsInside(page,4);
+  await page.goto('/');await workshop(page);await labelsInside(page,4);
   await page.locator('.cad-snapping summary').click();await page.getByLabel('Enable snapping',{exact:true}).uncheck();await page.locator('.cad-snapping summary').click();
   const before=await state(page),points=await drawing(page).locator('g[data-part]').evaluateAll(nodes=>nodes.slice(0,2).map(node=>{
     const label=node.querySelector('text[data-copy-count]')!,p=new DOMPoint(Number(label.getAttribute('x')),Number(label.getAttribute('y'))).matrixTransform((label as SVGGraphicsElement).getScreenCTM()!);

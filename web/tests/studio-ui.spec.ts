@@ -1,7 +1,8 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
 test('selection inspector leaves material in place and header owns contact links',async({page},testInfo)=>{
-  await page.setViewportSize({width:1440,height:900});await page.goto('/');
+  await page.setViewportSize({width:1440,height:900});await page.goto('/');await workshop(page);
   const material=page.getByRole('heading',{name:'Material & run'});
   const before=(await material.boundingBox())!;
   const canvasBefore=await page.locator('.workspace-svg').boundingBox();

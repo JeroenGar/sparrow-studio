@@ -7,10 +7,11 @@ export function importProject(text:string):ImportReview {
   const data=JSON.parse(text) as Project;
   if(!data||data.schemaVersion!==1)throw Error('Unsupported project schema version. This app reads version 1 only.');
   if(!Number.isSafeInteger(data.revision)||data.revision<0)throw Error('Invalid project revision.');
-  const document=normalizeDocument({name:data.name,parts:data.parts,settings:data.settings});
+  const document=normalizeDocument({name:data.name,parts:data.parts,settings:data.settings},true);
   const warnings:string[]=[];let result:Result|undefined;
   if(data.result!==undefined) {
     try {
+      if(!document.parts.length)throw Error('Empty projects cannot contain a layout.');
       const saved=data.result;
       if(!saved||saved.documentRevision!==data.revision||typeof saved.solverRevision!=='string'||!/^[a-f0-9]{40}$/i.test(saved.solverRevision)||typeof saved.seed!=='string'||!/^\d{1,20}$/.test(saved.seed)||BigInt(saved.seed)>2n**64n-1n||!Number.isFinite(saved.elapsedSeconds)||saved.elapsedSeconds<0)throw Error('Invalid or mismatched result provenance.');
       // A stored badge has no authority. Check the placements against this file's
@@ -25,10 +26,11 @@ export function importProject(text:string):ImportReview {
 }
 
 export function exportProject(document:Document,revision:number,result?:Result):string {
-  const doc=normalizeDocument({name:document.name,parts:document.parts,settings:document.settings});
+  const doc=normalizeDocument({name:document.name,parts:document.parts,settings:document.settings},true);
   if(!Number.isSafeInteger(revision)||revision<0)throw Error('Invalid project revision.');
   if(result&&result.documentRevision!==revision)throw Error('The result belongs to an older document.');
   if(result) {
+    if(!doc.parts.length)throw Error('Empty projects cannot contain a layout.');
     result={...result,validation:validate(doc,result)};
     if(result.validation.status!=='passed')throw Error(`Saved layout failed validation: ${result.validation.errors.join(' ')}`);
   }

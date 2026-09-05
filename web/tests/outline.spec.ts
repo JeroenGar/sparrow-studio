@@ -1,7 +1,8 @@
+import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
 test('outlines preserve interior selection and dragging across drawing views',async({page},testInfo)=>{
-  await page.goto('/');
+  await page.goto('/');await workshop(page);
   const toggle=page.getByRole('button',{name:'👻 mode',exact:true});
   const paths=page.locator('.workspace-svg g[data-part] > path');
   await expect(toggle).toHaveAttribute('aria-pressed','false');
@@ -29,7 +30,7 @@ test('outlines preserve interior selection and dragging across drawing views',as
       if(overlaps.length&&overlaps.every(n=>n.getAttribute('fill')==='none'&&n.getAttribute('stroke')==='#c72b36'))Object.assign(window,{outlineOverlapSeen:true});
     }).observe(document.body,{subtree:true,childList:true});
   });
-  await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible({timeout:20_000});
   expect(await paths.evaluateAll(nodes=>nodes.length>0&&nodes.every(n=>n.getAttribute('fill')==='white'&&n.getAttribute('fill-opacity')==='0.1'))).toBe(true);
   await page.waitForFunction(()=>Reflect.get(window,'outlineOverlapSeen')===true,{},{timeout:15_000});

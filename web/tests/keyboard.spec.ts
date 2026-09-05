@@ -4,11 +4,11 @@ test('keyboard import, validation errors, sizing, run, stop and export',async({p
   await page.goto('/');
   await expect(page.locator('nav').getByRole('button',{name:'Say hello 👋',exact:true})).toHaveCount(0);
   const chooser=page.waitForEvent('filechooser');
-  await page.getByRole('button',{name:'Open files',exact:true}).focus();
+  await page.getByRole('button',{name:'Import shapes',exact:true}).focus();
   await page.keyboard.press('Enter');
   await(await chooser).setFiles('public/examples/swim.json');
   await page.getByRole('button',{name:'Preview import',exact:true}).press('Enter');
-  await page.getByRole('button',{name:'Import parts',exact:true}).press('Enter');
+  await page.getByRole('button',{name:'Open as new project',exact:true}).press('Enter');
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.locator('.part-select').first().press('Space');
   const width=page.getByRole('spinbutton',{name:'Width, mm',exact:true});

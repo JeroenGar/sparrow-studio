@@ -3,7 +3,7 @@ import {readFile} from 'node:fs/promises';
 
 test('native auto-termination finishes before the cap and retains a checked export',async({page},testInfo)=>{
   await page.goto('/');
-  await page.locator('input[type=file]').setInputFiles({
+  await page.locator('input[type=file]').first().setInputFiles({
     name:'one-rectangle.json',mimeType:'application/json',
     buffer:Buffer.from(JSON.stringify({name:'One rectangle',strip_height:30,items:[{
       id:0,demand:1,allowed_orientations:[0],
@@ -11,7 +11,7 @@ test('native auto-termination finishes before the cap and retains a checked expo
     }]})),
   });
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
-  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await page.getByRole('button',{name:'Open as new project',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('Ready');
   await page.getByLabel('Run for').selectOption('120');
   const started=Date.now();
