@@ -69,7 +69,7 @@ export function zip(entries: readonly ZipEntry[]): Uint8Array {
   return output;
 }
 
-const ARCHIVE_README = `sparrow / studio archive
+const ARCHIVE_README = `sparrow/studio archive
 
 project.sparrow-project.json is the editable Studio project and preserves holes.
 layout.svg and layout.dxf are checked-result exports and preserve holes when present.

@@ -27,7 +27,7 @@ test('rulers align with world coordinates through zoom, resize and unit changes'
   for(let i=0;i<6;i++)await page.getByRole('button',{name:'Zoom in',exact:true}).click();
   expect(Number(await page.locator('[data-grid-step]').getAttribute('data-grid-step'))).toBeLessThan(first);
   await checkAlignment();
-  await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();await page.getByLabel('Display units').selectOption('in');await page.getByRole('button',{name:'Close',exact:true}).click();
+  await page.getByRole('button',{name:'About sparrow/studio',exact:true}).click();await page.getByLabel('Display units').selectOption('in');await page.getByRole('button',{name:'Close',exact:true}).click();
   await expect(page.getByRole('img',{name:'Coordinate rulers, in'})).toBeVisible();await checkAlignment();
   await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Fit',exact:true}).click();await checkAlignment();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);

@@ -70,6 +70,6 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 
 ## Header and display polish — implemented
 
-- Default to gardeyn2; use “sparrow / studio” in visible app branding.
+- Default to gardeyn2; use “sparrow/studio” in visible app branding.
 - Dedicated example-project and light/dark buttons, matching project/save button heights.
 - Transparent, larger nest favicon; quiet canvas pointer focus; larger spinner beside both status lines.

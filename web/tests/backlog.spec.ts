@@ -30,7 +30,7 @@ test('gardeyn2 loads without solving, rotation labels are visible and dialogs st
     expect((await dialog.getByRole('combobox').boundingBox())!.height).toBeLessThan(60);
     await page.screenshot({path:testInfo.outputPath(`examples-${viewport.width}.png`)});
     await page.keyboard.press('Escape');
-    await page.getByRole('button',{name:'About sparrow / studio',exact:true}).click();
+    await page.getByRole('button',{name:'About sparrow/studio',exact:true}).click();
     await expect(dialog).toContainText('A native sparrow binary runs about 2× as fast');
     expect((await dialog.boundingBox())!.height).toBeLessThan(viewport.height);
     expect((await dialog.getByRole('button',{name:'Close',exact:true}).boundingBox())!.height).toBeLessThan(60);
