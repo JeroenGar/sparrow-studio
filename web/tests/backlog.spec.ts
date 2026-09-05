@@ -5,6 +5,7 @@ test('swim loads without solving, rotation labels are visible and dialogs stay c
   await page.goto('/');
   await expect(page.locator('.project-menu>summary')).toContainText('swim');
   await expect(page.getByRole('status')).toHaveText('Ready');
+  await expect(page.locator('nav').getByRole('link',{name:'Read the paper',exact:true})).toHaveAttribute('href','https://arxiv.org/abs/2509.13329');
   await expect(page.getByLabel('Stop condition')).toHaveValue('auto');
   await expect(page.locator('.rotation-summary').first()).toHaveText('Half-turns');
   await expect(page.locator('.run-status i.active')).toHaveCount(0);
@@ -19,6 +20,7 @@ test('swim loads without solving, rotation labels are visible and dialogs stay c
     await page.screenshot({path:testInfo.outputPath(`examples-${viewport.width}.png`)});
     await page.keyboard.press('Escape');
     await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+    await expect(dialog).toContainText('A native sparrow binary runs about 2× as fast');
     expect((await dialog.boundingBox())!.height).toBeLessThan(viewport.height);
     expect((await dialog.getByRole('button',{name:'Close',exact:true}).boundingBox())!.height).toBeLessThan(60);
     await page.screenshot({path:testInfo.outputPath(`about-${viewport.width}.png`)});

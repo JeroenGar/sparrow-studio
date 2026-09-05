@@ -7,7 +7,7 @@ export type Part = {
   outer: Ring; holes: Ring[]; approximationToleranceMm: number; quantity: number;
   rotations: RotationRule; preparationPosition: Point;
 };
-export type Settings = { materialWidthMm: number; clearanceMm: number; timeLimitSeconds: 10 | 30 | 60 | 120 | null };
+export type Settings = { materialWidthMm: number; clearanceMm: number; timeLimitSeconds: 10 | 30 | 60 | 120 | 300 | 600 | null };
 export type Document = { name: string; parts: Part[]; settings: Settings };
 export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: number; angleDeg: number };
 export type Validation = { status: 'pending' | 'passed' | 'failed'; overlapAreaMm2: number;

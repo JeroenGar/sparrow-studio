@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
-test('native auto-termination finishes without a time cap and retains a checked export',async({page},testInfo)=>{
+for(const limit of ['auto','300','600'])test(`native auto-termination retains a checked export with ${limit} limit`,async({page},testInfo)=>{
   await page.goto('/');
   await page.locator('input[type=file]').first().setInputFiles({
     name:'one-rectangle.json',mimeType:'application/json',
@@ -14,6 +14,7 @@ test('native auto-termination finishes without a time cap and retains a checked 
   await page.getByRole('button',{name:'Open as new project',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('Ready');
   await expect(page.getByLabel('Stop condition')).toHaveValue('auto');
+  await page.getByLabel('Stop condition').selectOption(limit);
   const started=Date.now();
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   // Automatic stopping must finish normally without a JavaScript time cap.
@@ -29,7 +30,7 @@ test('native auto-termination finishes without a time cap and retains a checked 
   await(await diagnosticsDownload).saveAs(diagnosticsPath);
   const diagnostics=JSON.parse(await readFile(diagnosticsPath,'utf8'));
   expect(diagnostics.stopReason).toBe('Complete');
-  expect(diagnostics.document.settings.timeLimitSeconds).toBeNull();
+  expect(diagnostics.document.settings.timeLimitSeconds).toBe(limit==='auto'?null:Number(limit));
   expect(diagnostics.result.validation.status).toBe('passed');
   expect(diagnostics.result.placements).toHaveLength(1);
   expect(diagnostics.result.placements[0].angleDeg).toBe(0);

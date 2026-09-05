@@ -71,3 +71,6 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .demo-badge{display:inline-block;margin-left:8px;padding:2px 5px;border:1px solid var(--border);border-radius:4px;font-size:10px;font-weight:500;letter-spacing:0;color:var(--muted);vertical-align:middle}
 
 .part-select .rotation-summary{font-size:10px;line-height:1.3}
+
+.header nav svg{flex:none}
+@media(min-width:700px) and (max-width:1299px){.header{height:auto;min-height:56px;flex-wrap:wrap;padding-block:8px;gap:8px 16px}.header nav{margin-left:auto}}

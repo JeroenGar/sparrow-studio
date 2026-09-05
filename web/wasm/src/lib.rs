@@ -63,7 +63,7 @@ impl SolutionListener for Listener {
 pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, callback: js_sys::Function) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     let initialized_at = Instant::now();
-    if !matches!(seconds, None | Some(10 | 30 | 60 | 120)) || input.len() > 10 * 1024 * 1024 || !clearance.is_finite() || clearance < 0.0 {
+    if !matches!(seconds, None | Some(10 | 30 | 60 | 120 | 300 | 600)) || input.len() > 10 * 1024 * 1024 || !clearance.is_finite() || clearance < 0.0 {
         return Err(JsValue::from_str("Invalid duration or oversized input"));
     }
     let seed = seed.parse::<u64>().map_err(|e| JsValue::from_str(&e.to_string()))?;
