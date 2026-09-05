@@ -11,3 +11,7 @@ The native Safari About and example-picker dialogs stretch vertically, creating 
 ## Default demo project
 
 Load the bundled `swim.json` demo project by default instead of an empty project. Keep New project available for starting from scratch. This requests initial loading, not automatic solving. Deferred at the user's request during deployment.
+
+## Default solver auto-termination
+
+Enable solver auto-termination by default instead of a fixed time budget. Wire in the existing support from the sparrow repository, as reported by the user. This is a backlog item, not implemented.
