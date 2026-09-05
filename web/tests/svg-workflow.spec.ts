@@ -11,7 +11,8 @@ test('100 mm SVG preserves size and holes through nesting and export',async({pag
   await expect(page.getByRole('dialog')).toContainText('1 holes');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
-  await page.getByLabel('Material width',{exact:false}).fill('80');
+  await page.getByLabel('Material width',{exact:false}).fill('60');
+  await page.getByLabel('Clearance', {exact:false}).fill('0');
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});

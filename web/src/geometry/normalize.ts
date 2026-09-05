@@ -1,5 +1,5 @@
 import { orient2d } from 'robust-predicates';
-import { LIMITS, type Document, type Point, type Ring, type Part } from '../model';
+import { LIMITS, type Document, type Point, type Ring, type Part, type Placement } from '../model';
 
 export const area = (ring: Ring) => ring.reduce((sum, p, i) => {
   const q = ring[(i + 1) % ring.length]; return sum + p[0] * q[1] - q[0] * p[1];
@@ -52,7 +52,7 @@ export function normalizeRing(value: unknown): Ring {
 }
 export function normalizePart(part: Part): Part {
   if (typeof part.id !== 'string' || !part.id || typeof part.name !== 'string' || !part.source || !['svg','dxf','sparrow','drawn'].includes(part.source.format)) throw Error('Invalid part identity or provenance.');
-  if (!Number.isInteger(part.quantity) || part.quantity < 1 || part.quantity > LIMITS.copies) throw Error('Quantity must be a positive integer, at most 500.');
+  if (!Number.isInteger(part.quantity) || part.quantity < 0 || part.quantity > LIMITS.copies) throw Error('Quantity must be a whole number from 0 to 500.');
   if (!Number.isFinite(part.approximationToleranceMm) || part.approximationToleranceMm < 0 || part.approximationToleranceMm > 100) throw Error('Invalid approximation tolerance.');
   if (!Array.isArray(part.preparationPosition) || part.preparationPosition.length !== 2 || !part.preparationPosition.every(Number.isFinite)) throw Error('Invalid preparation position.');
   if (!part.rotations || (part.rotations.kind !== 'continuous' && (part.rotations.kind !== 'discrete' || !Array.isArray(part.rotations.degrees) || !part.rotations.degrees.length || !part.rotations.degrees.every(Number.isFinite)))) throw Error('Discrete rotations require a nonempty list of finite degrees.');
@@ -79,5 +79,21 @@ export function normalizeDocument(doc: Document, allowEmpty=false): Document {
   const parts = doc.parts.map(normalizePart);
   if (new Set(parts.map(p=>p.id)).size !== parts.length) throw Error('Part IDs must be unique.');
   if (parts.reduce((n,p)=>n+p.quantity,0) > LIMITS.copies || parts.reduce((n,p)=>n+p.quantity*(p.outer.length+p.holes.reduce((m,h)=>m+h.length,0)),0) > LIMITS.verticesTotal) throw Error('Project exceeds 500 copies or 100,000 demanded vertices.');
+  if (doc.placements !== undefined) {
+    if (!Array.isArray(doc.placements)) throw Error('Placements must be an array.');
+    const ids = new Set(parts.map(p=>p.id)), seen = new Set<string>();
+    for (const placement of doc.placements as Placement[]) {
+      if (!placement || typeof placement.partId !== 'string' || !ids.has(placement.partId)
+        || !Number.isInteger(placement.copyIndex) || placement.copyIndex < 0
+        || !Number.isFinite(placement.xMm) || !Number.isFinite(placement.yMm)
+        || Math.abs(placement.xMm) > LIMITS.extent || Math.abs(placement.yMm) > LIMITS.extent
+        || !Number.isFinite(placement.angleDeg)) throw Error('Invalid copy placement.');
+      const part = parts.find(p=>p.id===placement.partId)!;
+      if (placement.copyIndex >= part.quantity) throw Error('Copy placement exceeds its quantity.');
+      const key = `${placement.partId}:${placement.copyIndex}`;
+      if (seen.has(key)) throw Error('Copy placements must be unique.');
+      seen.add(key);
+    }
+  }
   return { ...doc, parts };
 }

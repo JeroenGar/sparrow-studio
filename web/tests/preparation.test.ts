@@ -30,7 +30,11 @@ it('preserves pinned group positions, moves colliders nearby, and keeps distant 
 it('handles offset geometry and rejects invalid pins and impossible compact layouts',()=>{
   const p=rect('offset');p.outer=p.outer.map(([x,y])=>[x-50,y-20]);separated(arrangePreparation(doc([p,rect('b')]),[],true));
   expect(()=>arrangePreparation(doc([rect('a')]),['missing'])).toThrow(/existing/);
-  expect(()=>arrangePreparation(doc([rect('a'),rect('b')]),['a','b'])).toThrow(/overlap/);
+  const overlapping=doc([rect('a'),rect('b')]);
+  expect(arrangePreparation(overlapping,['a','b'])).toEqual(overlapping);
+  const added=arrangePreparation(doc([...overlapping.parts,rect('new')]),['a','b']);
+  expect(added.parts.slice(0,2)).toEqual(overlapping.parts);
+  separated(doc([added.parts[0],added.parts[2]]));
   const giant=()=>({...rect('a'),outer:[[-100000,-100000],[100000,-100000],[100000,100000],[-100000,100000]] as Point[]});
   expect(()=>arrangePreparation(doc([giant(),{...giant(),id:'b'}]),[],true)).toThrow(/fit/);
 });

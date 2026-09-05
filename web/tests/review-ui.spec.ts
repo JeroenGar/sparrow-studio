@@ -6,7 +6,7 @@ test('quantity errors, immediate contour review, and mobile diagnostics are acce
   await page.goto('/');await workshop(page);
   const quantity=page.getByLabel('Quantity for Bracket');
   await quantity.fill('501');
-  await expect(page.getByText('Enter a whole number from 1 to 500.')).toBeVisible();
+  await expect(page.getByText('Enter a whole number from 0 to 500.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeDisabled();
   await quantity.fill('493');
   await expect(page.getByText(/exceeds the 500-copy limit/)).toBeVisible();

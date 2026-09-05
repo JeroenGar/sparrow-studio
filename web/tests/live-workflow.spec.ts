@@ -25,10 +25,8 @@ test('live search shows red overlaps and toggles to independently checked output
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Live',exact:true}).click();
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible();
-  await page.getByRole('tab',{name:'Prepare',exact:true}).click();
   await page.waitForTimeout(350);
-  await expect(page.getByRole('img',{name:'Preparation drawing'})).toBeVisible();
-  await page.getByRole('tab',{name:'Result',exact:true}).click();
+  await expect(page.locator('.workspace-svg')).toBeVisible();
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();

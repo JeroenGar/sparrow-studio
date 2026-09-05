@@ -1,5 +1,6 @@
 import type { ImportReview } from './import/sparrow';
 import type { Part } from './model';
+import { normalizeSampleDocument } from './import/library';
 import { geometryTask } from './workers/geometryTask';
 
 export type Dataset = {
@@ -56,7 +57,7 @@ export function loadExample(dataset: Dataset | string, signal?: AbortSignal): Pr
       files: [{ name: file, text }] });
     if (reply.type !== 'import-review') throw Error(`Could not read ${label(dataset)}.`);
     if (reply.review.issues?.length) throw Error(reply.review.issues.join(' '));
-    return reply.review;
+    return { ...reply.review, document: normalizeSampleDocument(reply.review.document) };
   }));
 }
 

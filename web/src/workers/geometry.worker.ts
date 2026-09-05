@@ -11,6 +11,7 @@ import {libraryDocument} from '../import/library';
 import {editSelection} from '../geometry/manipulate';
 import {arrangePreparation,labelPoints} from '../geometry/preparation';
 import { exportSVG } from '../export/svg';
+import { exportProjectArchive } from '../export/zip';
 import type { GeometryReply, GeometryRequest } from './protocol';
 
 self.onmessage=({data}: MessageEvent<GeometryRequest>)=>{
@@ -32,7 +33,7 @@ self.onmessage=({data}: MessageEvent<GeometryRequest>)=>{
       case 'prepare-layout':reply={...ids,type:'normalized',document:arrangePreparation(data.document,data.pinnedIds,data.compact)};break;
       case 'label-points':reply={...ids,type:'label-points',points:labelPoints(data.parts)};break;
       case 'library':reply={...ids,type:'normalized',document:libraryDocument(data.text,data.fileName)};break;
-      case 'edit-selection':reply={...ids,type:'normalized',document:editSelection(data.document,data.ids,data.edit)};break;
+      case 'edit-selection':reply={...ids,type:'normalized',document:editSelection(data.document,data.ids,data.edit,data.refs)};break;
       case 'resize': {
         const part=data.document.parts.find(p=>p.id===data.partId);if(!part)throw Error('Part no longer exists.');
         const b=bounds(part.outer),factor=data.sizeMm/(b[data.axis+2]-b[data.axis]);
@@ -67,8 +68,10 @@ self.onmessage=({data}: MessageEvent<GeometryRequest>)=>{
       }
       case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result)}; break;
       case 'save-project': reply={...ids,type:'project-file',text:exportProject(data.document,data.documentRevision,data.result)};break;
+      case 'archive': reply={...ids,type:'archive-result',archive:exportProjectArchive(data.document,data.documentRevision,data.result)};break;
       case 'live-preview':reply={...ids,type:'live-frame',sequence:data.sequence,geometry:liveGeometry(data.document,data.result)};break;
     }
-    self.postMessage(reply);
+    if(reply.type==='archive-result') self.postMessage(reply,[reply.archive.buffer as ArrayBuffer]);
+    else self.postMessage(reply);
   } catch(error) { self.postMessage({...ids,type:'error',message:error instanceof Error?error.message:String(error)} satisfies GeometryReply); }
 };

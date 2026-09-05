@@ -7,6 +7,8 @@ test('dragging outside the bin pans without Space and preserves the checked layo
   await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   const svg=page.getByRole('img',{name:'Checked nesting result'});
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await page.getByRole('button',{name:'Fit',exact:true}).click();
   const before=await svg.getAttribute('viewBox');
   const shapes=await svg.locator('[data-part]').evaluateAll(nodes=>nodes.map(n=>n.getAttribute('transform')));
   const start=await svg.evaluate(node=>{

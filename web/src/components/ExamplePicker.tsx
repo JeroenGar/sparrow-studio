@@ -1,11 +1,12 @@
 import {useEffect,useState} from 'react';
 import {example,type Document} from '../model';
 import {loadCatalog,loadExample,type Dataset} from '../datasets';
+import {normalizeSampleDocument} from '../import/library';
 import Modal from './Modal';
 
 export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document,nest:boolean)=>void|Promise<void>;onClose:()=>void}) {
   const [catalog,setCatalog]=useState<Dataset[]>([]),[selected,setSelected]=useState('workshop');
-  const [doc,setDoc]=useState<Document|undefined>(example),[busy,setBusy]=useState(false);
+  const [doc,setDoc]=useState<Document|undefined>(()=>normalizeSampleDocument(example())),[busy,setBusy]=useState(false);
   const [error,setError]=useState(''),[catalogError,setCatalogError]=useState(''),[warnings,setWarnings]=useState<string[]>([]);
   useEffect(()=>{
     let current=true;
@@ -15,7 +16,7 @@ export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document
   },[]);
   async function choose(id:string) {
     setSelected(id);setError('');setWarnings([]);setDoc(undefined);
-    if(id==='workshop'){setDoc(example());return;}
+    if(id==='workshop'){setDoc(normalizeSampleDocument(example()));return;}
     const dataset=catalog.find(d=>d.id===id);if(!dataset)return;
     setBusy(true);
     try {

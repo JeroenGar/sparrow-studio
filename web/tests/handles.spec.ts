@@ -7,25 +7,32 @@ async function screen(page:Page,x:number,y:number) {
 test('corner and rotation gestures preview, commit once, and cancel without changing geometry',async({page},testInfo)=>{
   await page.goto('/');await workshop(page);await page.locator('.part-select').first().click();
   const width=page.getByRole('spinbutton',{name:'Width, mm',exact:true}),height=page.getByRole('spinbutton',{name:'Height, mm',exact:true});
-  const start=await screen(page,36,38),end=await screen(page,72,76);
+  const originalWidth=Number(await width.inputValue()),originalHeight=Number(await height.inputValue());
+  const x=Number(await page.getByRole('spinbutton',{name:'X, mm',exact:true}).inputValue()),y=Number(await page.getByRole('spinbutton',{name:'Y, mm',exact:true}).inputValue());
+  await page.keyboard.down('Alt');
+  const start=await screen(page,x+originalWidth,y+originalHeight),end=await screen(page,x+originalWidth*1.5,y+originalHeight*1.5);
   await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:5});
-  await expect(width).toHaveValue('36');
-  await page.mouse.up();await expect(width).toHaveValue('72');await expect(height).toHaveValue('76');
+  expect(Number(await width.inputValue())).toBe(originalWidth);
+  await page.mouse.up();await page.keyboard.up('Alt');
+  await expect.poll(async()=>Number(await width.inputValue())).toBeCloseTo(originalWidth*1.5,0);
+  await expect.poll(async()=>Number(await height.inputValue())).toBeCloseTo(originalHeight*1.5,0);
+  const scaledWidth=Number(await width.inputValue()),scaledHeight=Number(await height.inputValue());
   await page.getByRole('button',{name:'Fit',exact:true}).click();
   const rotation=await page.locator('[data-handle="rotate"] circle').last().evaluate(node=>{
     const circle=node as SVGCircleElement,p=new DOMPoint(circle.cx.baseVal.value,circle.cy.baseVal.value).matrixTransform(circle.getScreenCTM()!);
     return {x:p.x,y:p.y};
   });
-  const pivot=await screen(page,36,38);
+  const pivot=await screen(page,x+scaledWidth/2,y+scaledHeight/2);
   await page.mouse.move(rotation.x,rotation.y);await page.mouse.down();
   await page.mouse.move(pivot.x+(rotation.y-pivot.y),pivot.y-(rotation.x-pivot.x),{steps:8});await page.mouse.up();
-  await expect(width).toHaveValue('76');await expect(height).toHaveValue('72');
-  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(width).toHaveValue('72');
-  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(width).toHaveValue('36');await expect(height).toHaveValue('38');
+  await expect.poll(async()=>Number(await width.inputValue())).toBeCloseTo(scaledHeight,1);
+  await expect.poll(async()=>Number(await height.inputValue())).toBeCloseTo(scaledWidth,1);
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect.poll(async()=>Number(await width.inputValue())).toBe(scaledWidth);
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect.poll(async()=>Number(await width.inputValue())).toBe(originalWidth);await expect.poll(async()=>Number(await height.inputValue())).toBe(originalHeight);
   await page.getByRole('button',{name:'Fit',exact:true}).click();
-  const cancelStart=await screen(page,36,38),cancelEnd=await screen(page,48,50);
+  const cancelStart=await screen(page,x+originalWidth,y+originalHeight),cancelEnd=await screen(page,x+originalWidth*1.2,y+originalHeight*1.2);
   await page.mouse.move(cancelStart.x,cancelStart.y);await page.mouse.down();await page.mouse.move(cancelEnd.x,cancelEnd.y);await page.keyboard.press('Escape');await page.mouse.up();
-  await page.locator('.part-select').first().click();await expect(width).toHaveValue('36');
+  await page.locator('.part-select').first().click();await expect.poll(async()=>Number(await width.inputValue())).toBe(originalWidth);
   await page.screenshot({path:testInfo.outputPath('cad-handles.png'),fullPage:true});
 });
 

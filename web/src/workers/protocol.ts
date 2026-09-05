@@ -3,6 +3,7 @@ import type { ImportReview } from '../import/sparrow';
 import type { ExportBundle } from '../export/svg';
 import type { LiveGeometry } from '../geometry/live';
 import type {GeometryEdit} from '../geometry/manipulate';
+import type {CopyRef} from '../geometry/placements';
 import type {LabelPoint} from '../geometry/preparation';
 export type Identity = { runId: number; documentRevision: number };
 export type Start = Identity & { seed: string; threads?: number } & (
@@ -25,12 +26,13 @@ export type GeometryRequest = Identity & (
   | { type:'prepare-layout'; document:Document; pinnedIds?:string[]; compact?:boolean }
   | { type:'label-points'; parts:Part[] }
   | { type:'resize'; document:Document; partId:string; axis:0|1; sizeMm:number }
-  | { type:'edit-selection'; document:Document; ids:string[]; edit:GeometryEdit }
+  | { type:'edit-selection'; document:Document; ids:string[]; edit:GeometryEdit; refs?:CopyRef[] }
   | { type:'library'; text:string; fileName:string }
   | { type:'import'; files:{name:string;text:string}[]; scale:number; tolerance?:number; enclosed?:'holes'|'parts'; layers?:string[] }
   | { type:'validate'; sequence:number; document:Document; result:Result }
   | { type:'export'; document:Document; result:Result }
   | { type:'save-project'; document:Document; result?:Result }
+  | { type:'archive'; document:Document; result?:Result }
   | { type:'live-preview'; sequence:number; document:Document; result:Result }
 );
 export type GeometryReply = Identity & (
@@ -41,6 +43,7 @@ export type GeometryReply = Identity & (
   | { type:'validation-result'; sequence:number; validation:Validation; elapsedMs:number }
   | { type:'export-result'; bundle:ExportBundle }
   | { type:'project-file'; text:string }
+  | { type:'archive-result'; archive:Uint8Array }
   | { type:'live-frame'; sequence:number; geometry:LiveGeometry }
   | { type:'error'; message:string }
 );

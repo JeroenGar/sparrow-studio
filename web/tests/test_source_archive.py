@@ -18,6 +18,9 @@ with zipfile.ZipFile(io.BytesIO(data)) as archive:
     assert names == sorted(names)
     for required in ('LICENSE', 'web/src/App.tsx', 'web/wasm/src/lib.rs',
                      'web/wasm/Cargo.lock', 'web/package-lock.json',
+                     'web/wasm/vendor/sparrow/src/sample/uniform_sampler.rs',
+                     'web/wasm/vendor/jagua-rs/src/collision_detection/cd_engine.rs',
+                     'web/wasm/vendor/jagua-rs/LICENSE',
                      'web/scripts/build-wasm.mjs', 'web/scripts/package-source.py',
                      'web/public/isolation-worker.js', 'web/public/examples/catalog.json'):
         assert required in names, required

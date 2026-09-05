@@ -11,19 +11,20 @@ original file or exact source URL. Declared dual-license choices are preserved.
 Rust standard-library notices are distributed alongside this file. See the
 toolchain section below. Dataset provenance and license: examples/NOTICE.txt.
 
-jagua-rs 0.8.1 is MPL-2.0. Its unmodified source is available at:
+jagua-rs 0.8.1 is MPL-2.0. Its upstream source is available at:
 https://github.com/JeroenGar/jagua-rs/tree/824ab31cf8a58eecf5d87527260c92510626661b/jagua-rs
 https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
-The MPL text is included below. The solver sparrow is MIT at its pinned revision;
+The modified source distributed with this application is included in
+sparrow-source.zip under web/wasm/vendor/jagua-rs, with changes documented in
+STUDIO_PATCH.md. The MPL text is included below. The solver sparrow is MIT at its pinned revision;
 it is distinct from the original sparroWASM wrapper repository's MPL license.
-Corresponding local web application and WASM bridge source, build scripts,
+Corresponding local web application, WASM bridge and patched solver sources, build scripts,
 lockfiles and required runtime assets are distributed in the sibling archive:
 sparrow-source.zip
 SOURCE-MANIFEST.json inside that archive records SHA-256 for each included file.
 The archive includes the repository LICENSE and build instructions in web/README.md.
 Upstream dependencies are identified by the exact source references above/below.
-This prototype has not been published. Before public distribution, verify the
-archive and these source links remain reachable beside the deployed notices.
+The archive is published alongside these notices.
 
 PACKAGE INDEX
 npm @xmldom/xmldom 0.9.12
@@ -609,10 +610,11 @@ Package VCS metadata: {"git": {"sha1": "af77385d0daf4d0e949e81f2588be2e44f69f086
 
 Rust jagua-rs 0.8.1
 Declared license: MPL-2.0
-Source: https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
+Source: sparrow-source.zip: web/wasm/vendor/jagua-rs (upstream provenance and changes: STUDIO_PATCH.md)
 Repository: https://github.com/JeroenGar/jagua-rs
 Authors: Jeroen Gardeyn
-Package VCS metadata: {"git": {"sha1": "824ab31cf8a58eecf5d87527260c92510626661b"}, "path_in_vcs": "jagua-rs"}
+  LICENSE
+  Text SHA-256: 1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5
   https://raw.githubusercontent.com/JeroenGar/jagua-rs/824ab31cf8a58eecf5d87527260c92510626661b/LICENSE
   Text SHA-256: 1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5
 
@@ -1064,7 +1066,7 @@ Package VCS metadata: {"git": {"sha1": "aa22a8ff83108228b6d941b83fc91399267d72c9
 
 Rust sparrow 0.2.0
 Declared license: MIT (from the pinned repository LICENSE; Cargo omits this field)
-Source: git+https://github.com/JeroenGar/sparrow.git?rev=120cf937de5e74c292406bc9947276c9dd49217f#120cf937de5e74c292406bc9947276c9dd49217f
+Source: sparrow-source.zip: web/wasm/vendor/sparrow (upstream provenance and changes: STUDIO_PATCH.md)
 Repository: not declared
 Authors: not declared
   LICENSE

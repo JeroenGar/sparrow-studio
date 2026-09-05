@@ -2,8 +2,10 @@ import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {importSparrow} from '../src/import/sparrow';
+import {LIBRARY_MEDIAN_MM2,median,normalizeSampleDocument} from '../src/import/library';
+import {netArea} from '../src/geometry/validate';
 
-test('top-bar examples include every benchmark and keep original dimensions and demand',async({page},testInfo)=>{
+test('top-bar examples include every benchmark and normalize scale while preserving demand, rotations, and ratios',async({page},testInfo)=>{
   const catalog=JSON.parse(await readFile('public/examples/catalog.json','utf8'));
   await page.goto('/');
   await openExamples(page);
@@ -22,9 +24,12 @@ test('top-bar examples include every benchmark and keep original dimensions and 
   await page.getByRole('button',{name:'Save project',exact:true}).click();
   const path=testInfo.outputPath('benchmark.sparrow-project.json');await(await pending).saveAs(path);
   const saved=JSON.parse(await readFile(path,'utf8'));
-  const original=importSparrow(await readFile('public/examples/gardeyn0_c.json','utf8'),'gardeyn0_c.json',1).document;
-  expect(saved.settings.materialWidthMm).toBe(original.settings.materialWidthMm);
-  expect(saved.settings.timeLimitSeconds).toBeNull();
+  const source=importSparrow(await readFile('public/examples/gardeyn0_c.json','utf8'),'gardeyn0_c.json',1).document,original=normalizeSampleDocument(source);
+  expect(saved.settings.materialWidthMm).toBeCloseTo(original.settings.materialWidthMm,8);
+  expect(saved.settings.timeLimitSeconds).toBe(original.settings.timeLimitSeconds);
   expect(saved.parts.map((part:{outer:unknown;holes:unknown;quantity:number;rotations:unknown})=>[part.outer,part.holes,part.quantity,part.rotations]))
     .toEqual(original.parts.map(part=>[part.outer,part.holes,part.quantity,part.rotations]));
+  expect(median(saved.parts.map(part=>netArea(part)))).toBeCloseTo(LIBRARY_MEDIAN_MM2,8);
+  const sourceAreas=source.parts.map(netArea),savedAreas=saved.parts.map(netArea);
+  for(let i=1;i<sourceAreas.length;i++)expect(savedAreas[i]/savedAreas[0]).toBeCloseTo(sourceAreas[i]/sourceAreas[0],8);
 });

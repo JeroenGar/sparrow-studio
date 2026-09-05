@@ -1,5 +1,6 @@
 import type { SolverMessage } from './workers/protocol';
 import './styles.css';
+import { SOLVER_REVISION } from './model';
 
 const run = document.querySelector<HTMLButtonElement>('#run')!;
 const stop = document.querySelector<HTMLButtonElement>('#stop')!;
@@ -13,7 +14,7 @@ let heartbeat = 0;
 let candidates: Extract<SolverMessage, { type: 'candidate' }>[] = [];
 setInterval(() => { document.querySelector('#heartbeat')!.textContent = String(++heartbeat); }, 100);
 document.querySelector<HTMLButtonElement>('#diagnostics')!.onclick = () => {
-  const url = URL.createObjectURL(new Blob([JSON.stringify({ solverRevision: '120cf937de5e74c292406bc9947276c9dd49217f',
+  const url = URL.createObjectURL(new Blob([JSON.stringify({ solverRevision: SOLVER_REVISION,
     seed: '42', state: state.textContent, candidates })], { type: 'application/json' }));
   const link = document.createElement('a');
   link.href = url;

@@ -8,15 +8,16 @@ export type Part = {
   rotations: RotationRule; preparationPosition: Point;
 };
 export type Settings = { solverPreset?: 'standard' | 'fast'; materialWidthMm: number; clearanceMm: number; timeLimitSeconds: 10 | 30 | 60 | 120 | 300 | 600 | null };
-export type Document = { name: string; parts: Part[]; settings: Settings };
 export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: number; angleDeg: number };
+/** A document keeps the editable position of every demanded copy. */
+export type Document = { name: string; parts: Part[]; settings: Settings; placements?: Placement[] };
 export type Validation = { status: 'pending' | 'passed' | 'failed'; overlapAreaMm2: number;
   maxBoundaryViolationMm: number; minClearanceMm: number | null; errors: string[] };
 export type Result = { documentRevision: number; solverRevision: string; seed: string;
   elapsedSeconds: number; usedLengthMm: number; placements: Placement[]; validation: Validation };
 export type Project = Document & { schemaVersion: 1; revision: number; result?: Result };
 export const DEFAULT_SETTINGS: Settings = { materialWidthMm: 1000, clearanceMm: 0, timeLimitSeconds: null };
-export const SOLVER_REVISION = '120cf937de5e74c292406bc9947276c9dd49217f';
+export const SOLVER_REVISION = '120cf937de5e74c292406bc9947276c9dd49217f+studio-exact-fit-1';
 export const LIMITS = { copies: 500, verticesPerPart: 5000, verticesTotal: 100000, extent: 100000 };
 export const POLICY = { linearMm: 1e-6, overlapMm2: 1e-8, angleDeg: 1e-4 };
 export function newPart(outer: Ring, name = 'Part'): Part {

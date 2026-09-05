@@ -11,6 +11,28 @@ it('round trips geometry, holes, provenance, settings and freshly checks the sav
   expect(review.replace).toBe(true);expect(review.document.parts).toEqual(p.parts);expect(review.document.settings).toEqual(p.settings);
   expect(review.result).toMatchObject({solverRevision:SOLVER_REVISION,seed:'42',elapsedSeconds:1.25,documentRevision:9,validation:{status:'passed',overlapAreaMm2:0,errors:[]}});
 });
+it('round trips independent explicit copy placements',()=>{
+  const p=project(),part={...p.parts[0],quantity:2},placements=[
+    {partId:part.id,copyIndex:0,xMm:30,yMm:20,angleDeg:0},
+    {partId:part.id,copyIndex:1,xMm:60,yMm:40,angleDeg:180},
+  ];
+  const document={name:p.name,parts:[part],settings:p.settings,placements};
+  const review=importProject(exportProject(document,10));
+  expect(review.document.placements).toEqual(placements);
+  expect(review.document.parts[0].preparationPosition).toEqual([30,20]);
+});
+it('discards a valid checked result that differs from explicit draft placements',()=>{
+  const p=project(),part={...p.parts[0],quantity:2},draft=[
+    {partId:part.id,copyIndex:0,xMm:30,yMm:20,angleDeg:0},
+    {partId:part.id,copyIndex:1,xMm:60,yMm:40,angleDeg:0},
+  ],checked=[draft[0],{...draft[1],xMm:80}];
+  const saved={...p,parts:[part],placements:draft,result:{...p.result!,usedLengthMm:100,placements:checked,validation:{status:'passed',overlapAreaMm2:0,maxBoundaryViolationMm:0,minClearanceMm:null,errors:[]}}};
+  const review=importProject(JSON.stringify(saved));
+  expect(review.result).toBeUndefined();
+  expect(review.document.placements).toEqual(draft);
+  expect(review.document.parts[0].preparationPosition).toEqual([30,20]);
+  expect(review.warnings[0]).toContain('does not match the explicit copy positions');
+});
 it.each(['geometry','revision','provenance'] as const)('discards a saved result with invalid %s without losing parts',kind=>{
   const p=project();
   if(kind==='geometry')p.result!.placements[0].xMm=-1;

@@ -12,11 +12,11 @@ type Run={id:number;revision:number;doc:Document;seed:string;solver?:Worker;chec
   pending?:Candidate;best?:Result;ended?:'Complete'|'Stopped'|'Error';startedAt?:number;watchdog:ReturnType<typeof setTimeout>;
   validationWatchdog?:ReturnType<typeof setTimeout>;diagnostics:Diagnostics};
 export function candidateResult(doc:Document,candidate:Candidate,seed:string):Result {
-  const copies=new Map<string,number>();
+  const copies=new Map<string,number>(),parts=doc.parts.filter(part=>part.quantity>0);
   return {documentRevision:candidate.documentRevision,solverRevision:SOLVER_REVISION,seed,
     elapsedSeconds:candidate.elapsedMs/1000,usedLengthMm:candidate.solution.strip_width,
     placements:candidate.solution.layout.placed_items.map(p=>{
-      const partId=doc.parts[p.item_id]?.id ?? `unknown:${p.item_id}`;
+      const partId=parts[p.item_id]?.id ?? `unknown:${p.item_id}`;
       const copyIndex=copies.get(partId) ?? 0; copies.set(partId,copyIndex+1);
       return {partId,copyIndex,xMm:p.transformation.translation[0],yMm:p.transformation.translation[1],angleDeg:p.transformation.rotation};
     }), validation:{status:'pending',overlapAreaMm2:0,maxBoundaryViolationMm:0,minClearanceMm:null,errors:[]}};

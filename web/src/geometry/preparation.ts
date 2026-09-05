@@ -1,7 +1,7 @@
 import polylabel from 'polylabel';
-import polygonClipping from 'polygon-clipping';
-import {DEFAULT_SETTINGS,LIMITS,POLICY,type Document,type Part,type Point} from '../model';
-import {area,bounds,inside,normalizeDocument,normalizePart} from './normalize';
+import {DEFAULT_SETTINGS,LIMITS,type Document,type Part,type Point} from '../model';
+import {bounds,inside,normalizeDocument,normalizePart} from './normalize';
+import {documentPlacements} from './placements';
 
 export type LabelPoint={id:string;point:Point;radius:number};
 type Box={x:number;y:number;w:number;h:number};
@@ -13,8 +13,22 @@ export function arrangePreparation(document:Document,pinnedIds:string[]=[],compa
   if(new Set(pinnedIds).size!==pinnedIds.length||pinnedIds.some(id=>!document.parts.some(p=>p.id===id)))throw Error('Select existing parts to keep in place.');
   if(!document.parts.length)return {...document,parts:[]};
   // Preparation is independent of a temporarily invalid nesting form.
-  normalizeDocument({...document,settings:DEFAULT_SETTINGS,parts:document.parts.map(p=>({...p,quantity:1}))});
-  const items=document.parts.map(part=>{const b=bounds(part.outer);return {part,b,box:{x:b[0]+part.preparationPosition[0],y:b[1]+part.preparationPosition[1],w:b[2]-b[0],h:b[3]-b[1]}};});
+  // The preparation arrangement works with one representative of each type.
+  // A canonical document can still carry placements for every requested copy;
+  // omit those while validating the representative geometry so quantity
+  // expansion does not make this otherwise valid document look malformed.
+  const {placements: _placements, ...documentWithoutPlacements} = document;
+  normalizeDocument({...documentWithoutPlacements,settings:DEFAULT_SETTINGS,parts:document.parts.map(p=>({...p,quantity:1}))});
+  const copies=documentPlacements(document);
+  const items=document.parts.filter(part=>part.quantity!==0).map(part=>{
+    const points=copies.filter(copy=>copy.partId===part.id).flatMap(copy=>{
+      const angle=copy.angleDeg*Math.PI/180,c=Math.cos(angle),s=Math.sin(angle);
+      return part.outer.map(([x,y]):Point=>[x*c-y*s+copy.xMm,x*s+y*c+copy.yMm]);
+    });
+    const b=bounds(points);
+    return {part,box:{x:b[0],y:b[1],w:b[2]-b[0],h:b[3]-b[1]}};
+  });
+  if(!items.length)return document;
   const sizes=items.map(i=>Math.min(i.box.w,i.box.h)).sort((a,b)=>a-b);
   const gap=Math.max(1e-5,Math.min(20,sizes[Math.floor(sizes.length/2)]*.06));
   const placements=new Map<string,Box>();
@@ -31,11 +45,6 @@ export function arrangePreparation(document:Document,pinnedIds:string[]=[],compa
   }else {
     for(const item of items.filter(i=>pinnedIds.includes(i.part.id))) {
       if(!within(item.box))throw Error('Selected parts lie outside the preparation area.');
-      const world=(p:Part)=>[p.outer,...p.holes].map(r=>r.map(([x,y]):Point=>[x+p.preparationPosition[0],y+p.preparationPosition[1]]));
-      for(const other of items.filter(i=>placements.has(i.part.id)&&overlaps(item.box,i.box,0))) {
-        const intersection=polygonClipping.intersection(world(item.part),world(other.part));
-        if(intersection.reduce((n,p)=>n+Math.abs(area(p[0]))-p.slice(1).reduce((m,r)=>m+Math.abs(area(r)),0),0)>POLICY.overlapMm2)throw Error('Selected parts overlap.');
-      }
       placements.set(item.part.id,item.box);
     }
     const displaced:typeof items=[];
@@ -68,7 +77,7 @@ export function arrangePreparation(document:Document,pinnedIds:string[]=[],compa
     }
   }
   if([...placements.values()].some(b=>!within(b)))throw Error('Parts do not fit within the preparation area. Reduce their size.');
-  return {...document,parts:items.map(({part,b})=>{const placed=placements.get(part.id)!;return {...part,preparationPosition:[placed.x-b[0],placed.y-b[1]]};})};
+  return {...document,parts:document.parts.map(part=>{const item=items.find(item=>item.part.id===part.id);if(!item)return part;const placed=placements.get(part.id)!,box=item.box;return {...part,preparationPosition:[part.preparationPosition[0]+placed.x-box.x,part.preparationPosition[1]+placed.y-box.y]};})};
 }
 
 export function labelPoints(parts:Part[]):LabelPoint[] {

@@ -19,7 +19,7 @@ test('saves a real checked layout, confirms replacement, rechecks load and inval
   await expect(page.getByRole('dialog')).toContainText('Saved result rechecked successfully');
   await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
-  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('100');
+  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('353.55');
   await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeDisabled();
   data.result.placements[0].xMm=-1000;
   await page.locator('input[type=file]').first().setInputFiles({name:'bad.sparrow-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
@@ -72,5 +72,5 @@ test('shape imports always append and preserve project settings, including after
   const guard=page.getByRole('dialog',{name:'Unsaved project',exact:true});
   const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Download project and continue',exact:true}).click();await saved;
   await expect(page.locator('.part-row')).toHaveCount(4);
-  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('100');
+  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('353.55');
 });

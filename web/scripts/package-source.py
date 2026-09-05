@@ -19,7 +19,7 @@ def source_files():
         'README.md', 'package.json', 'package-lock.json', 'index.html', 'bridge.html',
         'tsconfig.json', 'vite.config.ts', 'vitest.config.ts', 'playwright.config.ts',
         'wasm/Cargo.toml', 'wasm/Cargo.lock')]
-    for directory in ('src', 'wasm/src', 'scripts', 'public'):
+    for directory in ('src', 'wasm/src', 'wasm/vendor', 'scripts', 'public'):
         files += [path for path in (WEB / directory).rglob('*')
                   if path.is_file() and path != ARCHIVE
                   and '__pycache__' not in path.parts and path.name != '.DS_Store']
@@ -29,7 +29,7 @@ def source_files():
 def archive_bytes():
     contents = {path.relative_to(ROOT).as_posix(): path.read_bytes() for path in source_files()}
     manifest = {
-        'description': 'Exact local web application source and runtime assets. No generated WASM, dependencies, tests or build outputs. Install locked dependencies and follow web/README.md to rebuild.',
+        'description': 'Exact local web application source and runtime assets. Includes the patched sparrow and jagua-rs sources; excludes generated WASM, other dependencies, tests and build outputs. Install locked dependencies and follow web/README.md to rebuild.',
         'files': {name: hashlib.sha256(content).hexdigest() for name, content in contents.items()},
     }
     contents['SOURCE-MANIFEST.json'] = (json.dumps(manifest, indent=2, sort_keys=True) + '\n').encode()

@@ -60,7 +60,8 @@ test('wheel bursts retain every delta and keep the pointer anchored',async({page
   },before.world);
   expect(anchor.x).toBeCloseTo(before.x,3);expect(anchor.y).toBeCloseTo(before.y,3);
   await expect(page.locator('.coordinate-grid path')).toHaveCount(3);
-  await expect.poll(()=>page.locator('[data-copy-count]').first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize))).toBeGreaterThan(0);
+  await expect(page.locator('text[data-copy-count]')).toHaveCount(0);
+  await expect(page.locator('.workspace-svg g[data-part][data-copy-index]')).toHaveCount(12);
 });
 
 test('material width focus highlights the y band and restores the drawing on blur',async({page},testInfo)=>{

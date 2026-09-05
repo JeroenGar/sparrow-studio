@@ -15,9 +15,8 @@ export function preparationCopyOffset(copyIndex:number,quantity:number,box:[numb
   const count=Number.isInteger(quantity)&&quantity>0?quantity:1;
   if(copyIndex<=0||count<=1)return [0,0];
   const short=Math.max(0,Math.min(box[2]-box[0],box[3]-box[1]));
-  const span=short*.12;
-  const progress=Math.min(1,Math.max(0,copyIndex/(count-1)));
-  return [-span*progress,-span*progress];
+  const offset=short*.1*copyIndex;
+  return [-offset,-offset];
 }
 
 export function snap(value:number,step:number):number {return step>0?Math.round(value/step)*step:value;}
