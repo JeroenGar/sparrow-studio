@@ -1,3 +1,4 @@
+import {newProject} from './project-helpers';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile,readdir} from 'node:fs/promises';
@@ -7,14 +8,14 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   context.on('request',request=>requests.push({url:request.url(),method:request.method(),body:request.postData(),headers:request.headers()}));
   page.on('websocket',socket=>sockets.push(socket.url()));
   const assets=new Set((await readdir('dist',{recursive:true})).map(path=>`/${path}`));assets.add('/');
-  await page.goto('/');
+  await page.goto('/');await newProject(page);
   const source=`<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><path id="${marker}" fill-rule="evenodd" d="M0 0H100V60H0Z M20 20H40V40H20Z"/></svg>`;
   await page.locator('input[type=file]').first().setInputFiles({name:`${marker}.svg`,mimeType:'image/svg+xml',buffer:Buffer.from(source)});
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
-  await page.getByLabel('Run for').selectOption('10');
+  await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();

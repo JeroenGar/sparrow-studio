@@ -24,7 +24,7 @@ test('top-bar examples include every benchmark and keep original dimensions and 
   const saved=JSON.parse(await readFile(path,'utf8'));
   const original=importSparrow(await readFile('public/examples/gardeyn0_c.json','utf8'),'gardeyn0_c.json',1).document;
   expect(saved.settings.materialWidthMm).toBe(original.settings.materialWidthMm);
-  expect(saved.settings.timeLimitSeconds).toBe(10);
+  expect(saved.settings.timeLimitSeconds).toBeNull();
   expect(saved.parts.map((part:{outer:unknown;holes:unknown;quantity:number;rotations:unknown})=>[part.outer,part.holes,part.quantity,part.rotations]))
     .toEqual(original.parts.map(part=>[part.outer,part.holes,part.quantity,part.rotations]));
 });

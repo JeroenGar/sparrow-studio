@@ -44,7 +44,7 @@ After deployment, check a fresh browser session for startup isolation, a checked
 
 ## Supported work
 
-- Start with an empty project. The project-name menu groups New, Open, Rename and examples; Save downloads a named `.sparrow-project.json` file, including empty projects. Replacing unsaved work offers Download and continue, Discard, or Cancel. Undo stays within the current project.
+- Start with the bundled `swim.json` demo, ready to nest without automatically running the solver. New project starts empty. The project-name menu groups New, Open, Rename and examples; Save downloads a named `.sparrow-project.json` file, including empty projects. Replacing unsaved work offers Download and continue, Discard, or Cancel. Undo stays within the current project.
 - Import shapes adds sparrow instance JSON, closed-contour SVG and the documented planar ASCII DXF subset without changing the current name or material settings. Import is reviewed before changing the drawing. Saved project files restore a complete job; instance JSON also offers an explicit Open as new project action.
 - Examples can be opened for preparation or opened and nested. Shape-library collections provide reusable ingredients; Command/Control-click toggles selection and Shift-click selects a range for one bulk import.
 - Prepare parts with exact position and proportional size fields, group movement, rotation, drag handles, grid/angle snapping, duplicate/delete, and undo/redo. New/imported parts are arranged compactly without overlap; moving or resizing a part displaces neighbours as needed. Copy counts are placed inside each part, outside its holes.

@@ -1,8 +1,9 @@
+import {newProject} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
 test('DXF layer review, explicit exclusions, real nesting and export round trip',async({page},testInfo)=>{
-  await page.goto('/');
+  await page.goto('/');await newProject(page);
   await page.locator('input[type=file]').first().setInputFiles('tests/fixtures/plate.dxf');
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   const dialog=page.getByRole('dialog');
@@ -16,7 +17,7 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await expect(dialog).not.toContainText('ambiguous junctions');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
-  await page.getByLabel('Run for').selectOption('10');
+  await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});

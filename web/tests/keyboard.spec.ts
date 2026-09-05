@@ -18,7 +18,7 @@ test('keyboard import, validation errors, sizing, run, stop and export',async({p
   await width.fill('50');await width.press('Enter');
   await expect(width).toHaveValue('50');
   await page.getByRole('button',{name:'Undo',exact:true}).press('Enter');
-  await page.getByLabel('Run for').selectOption('10');
+  await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).press('Enter');
   await page.getByRole('button',{name:'Checked ✓',exact:true}).press('Enter',{timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();

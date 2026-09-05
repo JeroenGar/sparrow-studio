@@ -1,15 +1,16 @@
+import {newProject} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
 test('100 mm SVG preserves size and holes through nesting and export',async({page},testInfo)=>{
   const source='<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><path fill-rule="evenodd" d="M0 0H100V60H0Z M20 20H40V40H20Z"/></svg>';
-  await page.goto('/');
+  await page.goto('/');await newProject(page);
   await page.locator('input[type=file]').first().setInputFiles({name:'plate.svg',mimeType:'image/svg+xml',buffer:Buffer.from(source)});
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
-  await page.getByLabel('Run for').selectOption('10');
+  await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
@@ -27,7 +28,7 @@ test('100 mm SVG preserves size and holes through nesting and export',async({pag
 });
 
 test('native dialogs, shape creation, proportional sizing, undo and polygon cancellation',async({page})=>{
-  await page.goto('/');
+  await page.goto('/');await newProject(page);
   await page.getByRole('button',{name:'Draw shape',exact:true}).click();
   await page.getByRole('dialog').getByLabel('Width, mm').fill('75');
   await page.getByRole('dialog').getByLabel('Height, mm').fill('25');

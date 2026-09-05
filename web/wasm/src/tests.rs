@@ -3,6 +3,18 @@ use sparrow::consts::LBF_SAMPLE_CONFIG;
 use sparrow::optimizer::lbf::LBFBuilder;
 
 #[test]
+fn automatic_runs_ignore_phase_timeouts_but_timed_runs_keep_them() {
+    let mut automatic = WebTerminator { timed: false, inner: BasicTerminator::new() };
+    automatic.new_timeout(Duration::ZERO);
+    assert_eq!(automatic.timeout_at(), None);
+    assert!(!automatic.kill());
+    let mut timed = WebTerminator { timed: true, inner: BasicTerminator::new() };
+    timed.new_timeout(Duration::from_secs(10));
+    assert!(timed.timeout_at().is_some());
+    assert!(!timed.kill());
+}
+
+#[test]
 fn clearance_is_a_full_gap_and_a_full_edge_allowance() {
     let input: ExtSPInstance = serde_json::from_value(json!({
         "name":"two rectangles", "strip_height":16,

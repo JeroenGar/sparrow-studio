@@ -41,7 +41,7 @@ export default function ExamplePicker({onChoose,onClose}:{onChoose:(doc:Document
       <option value="workshop">Workshop example</option>
       {['Main','Gardeyn'].map(group=><optgroup key={group} label={group}>{catalog.filter(d=>d.group===group).map(d=><option key={d.id} value={d.id}>{d.id}{d.continuous?' · free rotation':''}</option>)}</optgroup>)}
     </select></label>
-    <p>{dataset?`${dataset.partTypes} shapes · ${dataset.copies} copies`:'4 shapes · 12 copies'} · nesting runs for up to 10 seconds</p>
+    <p>{dataset?`${dataset.partTypes} shapes · ${dataset.copies} copies`:'4 shapes · 12 copies'} · nesting stops automatically</p>
     {busy&&<p role="status">Loading example…</p>}
     {catalogError&&<p role="alert" className="field-error">{catalogError} The workshop example is still available.</p>}
     {error&&<p role="alert" className="field-error">{error}</p>}

@@ -2,7 +2,7 @@ import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
-test('footer aligns actions and shows a reduced-motion-aware matrix while solving',async({page},info)=>{
+test('footer aligns actions and shows a reduced-motion-aware spinner while solving',async({page},info)=>{
   await page.setViewportSize({width:1440,height:900});await page.goto('/');await workshop(page);
   const footer=page.locator('.statusbar'),run=page.getByRole('button',{name:'Nest parts',exact:true});
   const boxes=await Promise.all([run,footer.getByLabel('Export format'),footer.getByRole('button',{name:'Download SVG'}),footer.getByRole('button',{name:'Diagnostics',exact:true})].map(p=>p.boundingBox()));
@@ -10,11 +10,11 @@ test('footer aligns actions and shows a reduced-motion-aware matrix while solvin
   const status=(await footer.locator('.run-status').boundingBox())!;
   expect(status.x).toBeGreaterThan(boxes[0]!.x+boxes[0]!.width);
   expect(status.x+status.width).toBeLessThanOrEqual((await footer.locator('.metrics').boundingBox())!.x);
-  await run.click();await expect(footer.locator('.dot-matrix circle')).toHaveCount(25);
-  await expect(footer.locator('.dot-matrix circle').first()).toHaveCSS('animation-name','matrix-wave');
-  await page.screenshot({path:info.outputPath('matrix-running.png'),fullPage:true});
-  await page.emulateMedia({reducedMotion:'reduce'});await expect(footer.locator('.dot-matrix circle').first()).toHaveCSS('animation-name','none');
-  await page.getByRole('button',{name:'Stop',exact:true}).click();await expect(footer.locator('.dot-matrix')).toHaveCount(0);
+  await run.click();await expect(footer.locator('.run-status i.active')).toHaveCount(1);
+  await expect(footer.locator('.run-status i.active').first()).toHaveCSS('animation-name','spin');
+  await page.screenshot({path:info.outputPath('spinner-running.png'),fullPage:true});
+  await page.emulateMedia({reducedMotion:'reduce'});await expect(footer.locator('.run-status i.active').first()).toHaveCSS('animation-name','none');
+  await page.getByRole('button',{name:'Stop',exact:true}).click();await expect(footer.locator('.run-status i.active')).toHaveCount(0);
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   await page.screenshot({path:info.outputPath('footer-mobile.png'),fullPage:true});
 });

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { DEFAULT_SETTINGS, POLICY, type Document, type Part, type Point, type Result } from './model';
+import { DEFAULT_SETTINGS, POLICY, rotationSummary, type Document, type Part, type Point, type Result } from './model';
 import { bounds } from './geometry/normalize';
 import { netArea } from './geometry/validate';
 import { pathData } from './geometry/path';
@@ -21,9 +21,9 @@ function download(name:string,text:string,type='application/json') {
   const url=URL.createObjectURL(new Blob([text],{type})),link=document.createElement('a');
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export default function App() {
-  const [doc,setDoc]=useState<Document>(emptyProject),[revision,setRevision]=useState(1),[selected,setSelected]=useState<string[]>([]);
-  const [view,setView]=useState<'prepare'|'result'>('prepare'),[busy,setBusy]=useState(false),[error,setError]=useState('');
+export default function App({initialDocument=emptyProject(),initialError=''}:{initialDocument?:Document;initialError?:string}) {
+  const [doc,setDoc]=useState<Document>(initialDocument),[revision,setRevision]=useState(1),[selected,setSelected]=useState<string[]>([]);
+  const [view,setView]=useState<'prepare'|'result'>('prepare'),[busy,setBusy]=useState(false),[error,setError]=useState(initialError);
   const [fitRequest,setFitRequest]=useState(0);
   const [resultMode,setResultMode]=useState<'live'|'checked'>('live');
   const [threads,setThreads]=useState(0),[library,setLibrary]=useState(false),[examples,setExamples]=useState(false);
@@ -96,13 +96,13 @@ export default function App() {
   });
   const hasLayout=!!(result||live);
   useEffect(()=>{if(hasLayout&&running)setView('result');},[hasLayout,running]);
-  async function run(document=doc,rev=revision,seconds?:10) {
+  async function run(document=doc,rev=revision) {
     setEngaged(true);setBusy(true);setError('');
     const id=++operation.current;
     try {
       const reply=await geometryTask({type:'normalize',runId:id,documentRevision:rev,document});
       if(id!==operation.current || reply.type!=='normalized') return;
-      solver.start(seconds?{...reply.document,settings:{...reply.document.settings,timeLimitSeconds:seconds}}:reply.document,rev,threads||undefined);
+      solver.start(reply.document,rev,threads||undefined);
     } catch(e) {setError(String(e));} finally {if(id===operation.current)setBusy(false);}
   }
   async function openFiles(list:FileList|File[],intent:'project'|'shapes'|'auto'='auto') {
@@ -205,7 +205,7 @@ export default function App() {
         <div className="parts-list">{doc.parts.map((p,i)=>{const b=bounds(p.outer);return <div key={p.id} className={`part-row ${selected.includes(p.id)?'selected':''}`}>
           <button className="part-select" aria-pressed={selected.includes(p.id)} onClick={e=>setSelected(e.shiftKey?(selected.includes(p.id)?selected.filter(id=>id!==p.id):[...selected,p.id]):selected.length===1&&selected[0]===p.id?[]:[p.id])}>
             <svg aria-hidden="true" viewBox={`${b[0]-2} ${-b[3]-2} ${b[2]-b[0]+4} ${b[3]-b[1]+4}`}><path d={pathData([p.outer,...p.holes])} transform="scale(1 -1)" fillRule="evenodd" fill={colors[i%colors.length]}/></svg>
-            <span>{p.name}<small>{length(b[2]-b[0])} × {length(b[3]-b[1])} {unit}</small></span>
+            <span>{p.name}<small>{length(b[2]-b[0])} × {length(b[3]-b[1])} {unit}</small><small className="rotation-summary">{rotationSummary(p.rotations)}</small></span>
           </button><input aria-label={`Quantity for ${p.name}`} type="number" min="1" max="500" aria-invalid={!validQuantity(p.quantity)} value={Number.isFinite(p.quantity)?p.quantity:''} disabled={locked} onChange={e=>commit({...doc,parts:doc.parts.map(part=>part.id===p.id?{...part,quantity:e.target.valueAsNumber}:part)})}/>
           {!validQuantity(p.quantity)&&<small role="alert" className="field-error quantity-error">Enter a whole number from 1 to 500.</small>}
         </div>;})}</div>
@@ -219,9 +219,9 @@ export default function App() {
           <label>Clearance <span>{unit}</span><input type="number" min="0" step="any" value={inputLength(doc.settings.clearanceMm)} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,clearanceMm:e.target.valueAsNumber*factor}})}/></label>
           {doc.settings.clearanceMm>0&&<small>sparrow also reserves {length(doc.settings.clearanceMm)} {unit} at material edges. This is not cutting kerf.</small>}
           {(!Number.isFinite(doc.settings.clearanceMm)||doc.settings.clearanceMm<0||doc.settings.clearanceMm>=doc.settings.materialWidthMm)&&<small role="alert" className="field-error">Enter zero or a positive clearance smaller than the material width.</small>}
-          <label>Run for<select value={doc.settings.timeLimitSeconds} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,timeLimitSeconds:Number(e.target.value) as 10|30|60|120}},false)}>{[10,30,60,120].map(s=><option value={s} key={s}>{s<60?`${s} seconds`:`${s/60} minute${s>60?'s':''}`}</option>)}</select></label>
+          <label>Stop condition<select value={doc.settings.timeLimitSeconds??'auto'} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,timeLimitSeconds:e.target.value==='auto'?null:Number(e.target.value) as 10|30|60|120}},false)}><option value="auto">Automatic</option>{[10,30,60,120].map(s=><option value={s} key={s}>{s<60?`Up to ${s} seconds`:`Up to ${s/60} minute${s>60?'s':''}`}</option>)}</select></label>
           <details className="solver-options"><summary>Solver options</summary><label>Solver threads<select disabled={locked} value={threads} onChange={e=>setThreads(Number(e.target.value))}><option value={0}>Automatic</option>{[1,2,3].map(n=><option key={n} value={n}>{n}</option>)}</select></label><small>{crossOriginIsolated?'Automatic leaves a core free, up to 3 threads.':'This browser session uses one thread.'}</small></details>
-          <small>Initialization precedes search. 80% exploration, 20% compression.</small>
+          <small>Stops automatically when the search stalls. You can stop at any time.</small>
         </section>
       </aside>
       <section className="drawing-panel"><div className="view-tabs"><div role="tablist" aria-label="Workspace view"><button role="tab" aria-selected={view==='prepare'} onClick={()=>setView('prepare')}>Prepare</button><button role="tab" aria-selected={view==='result'} disabled={!result&&!live} onClick={()=>setView('result')}>Result</button></div>{view==='result'&&<div className="result-mode" role="group" aria-label="Result display"><button aria-pressed={resultMode==='live'} disabled={!live} onClick={()=>setResultMode('live')}>Live</button><button aria-pressed={resultMode==='checked'} disabled={!result} onClick={()=>setResultMode('checked')}>Checked {result&&'✓'}</button></div>}<button className="mobile-settings" aria-expanded={panel} aria-controls="parts-settings" onClick={()=>setPanel(!panel)}>Settings</button></div>
@@ -247,7 +247,7 @@ export default function App() {
         </section></aside>}
     </main>
     <footer className="statusbar"><div className="run-controls">{running?<button className="run-button" onClick={solver.stop}>Stop</button>:<button className="run-button" disabled={locked||invalidSettings||!doc.parts.length||!!polygon} onClick={()=>void run()}>{result?'Run again':'Nest parts'}</button>}</div>
-      <span role="status" className="run-status"><span className="status-symbol" aria-hidden="true">{running||busy?<svg className="dot-matrix" viewBox="0 0 25 25">{Array.from({length:25},(_,i)=><circle key={i} cx={2.5+i%5*5} cy={2.5+Math.floor(i/5)*5} r="1.5" style={{animationDelay:`${-(i%5+Math.floor(i/5))*.12}s`}}/>)}</svg>:<i/>}</span><span>{busy?'Checking inputs':solver.state}{running&&` · ${solver.elapsed.toFixed(1)} s`}</span></span>
+      <span role="status" className="run-status"><span className="status-symbol" aria-hidden="true"><i className={running||busy?'active':undefined}/></span><span>{busy?'Checking inputs':solver.state}{running&&` · ${solver.elapsed.toFixed(1)} s`}</span></span>
       <div className="metrics"><span>{showingLive?'Best checked length':'Used length'} <strong>{result?`${length(result.usedLengthMm)} ${unit}`:'—'}</strong></span><span>Material utilization <strong>{result?`${utilization.toFixed(1)}%`:'—'}</strong></span>{result&&first&&<span>Length improvement <strong>{((1-result.usedLengthMm/first.lengthMm)*100).toFixed(1)}%</strong></span>}</div>
       {!running&&<div className="export-actions"><select aria-label="Export format" value={exportFormat} onChange={e=>setExportFormat(e.target.value as 'svg'|'dxf')}><option value="svg">SVG</option><option value="dxf">DXF</option></select><button disabled={locked||!result} className="primary" onClick={()=>void exportLayout()}>Download {exportFormat.toUpperCase()}</button></div>}<button className="diagnostics-button" onClick={diagnostics}>Diagnostics</button>
 
@@ -268,7 +268,7 @@ export default function App() {
       {shape==='polygon'&&<p>Click each vertex in the preparation view. Enter closes the polygon; Escape cancels. The contour is checked before it is added.</p>}{error&&<p role="alert" className="field-error">{error}</p>}
       <div className="modal-actions"><button disabled={busy} onClick={()=>setShape(undefined)}>Cancel</button><button disabled={busy} className="primary" onClick={()=>{if(shape==='polygon'){setShape(undefined);setPolygon([]);setView('prepare');}else void addShape(shape);}}>{shape==='polygon'?'Start drawing':'Add shape'}</button></div>
     </Modal>}
-    {examples&&<ExamplePicker onClose={()=>setExamples(false)} onChoose={async(next,nest)=>{const document=await prepareDocument(nest?{...next,settings:{...next.settings,timeLimitSeconds:10}}:next,[],true);setExamples(false);requestProject({document,nest});}}/>}
+    {examples&&<ExamplePicker onClose={()=>setExamples(false)} onChoose={async(next,nest)=>{const document=await prepareDocument(next,[],true);setExamples(false);requestProject({document,nest});}}/>}
     {library&&<ShapeLibrary unit={unit} selectedParts={doc.parts.filter(p=>selected.includes(p.id))} onClose={()=>setLibrary(false)} onAdd={async parts=>{setBusy(true);try{await addParts(parts);}finally{setBusy(false);}}}/>}
     {nameDialog&&<Modal title={nameDialog==='new'?'New project':'Rename project'} onClose={()=>setNameDialog(undefined)}><form onSubmit={e=>{e.preventDefault();const name=projectName.trim();if(!name)return;if(nameDialog==='new')requestProject({document:emptyProject(name),saved:true});else if(name!==doc.name)commit({...doc,name},false);setNameDialog(undefined);}}><label>Project name<input autoFocus required maxLength={200} value={projectName} onChange={e=>setProjectName(e.target.value)}/></label><div className="modal-actions"><button type="button" onClick={()=>setNameDialog(undefined)}>Cancel</button><button className="primary" disabled={!projectName.trim()}>{nameDialog==='new'?'Create project':'Rename'}</button></div></form></Modal>}
     {pendingProject&&<Modal title="Unsaved project" locked={busy} onClose={()=>setPendingProject(undefined)}><p>Download {doc.name} before opening {pendingProject.document.name}?</p><p className="muted">Downloads a project file. Open it later to continue.</p>{polygon&&<p>Finish or cancel the polygon before downloading, or discard it to continue.</p>}{error&&<p role="alert" className="field-error">{error}</p>}<div className="modal-actions"><button disabled={busy} onClick={()=>setPendingProject(undefined)}>Cancel</button><button disabled={busy} onClick={()=>switchProject(pendingProject)}>Discard changes</button><button className="primary" disabled={busy||invalidSettings||!!polygon} onClick={async()=>{if(await saveProject())switchProject(pendingProject);}}>Download project and continue</button></div></Modal>}

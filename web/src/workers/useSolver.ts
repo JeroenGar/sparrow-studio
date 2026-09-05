@@ -106,7 +106,7 @@ export function useSolver() {
       switch(data.type) {
         case 'ready': r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, no SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
-          if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}
+          if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);if(doc.settings.timeLimitSeconds!==null)r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}
           setState('Running');break;
         case 'live':r.latest=data;r.diagnostics.liveSnapshots!++;break;
         case 'candidate':

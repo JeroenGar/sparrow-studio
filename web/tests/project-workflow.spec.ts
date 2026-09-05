@@ -1,4 +1,4 @@
-import {openExamples,workshop,finishSwitch} from './project-helpers';
+import {openExamples,workshop,finishSwitch,newProject} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
@@ -33,6 +33,7 @@ test('saves a real checked layout, confirms replacement, rechecks load and inval
 test('project lifecycle names downloads, guards replacement and reopens an empty project',async({page},testInfo)=>{
   await page.goto('/');
   const menu=async(name:string)=>{await page.locator('.project-menu>summary').click();await page.getByRole('button',{name,exact:true}).click();};
+  await newProject(page);
   await menu('Rename project');await page.getByLabel('Project name',{exact:true}).fill('My cutting job');await page.getByRole('button',{name:'Rename',exact:true}).click();
   await expect(page.locator('.project-status')).toHaveText('Unsaved changes');
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();

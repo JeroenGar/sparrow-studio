@@ -9,7 +9,7 @@ test('JSON import, checked result, serialized export and invalidation',async({pa
   await expect(page.getByRole('dialog')).toContainText('48 copies');
   await page.getByRole('button',{name:'Open as new project',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('Ready');
-  await page.getByLabel('Run for').selectOption('10');
+  await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});

@@ -7,3 +7,10 @@ export async function finishSwitch(page:Page){
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 export async function workshop(page:Page){await openExamples(page);await page.getByRole('button',{name:'Open example',exact:true}).click();await finishSwitch(page);}
+
+export async function newProject(page:Page){
+  await page.locator('.project-menu>summary').click();
+  await page.getByRole('button',{name:'New project',exact:true}).click();
+  await page.getByRole('button',{name:'Create project',exact:true}).click();
+  await finishSwitch(page);
+}

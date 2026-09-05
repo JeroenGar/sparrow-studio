@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
-test('native auto-termination finishes before the cap and retains a checked export',async({page},testInfo)=>{
+test('native auto-termination finishes without a time cap and retains a checked export',async({page},testInfo)=>{
   await page.goto('/');
   await page.locator('input[type=file]').first().setInputFiles({
     name:'one-rectangle.json',mimeType:'application/json',
@@ -13,10 +13,10 @@ test('native auto-termination finishes before the cap and retains a checked expo
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await page.getByRole('button',{name:'Open as new project',exact:true}).click();
   await expect(page.getByRole('status')).toHaveText('Ready');
-  await page.getByLabel('Run for').selectOption('120');
+  await expect(page.getByLabel('Stop condition')).toHaveValue('auto');
   const started=Date.now();
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  // Without native early termination this fixture consumes the full 120-second cap.
+  // Automatic stopping must finish normally without a JavaScript time cap.
   await expect(page.getByRole('status')).toHaveText('Complete',{timeout:45_000});
   expect(Date.now()-started).toBeLessThan(60_000);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click();
@@ -29,7 +29,7 @@ test('native auto-termination finishes before the cap and retains a checked expo
   await(await diagnosticsDownload).saveAs(diagnosticsPath);
   const diagnostics=JSON.parse(await readFile(diagnosticsPath,'utf8'));
   expect(diagnostics.stopReason).toBe('Complete');
-  expect(diagnostics.document.settings.timeLimitSeconds).toBe(120);
+  expect(diagnostics.document.settings.timeLimitSeconds).toBeNull();
   expect(diagnostics.result.validation.status).toBe('passed');
   expect(diagnostics.result.placements).toHaveLength(1);
   expect(diagnostics.result.placements[0].angleDeg).toBe(0);
