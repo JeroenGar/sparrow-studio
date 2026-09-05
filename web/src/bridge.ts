@@ -56,7 +56,8 @@ run.onclick = async () => {
         if (!searchStarted) {
           searchStarted = true;
           clearTimeout(watchdog);
-          watchdog = setTimeout(() => finish('Stopped: solve watchdog'), 12_000);
+          // Native deadlines are cooperative; allow a final search iteration and export on slower CPUs.
+          watchdog = setTimeout(() => finish('Stopped: solve watchdog'), 22_000);
         }
       }
       if (data.type === 'candidate') {
