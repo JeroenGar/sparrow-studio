@@ -1,0 +1,34 @@
+import {test,expect} from '@playwright/test';
+import {readFile} from 'node:fs/promises';
+
+test('quantity errors, immediate contour review, and mobile diagnostics are accessible',async({page},info)=>{
+  await page.goto('/');
+  const quantity=page.getByLabel('Quantity for Bracket');
+  await quantity.fill('501');
+  await expect(page.getByText('Enter a whole number from 1 to 500.')).toBeVisible();
+  await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeDisabled();
+  await quantity.fill('493');
+  await expect(page.getByText(/exceeds the 500-copy limit/)).toBeVisible();
+  await quantity.fill('3');
+  await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();
+  await page.locator('input[type=file]').setInputFiles({name:'review.svg',mimeType:'image/svg+xml',buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><path d="M0 0H100V60H0Z"/><path d="M20 20H40V40H20Z"/></svg>')});
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog.getByLabel('Imported shapes')).toContainText('100 × 60 mm');
+  await expect(dialog).toContainText('1 part types · 1 copies · 1 holes');
+  await dialog.getByLabel('Enclosed contours').selectOption('parts');
+  await expect(dialog).toContainText('2 part types · 2 copies · 0 holes');
+  await dialog.getByLabel('Append to current parts').uncheck();
+  await dialog.getByRole('button',{name:'Import parts',exact:true}).click();
+  await expect(dialog).toHaveCount(0);
+  await page.setViewportSize({width:390,height:844});
+  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+  await expect(page.getByRole('link',{name:'Open-source licenses and source code'})).toHaveAttribute('href','./THIRD_PARTY_NOTICES.txt');
+  const pending=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download diagnostics',exact:true}).click();
+  const path=info.outputPath('diagnostics.json');await(await pending).saveAs(path);
+  const diagnostics=JSON.parse(await readFile(path,'utf8'));
+  expect(diagnostics.importWarnings).toBeInstanceOf(Array);
+  expect(diagnostics.importWarnings.length).toBeGreaterThan(0);
+  expect(diagnostics.document.parts).toHaveLength(2);
+});

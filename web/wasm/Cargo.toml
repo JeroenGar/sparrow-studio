@@ -1,0 +1,28 @@
+[package]
+name = "sparrow-web"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+threads = ["dep:wasm-bindgen-rayon", "dep:rayon"]
+
+[dependencies]
+wasm-bindgen-rayon = { version = "=1.3.0", optional = true }
+rayon = { version = "1.11", optional = true }
+sparrow = { git = "https://github.com/JeroenGar/sparrow.git", rev = "120cf937de5e74c292406bc9947276c9dd49217f" }
+jagua-rs = { version = "=0.8.1", features = ["spp"] }
+rand = "0.10"
+serde_json = "1.0"
+wasm-bindgen = "0.2"
+js-sys = "0.3"
+console_error_panic_hook = "0.1"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

@@ -1,0 +1,33 @@
+{
+  "name": "sparrow-studio",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "wasm:build": "node scripts/build-wasm.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "npm run build && playwright test",
+    "build": "npm run wasm:build && npm run typecheck && python3 scripts/package-source.py && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.6",
+    "typescript": "5.8.3",
+    "vite": "6.4.3",
+    "vitest": "3.2.7"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "0.9.12",
+    "dxf-parser": "1.1.2",
+    "polygon-clipping": "0.15.7",
+    "polylabel": "2.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "robust-predicates": "3.0.2",
+    "svgpath": "2.6.0"
+  }
+}

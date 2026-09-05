@@ -1,0 +1,345 @@
+{
+  "solverRevision": "120cf937de5e74c292406bc9947276c9dd49217f",
+  "datasets": [
+    {
+      "id": "albano",
+      "file": "albano.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 8,
+      "copies": 24,
+      "bytes": 5951,
+      "sha256": "cf26a244040ef1a49be1b5f9c947ab0ba14046dcaefdc844d6d57d96970a7542"
+    },
+    {
+      "id": "blaz1",
+      "file": "blaz1.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 7,
+      "copies": 28,
+      "bytes": 4632,
+      "sha256": "2f4afb682686de22a27970a8ff6bde586aa9624017b39d643c7d7d4e898aef58"
+    },
+    {
+      "id": "dagli",
+      "file": "dagli.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 10,
+      "copies": 30,
+      "bytes": 6556,
+      "sha256": "e4f87dc490ba96467b0c1df3a0957212db3098813195d42fe5695c03aadea07a"
+    },
+    {
+      "id": "fu",
+      "file": "fu.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 12,
+      "copies": 12,
+      "bytes": 6379,
+      "sha256": "1bae041893a948bc18dd168c4868093fcb62ad11bdd04e5738008859237b0179"
+    },
+    {
+      "id": "gardeyn0",
+      "file": "gardeyn0.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 5,
+      "copies": 50,
+      "bytes": 38276,
+      "sha256": "dfb398b84a9f678a700c28dc493aa4e750f828bdc74e98caab4a94ba8b4fd964"
+    },
+    {
+      "id": "gardeyn0_c",
+      "file": "gardeyn0_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 5,
+      "copies": 50,
+      "bytes": 37793,
+      "sha256": "f849f6f0aba9ec8e73dffdd5df2db6a7792d4fcf769c11a4e32b3af549c28ec9"
+    },
+    {
+      "id": "gardeyn1",
+      "file": "gardeyn1.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 10,
+      "copies": 50,
+      "bytes": 50015,
+      "sha256": "b91e181b2209b61aca0fb741ad13bf9b34747d28cea7e6b03cfa2c2a96203b04"
+    },
+    {
+      "id": "gardeyn1_c",
+      "file": "gardeyn1_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 10,
+      "copies": 50,
+      "bytes": 49047,
+      "sha256": "a500d429a70c96f4abd7204f1fb33dc40898db76b4b97f6d433287836bd8f9b1"
+    },
+    {
+      "id": "gardeyn2",
+      "file": "gardeyn2.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 50,
+      "copies": 50,
+      "bytes": 259106,
+      "sha256": "5a5f5f4cc449d9122a46d8036143f225e73a19160d1954971a3a410cc8e3ba5d"
+    },
+    {
+      "id": "gardeyn2_c",
+      "file": "gardeyn2_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 50,
+      "copies": 50,
+      "bytes": 254258,
+      "sha256": "8fb315ab8d602e3245400378f3b746883840564d5072a7169e1befc45e3e27a9"
+    },
+    {
+      "id": "gardeyn3",
+      "file": "gardeyn3.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 100,
+      "copies": 100,
+      "bytes": 590687,
+      "sha256": "2468b9de017d30a495ab907e910ace7e701d0dc57b5060b45e2a6b82e87ffec2"
+    },
+    {
+      "id": "gardeyn3_c",
+      "file": "gardeyn3_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 100,
+      "copies": 100,
+      "bytes": 580989,
+      "sha256": "c5356d02f45050a626ea9811cbd907fe209d5bf1129a0f86bf324a398bb73db6"
+    },
+    {
+      "id": "gardeyn4",
+      "file": "gardeyn4.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 5,
+      "copies": 80,
+      "bytes": 139657,
+      "sha256": "b693e8a4d65f28ae95719bd37b8f17fc87fb6629fd56ed1d40b4e92b10fab934"
+    },
+    {
+      "id": "gardeyn4_c",
+      "file": "gardeyn4_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 5,
+      "copies": 80,
+      "bytes": 139174,
+      "sha256": "875eb68549c7fa8042a7a5a807559a576b614fad784cb6d965c3b3f4d2dbe36f"
+    },
+    {
+      "id": "gardeyn5",
+      "file": "gardeyn5.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 6,
+      "copies": 80,
+      "bytes": 88867,
+      "sha256": "f16682e347993a0529f67dce6d647608fd186770a50f6b7d54ff7aca442ed2e7"
+    },
+    {
+      "id": "gardeyn5_c",
+      "file": "gardeyn5_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 6,
+      "copies": 80,
+      "bytes": 88287,
+      "sha256": "17392efdec7ad7db0a0844eba39423aeb55b31be87d6a862a98ae7ab0318ca22"
+    },
+    {
+      "id": "gardeyn6",
+      "file": "gardeyn6.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 85,
+      "copies": 161,
+      "bytes": 271626,
+      "sha256": "f84c602e7534baf47ea3144a33cc8c724b0f6a0700e064fcb451e5db7e17521b"
+    },
+    {
+      "id": "gardeyn6_c",
+      "file": "gardeyn6_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 85,
+      "copies": 161,
+      "bytes": 263383,
+      "sha256": "60ef7daf03cd974c5dd3c7ee013e0e3da5add65423d4e3437386d4391b30efcd"
+    },
+    {
+      "id": "gardeyn7",
+      "file": "gardeyn7.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 16,
+      "copies": 160,
+      "bytes": 80308,
+      "sha256": "82c3b1b4d1ee8e118b0b3481072622fdf8a363c21cdf40f2dd63b89068b20a35"
+    },
+    {
+      "id": "gardeyn7_c",
+      "file": "gardeyn7_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 16,
+      "copies": 160,
+      "bytes": 78758,
+      "sha256": "e49d5c7add9c508726d757c08f306094e50b2308b544a4c7436badcaa3d03198"
+    },
+    {
+      "id": "gardeyn8",
+      "file": "gardeyn8.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 112,
+      "copies": 112,
+      "bytes": 398941,
+      "sha256": "53dddd8aaa7cf8da996a5d4821dc9eecb4bf608f2ab8703d7fb4cb51d7ea0de3"
+    },
+    {
+      "id": "gardeyn8_c",
+      "file": "gardeyn8_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 112,
+      "copies": 112,
+      "bytes": 389955,
+      "sha256": "3824758b712ebc6bc5bb697a75866ddf3c238644ca2857a9187de2865717cb90"
+    },
+    {
+      "id": "gardeyn9",
+      "file": "gardeyn9.json",
+      "group": "Gardeyn",
+      "continuous": false,
+      "partTypes": 47,
+      "copies": 47,
+      "bytes": 448076,
+      "sha256": "432aa8365a38e919bad177e0380f0643059829f512f389d56d68998fb8ae7dea"
+    },
+    {
+      "id": "gardeyn9_c",
+      "file": "gardeyn9_c.json",
+      "group": "Gardeyn",
+      "continuous": true,
+      "partTypes": 47,
+      "copies": 47,
+      "bytes": 443897,
+      "sha256": "e4cdca0dc5f25d5f300691a6e27cc0343d9f6fccd984b8cf7f17a96603717769"
+    },
+    {
+      "id": "jakobs1",
+      "file": "jakobs1.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 25,
+      "copies": 25,
+      "bytes": 16696,
+      "sha256": "e6b9df65a387e2912b4fe04ecd619e92815d5096cab5537f757e2838dbdacc1d"
+    },
+    {
+      "id": "jakobs2",
+      "file": "jakobs2.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 25,
+      "copies": 25,
+      "bytes": 15807,
+      "sha256": "779bd33733ef276ba849a155fb1b11323153564e346057edae9fb06e3c87c30d"
+    },
+    {
+      "id": "mao",
+      "file": "mao.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 9,
+      "copies": 20,
+      "bytes": 7988,
+      "sha256": "2041da1d6a51b48787d5eb96358b352b841f8e16f6930af961e60a35d6b02d42"
+    },
+    {
+      "id": "marques",
+      "file": "marques.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 8,
+      "copies": 24,
+      "bytes": 5964,
+      "sha256": "8229c324c3dc9e07e9e489d7e95a35f714d0674e6a3db5a62d95fa795b5a2768"
+    },
+    {
+      "id": "shapes0",
+      "file": "shapes0.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 4,
+      "copies": 43,
+      "bytes": 3199,
+      "sha256": "3d156bf8de95dd8b8f00cf37d23fdbd8e924594b33329142854507d557c01488"
+    },
+    {
+      "id": "shapes1",
+      "file": "shapes1.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 4,
+      "copies": 43,
+      "bytes": 3259,
+      "sha256": "dec476d6eb8e7132356a0e5560ec4c83787704fd327b76147020617e0d8353c5"
+    },
+    {
+      "id": "shirts",
+      "file": "shirts.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 8,
+      "copies": 99,
+      "bytes": 5454,
+      "sha256": "3d35fc0b2127a6d07793bba3d867cdc7b4c88837b991207d849f8f3383598557"
+    },
+    {
+      "id": "swim",
+      "file": "swim.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 10,
+      "copies": 48,
+      "bytes": 17026,
+      "sha256": "b296788340a3489c3d304b79ad8ca561735fe4ee3f79554f5170da8fcc4f3a0d"
+    },
+    {
+      "id": "swim_c",
+      "file": "swim_c.json",
+      "group": "Main",
+      "continuous": true,
+      "partTypes": 10,
+      "copies": 48,
+      "bytes": 16348,
+      "sha256": "382d1676f372dd1e6a7e8dad063a860177eea753676257d63695dcccc0b3fe73"
+    },
+    {
+      "id": "trousers",
+      "file": "trousers.json",
+      "group": "Main",
+      "continuous": false,
+      "partTypes": 17,
+      "copies": 64,
+      "bytes": 10009,
+      "sha256": "c2a91d1f1687f540764ddc14103eb03dc5f54ac135194ab9c23b4d50c83bb68e"
+    }
+  ]
+}

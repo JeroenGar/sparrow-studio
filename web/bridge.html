@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+  <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>sparrow-studio browser bridge proof</title></head>
+  <body><main>
+    <h1>sparrow-studio browser bridge proof</h1>
+    <p>M0 development page. Runs swim for 10 seconds in one worker, without shared memory or SIMD.</p>
+    <button id="run">Run swim</button> <button id="stop" disabled>Stop</button>
+    <button id="diagnostics">Download diagnostics</button>
+    <p id="state" role="status">Ready</p>
+    <p>UI heartbeat: <output id="heartbeat">0</output></p>
+    <p>Received feasible candidates: <output id="count">0</output>. These have not been independently geometry checked.</p>
+    <pre id="messages"></pre>
+  </main><script type="module" src="/src/bridge.ts"></script></body>
+</html>

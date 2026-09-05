@@ -1,0 +1,14 @@
+.cad-snapping{position:relative;font-size:12px;background:var(--panel);border:1px solid var(--border);border-radius:8px}
+.cad-snapping summary{cursor:pointer;padding:9px;min-height:36px;list-style:none}
+.cad-snapping>div{position:absolute;top:calc(100% + 8px);left:0;width:190px;padding:12px;display:grid;gap:10px;background:var(--panel);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 16px #0002;z-index:3}
+.cad-snapping small{color:var(--muted)}
+@media(max-width:699px){.cad-snapping summary{min-height:44px;padding:13px 8px}}
+
+.canvas-wrap>.workspace-svg{top:0;height:calc(100% - 24px)}
+.coordinate-rulers{position:absolute;left:0;top:0;width:100%;height:calc(100% - 24px);pointer-events:none;overflow:hidden}
+.coordinate-rulers rect{fill:var(--panel)}
+.coordinate-rulers line{stroke:var(--muted);stroke-width:1}
+.coordinate-rulers text{fill:var(--muted);font:9px ui-monospace,monospace}
+.coordinate-grid line{stroke:var(--muted);stroke-width:1}
+.coordinate-grid .minor{opacity:.075}.coordinate-grid .major{opacity:.16}.coordinate-grid .origin{opacity:.32}
+.canvas-wrap>.canvas-tools{top:30px;right:12px;filter:drop-shadow(0 2px 5px #0002)}

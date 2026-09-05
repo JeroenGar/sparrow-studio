@@ -1,0 +1,58 @@
+[
+  {
+    "package": "defmt-parser",
+    "version": "1.0.0",
+    "file": "defmt-parser-1.0.0-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-MIT",
+    "sha256": "2710a622a896bba67356913d4d0492cab5465f61b2ecce6d880aeb483834fb50"
+  },
+  {
+    "package": "defmt-parser",
+    "version": "1.0.0",
+    "file": "defmt-parser-1.0.0-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/knurling-rs/defmt/4a8cdb44891ed57b8ff5a023b6bec7137c48708f/LICENSE-APACHE",
+    "sha256": "8173d5c29b4f956d532781d2b86e4e30f83e6b7878dce18c919451d6ba707c90"
+  },
+  {
+    "package": "geo",
+    "version": "0.24.1",
+    "file": "geo-0.24.1-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/georust/geo/2b3f7b94f4f7aa9cab65e4d2db7ff09d8bf86177/LICENSE-MIT",
+    "sha256": "2f8267b247fd81e9555a2e196e119a5b341bcae21011cd93985c312f1312f727"
+  },
+  {
+    "package": "geo",
+    "version": "0.24.1",
+    "file": "geo-0.24.1-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/georust/geo/2b3f7b94f4f7aa9cab65e4d2db7ff09d8bf86177/LICENSE-APACHE",
+    "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+  },
+  {
+    "package": "jagua-rs",
+    "version": "0.8.1",
+    "file": "jagua-rs-0.8.1-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/JeroenGar/jagua-rs/824ab31cf8a58eecf5d87527260c92510626661b/LICENSE",
+    "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
+  },
+  {
+    "package": "rstar",
+    "version": "0.10.0",
+    "file": "rstar-0.10.0-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/georust/rstar/d454a5654b5e5064b854c3b880e0f5782e90a6cb/LICENSE-MIT",
+    "sha256": "9b3a76c27bac8f3e0ff2d1f64f65941c50310ae3ff69318cea230bd4a36822c5"
+  },
+  {
+    "package": "rstar",
+    "version": "0.10.0",
+    "file": "rstar-0.10.0-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/georust/rstar/d454a5654b5e5064b854c3b880e0f5782e90a6cb/LICENSE-APACHE",
+    "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
+  },
+  {
+    "package": "wasm_sync",
+    "version": "0.1.2",
+    "file": "Apache-2.0.txt",
+    "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  }
+]

@@ -1,0 +1,10 @@
+node_modules/
+dist/
+wasm/target/
+wasm/pkg/
+playwright-report/
+test-results/
+!package-lock.json
+!wasm/Cargo.lock
+wasm/pkg-threads/
+public/sparrow-source.zip

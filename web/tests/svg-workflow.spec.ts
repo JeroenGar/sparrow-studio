@@ -1,0 +1,51 @@
+import {test,expect} from '@playwright/test';
+import {readFile} from 'node:fs/promises';
+
+test('100 mm SVG preserves size and holes through nesting and export',async({page},testInfo)=>{
+  const source='<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><path fill-rule="evenodd" d="M0 0H100V60H0Z M20 20H40V40H20Z"/></svg>';
+  await page.goto('/');
+  await page.locator('input[type=file]').setInputFiles({name:'plate.svg',mimeType:'image/svg+xml',buffer:Buffer.from(source)});
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('1 holes');
+  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
+  await page.getByLabel('Run for').selectOption('10');
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download SVG'}).click();
+  const path=testInfo.outputPath('plate.svg');await(await pending).saveAs(path);
+  const exported=await readFile(path,'utf8');
+  expect(exported.match(/Z/g)).toHaveLength(2);
+  await page.locator('input[type=file]').setInputFiles(path);
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('1 holes');
+  await page.getByLabel('Append to current parts').uncheck();
+  await page.getByRole('button',{name:'Import parts',exact:true}).click();
+  await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
+});
+
+test('native dialogs, shape creation, proportional sizing, undo and polygon cancellation',async({page})=>{
+  await page.goto('/');
+  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.getByRole('dialog').getByLabel('Width, mm').fill('75');
+  await page.getByRole('dialog').getByLabel('Height, mm').fill('25');
+  await page.getByRole('dialog').getByRole('button',{name:'Add shape',exact:true}).click();
+  await expect(page.getByText('75 × 25 mm',{exact:true})).toBeVisible();
+  await page.getByLabel('Width, mm',{exact:true}).fill('150');
+  await page.getByLabel('Width, mm',{exact:true}).press('Enter');
+  await expect(page.getByText('150 × 50 mm',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await expect(page.getByText('75 × 25 mm',{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.getByRole('dialog').getByRole('combobox',{name:'Shape',exact:true}).selectOption('polygon');
+  await page.getByRole('button',{name:'Start drawing'}).click();
+  const canvas=page.getByRole('img',{name:'Preparation drawing'});
+  await canvas.click({position:{x:100,y:100}});await canvas.click({position:{x:180,y:100}});await canvas.click({position:{x:140,y:180}});
+  await page.getByRole('button',{name:'Finish polygon'}).click();
+  await expect(page.getByRole('button',{name:/Polygon/})).toBeVisible();
+  await page.getByRole('button',{name:'Add shape',exact:true}).click();
+  await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
+});

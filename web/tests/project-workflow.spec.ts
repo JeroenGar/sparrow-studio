@@ -1,0 +1,35 @@
+import {test,expect} from '@playwright/test';
+import {readFile} from 'node:fs/promises';
+
+test('saves a real checked layout, confirms replacement, rechecks load and invalidates on edit',async({page},testInfo)=>{
+  await page.goto('/');
+  await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
+  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
+  const path=testInfo.outputPath('work.sparrow-project.json');await(await pending).saveAs(path);
+  const data=JSON.parse(await readFile(path,'utf8'));expect(data.schemaVersion).toBe(1);expect(data.result.placements).toHaveLength(12);
+  await page.getByLabel('Material width',{exact:false}).fill('120');
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
+  await page.locator('input[type=file]').setInputFiles(path);
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('Saved result rechecked successfully');
+  await expect(page.getByRole('button',{name:'Load project',exact:true})).toBeDisabled();
+  await page.getByLabel('Replace my unsaved changes').check();
+  await page.getByRole('button',{name:'Load project',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
+  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('100');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
+  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('120');
+  data.result.placements[0].xMm=-1000;
+  await page.locator('input[type=file]').setInputFiles({name:'bad.sparrow-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('Saved result was discarded');
+  await page.getByLabel('Replace my unsaved changes').check();
+  await page.getByRole('button',{name:'Load project',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();
+});
