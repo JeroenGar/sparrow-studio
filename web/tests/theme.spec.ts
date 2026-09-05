@@ -1,16 +1,18 @@
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
-test('dark is the default; explicit system and light choices persist',async({page})=>{
+test('system is the default; borders follow the theme and explicit choices persist',async({page})=>{
   await page.emulateMedia({colorScheme:'light'});await page.goto('/');
   const background=()=>page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor);
-  await expect.poll(background).toBe('rgb(17, 25, 31)');
+  await expect.poll(background).toBe('rgb(245, 246, 248)');
+  const border=page.locator('.workspace-svg g[data-part] > path').first();
+  await expect(border).toHaveCSS('stroke','rgb(51, 65, 85)');
   await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
-  await expect(page.getByLabel('Appearance')).toHaveValue('dark');
-  await page.getByLabel('Appearance').selectOption('system');
+  await expect(page.getByLabel('Appearance')).toHaveValue('system');
   await expect.poll(background).toBe('rgb(245, 246, 248)');
   await page.emulateMedia({colorScheme:'dark'});
   await expect.poll(background).toBe('rgb(17, 25, 31)');
+  await expect(border).not.toHaveCSS('stroke','rgb(51, 65, 85)');
   await page.reload();
   await page.emulateMedia({colorScheme:'light'});
   await expect.poll(background).toBe('rgb(245, 246, 248)');
@@ -20,10 +22,14 @@ test('dark is the default; explicit system and light choices persist',async({pag
   await page.emulateMedia({colorScheme:'dark'});
   await expect.poll(background).toBe('rgb(245, 246, 248)');
   await page.reload();await expect.poll(background).toBe('rgb(245, 246, 248)');
+  await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+  await page.getByLabel('Appearance').selectOption('dark');
+  await page.emulateMedia({colorScheme:'light'});
+  await page.reload();await expect.poll(background).toBe('rgb(17, 25, 31)');
 });
 
 test('dark palette and ghost mode remain clear on desktop and mobile',async({page},testInfo)=>{
-  await page.goto('/');
+  await page.emulateMedia({colorScheme:'dark'});await page.goto('/');
   await openExamples(page);
   await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});

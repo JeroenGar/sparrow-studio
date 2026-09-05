@@ -28,7 +28,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
   const [resultMode,setResultMode]=useState<'live'|'checked'>('live');
   const [threads,setThreads]=useState(0),[library,setLibrary]=useState(false),[examples,setExamples]=useState(false);
   const [sizeValid,setSizeValid]=useState(true),[engaged,setEngaged]=useState(false);
-  const [theme,setTheme]=useState<'system'|'light'|'dark'>(()=>{try{const saved=localStorage.getItem('sparrow-theme');return saved==='light'||saved==='dark'||saved==='system'?saved:'dark';}catch{return 'dark';}});
+  const [theme,setTheme]=useState<'system'|'light'|'dark'>(()=>{try{const saved=localStorage.getItem('sparrow-theme');return saved==='light'||saved==='dark'||saved==='system'?saved:'system';}catch{return 'system';}});
   useEffect(()=>{document.documentElement.dataset.theme=theme;try{localStorage.setItem('sparrow-theme',theme);}catch{/* The theme still works when storage is unavailable. */}},[theme]);
   const [unit,setUnit]=useState<DisplayUnit>(()=>{try{return localStorage.getItem('sparrow-units')==='in'?'in':'mm';}catch{return 'mm';}});
   useEffect(()=>{try{localStorage.setItem('sparrow-units',unit);}catch{/* Display units work without persistence. */}},[unit]);
