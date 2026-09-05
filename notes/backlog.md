@@ -1,6 +1,8 @@
 # Backlog
 
-No outstanding items from the current batch.
+## Exact material fit can panic in the native solver
+
+A 100 × 60 mm rectangular SVG with a 20 × 20 mm hole triggers `RuntimeError: unreachable` when material width is exactly 60 mm, with zero clearance and a 10-second run. Reproduced in Chromium and Firefox during SVG export QC. Investigate the native placement/initialization boundary; preserve requested material dimensions and avoid silently padding the geometry.
 
 ## Completed
 

@@ -13,11 +13,16 @@ from shapely import Polygon
 
 def audit(path):
     root = ET.fromstring(Path(path).read_text())
-    width, height = float(root.attrib['width'].removesuffix('mm')), float(root.attrib['height'].removesuffix('mm'))
-    assert root.attrib['viewBox'] == f'0 0 {root.attrib["width"][:-2]} {root.attrib["height"][:-2]}'
-    group = root.find('{http://www.w3.org/2000/svg}g')
-    assert group is not None
-    assert group.attrib['transform'] == f'translate(0 {root.attrib["height"][:-2]}) scale(1 -1)'
+    ns = '{http://www.w3.org/2000/svg}'
+    page_width, page_height = float(root.attrib['width'].removesuffix('mm')), float(root.attrib['height'].removesuffix('mm'))
+    vx, vy, vw, vh = map(float, root.attrib['viewBox'].split())
+    assert (vw, vh) == (page_width, page_height), 'SVG units no longer map to millimetres'
+    group = root.find(f'{ns}g[@id="parts"]')
+    material = root.find(f'{ns}g[@data-sparrow-decoration="true"]/{ns}rect[@x="0"]')
+    assert group is not None and material is not None
+    width, height = float(material.attrib['width']), float(material.attrib['height'])
+    assert vx < 0 and vy < 0 and vx+vw > width and vy+vh > height
+    assert group.attrib['transform'] == f'translate(0 {material.attrib["height"]}) scale(1 -1)'
     footprints = []
     net_area = 0
     for element in group:

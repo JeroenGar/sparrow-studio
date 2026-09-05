@@ -1,6 +1,7 @@
 import {newProject} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
+import {pathToFileURL} from 'node:url';
 
 test('100 mm SVG preserves size and holes through nesting and export',async({page},testInfo)=>{
   const source='<svg xmlns="http://www.w3.org/2000/svg" width="100mm" height="60mm" viewBox="0 0 100 60"><path fill-rule="evenodd" d="M0 0H100V60H0Z M20 20H40V40H20Z"/></svg>';
@@ -10,6 +11,7 @@ test('100 mm SVG preserves size and holes through nesting and export',async({pag
   await expect(page.getByRole('dialog')).toContainText('1 holes');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
+  await page.getByLabel('Material width',{exact:false}).fill('80');
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
@@ -18,6 +20,14 @@ test('100 mm SVG preserves size and holes through nesting and export',async({pag
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download SVG'}).click();
   const path=testInfo.outputPath('plate.svg');await(await pending).saveAs(path);
+  const preview=await page.context().newPage();
+  await preview.goto(pathToFileURL(path).href);
+  const viewport=preview.viewportSize()!,frame=await preview.locator('svg').boundingBox();
+  expect(frame!.width).toBeLessThanOrEqual(viewport.width);
+  expect(frame!.height).toBeLessThanOrEqual(viewport.height);
+  await expect(preview.locator('#parts path')).toHaveAttribute('fill','#fb923c');
+  await preview.screenshot({path:testInfo.outputPath('export-preview.png')});
+  await preview.close();
   const exported=await readFile(path,'utf8');
   expect(exported.match(/Z/g)).toHaveLength(2);
   await page.locator('input[type=file]').first().setInputFiles(path);

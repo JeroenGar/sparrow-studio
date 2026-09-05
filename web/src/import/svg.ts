@@ -117,6 +117,8 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
       if(a.name==='style') {
         for(const entry of a.value.split(';').filter(s=>s.trim())) {
           const [key,value,...extra]=entry.split(':');
+          // Root viewport fitting changes presentation, not the declared millimetre geometry.
+          if(!extra.length&&node===root&&['width','height'].includes(key.trim())&&value?.trim()==='100%')continue;
           if(extra.length||value===undefined||!['fill','stroke','stroke-width','fill-rule','opacity','stroke-opacity','fill-opacity'].includes(key.trim()))throw Error('CSS-driven geometry, transforms, and unsupported style properties must be removed.');
         }
       }
@@ -156,6 +158,7 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
     let rule=attr(node,'fill-rule')??inheritedRule;
     const inline=attr(node,'style')?.match(/(?:^|;)\s*fill-rule\s*:\s*([^;]+)/);if(inline)rule=inline[1].trim();
     if(rule!=='evenodd'&&rule!=='nonzero')throw Error(`${id}: invalid fill-rule.`);
+    if(tag==='g'&&attr(node,'data-sparrow-decoration')==='true')return;
     if(['metadata','title','desc'].includes(tag)||tag==='defs'&&!referenced)return;
     if(tag==='use') {
       const href=attr(node,'href')??attr(node,'xlink:href');if(!href?.startsWith('#'))throw Error(`${id}: use requires a local reference.`);

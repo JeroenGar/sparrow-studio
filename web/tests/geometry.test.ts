@@ -4,6 +4,8 @@ import { normalizePart,normalizeRing } from '../src/geometry/normalize';
 import { validate,worldParts } from '../src/geometry/validate';
 import { importSparrow } from '../src/import/sparrow';
 import { exportSVG } from '../src/export/svg';
+import { importSVG } from '../src/import/svg';
+import { bounds } from '../src/geometry/normalize';
 
 function fixture() {
   const part={...newPart([[0,0],[1,0],[1,1],[0,1]]),id:'square',quantity:2};
@@ -17,8 +19,26 @@ describe('independent layout validation',()=>{
   it('allows touching at zero clearance and serializes the checked coordinates',()=>{
     const {doc,result}=fixture();result.validation=validate(doc,result);
     expect(result.validation.status).toBe('passed');
-    const exported=exportSVG(doc,result);expect(exported.svg).toContain('width="2mm"');
+    const exported=exportSVG(doc,result);expect(exported.svg).toContain('width="2.2mm"');
     expect(exported.world[1].outer).toEqual([[1,0],[2,0],[2,1],[1,1]]);
+  });
+  it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
+    const {doc,result}=fixture();doc.name='Plate <script> & "test"';
+    doc.parts[0].quantity=1;result.placements.pop();
+    result.validation=validate(doc,result);
+    const {svg}=exportSVG(doc,result);
+    expect(svg).toContain('viewBox="-0.1 -0.1 2.2 2.2"');
+    expect(svg).toContain('Plate &lt;script&gt; &amp; &quot;test&quot;');
+    expect(svg).toContain('25.00% used');
+    expect(svg).toContain('fill="#fb923c"');
+    const imported=importSVG(svg,'layout.svg',{scale:1,tolerance:.01,enclosed:'holes'});
+    expect(imported.issues??[]).toEqual([]);
+    expect(imported.document.parts).toHaveLength(1);
+    for(const part of imported.document.parts){
+      const box=bounds(part.outer);
+      expect(box[2]-box[0]).toBeCloseTo(1,12);
+      expect(box[3]-box[1]).toBeCloseTo(1,12);
+    }
   });
   it.each(['missing','duplicate','unknown','reflection','wrong-angle','non-finite','out-of-bounds'] as const)('rejects %s',kind=>{
     const {doc,result}=fixture();

@@ -14,7 +14,8 @@ import {coordinateGrid} from '../geometry/grid';
 
 type Gesture={backgroundStart?:Point;pointer:number;start:Point;parts:{id:string;position:Point}[];delta:Point;anchor:Point;transform?:{kind:'scale'|'rotate';pivot:Point;edit?:GeometryEdit}};
 
-export const colors=['#fb923c','#f472b6','#a78bfa','#38bdf8','#facc15','#34d399'];
+import {colors} from '../colors';
+export {colors} from '../colors';
 export default function Workspace({document:doc,result,live,view,selected,onSelect,onMove,onTransform,disabled,polygon,onDraw,fitRequest,unit:displayUnit='mm',materialWidthFocused=false}: {
   materialWidthFocused?:boolean;unit?:DisplayUnit;fitRequest:number;document:Document;result?:Result;view:'prepare'|'result';selected:string[];
   live?:LiveGeometry & {sequence:number};

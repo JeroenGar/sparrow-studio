@@ -53,7 +53,7 @@ After deployment, check a fresh browser session for startup isolation, a checked
 - Browse all 34 main/Gardeyn benchmark files. Original benchmarks retain their coordinates, demand and rotations. The shape library uses one scale factor per dataset, giving a median net area of 2,500 mm² across distinct part types.
 - Save personal shapes in IndexedDB on this browser/device. Geometry is validated on read/write. Web Locks serialize mutations across tabs. Personal shapes are subject to the same 500-type/100,000-vertex guard as a project. Browser storage can be cleared; explicit project downloads are backups.
 - View intermediate search layouts with red overlap regions or the best independently checked result. Ghost mode keeps thin outlines and a 10% white shape fill, with a transparent material background.
-- Download checked polygonal SVG, ASCII DXF, projects and diagnostics. Dark is the initial theme; explicit Light and System preferences persist.
+- Download checked polygonal SVG, ASCII DXF, projects and diagnostics. SVG fits the viewing window with a padded viewBox, material frame, part colors and a layout summary. Its declared page dimensions include the margin; geometry stays in millimetres. The importer ignores the marked decorative group. Dark is the initial theme; explicit Light and System preferences persist.
 
 SVG supports physical sizing, affine transforms, local references, bounded curve flattening and compound holes. Nested SVG viewports, scripts, external references, clipping/masks, CSS-driven geometry and open contours are rejected. For `preserveAspectRatio="slice"`, complete cutting contours are imported with an explicit warning; viewport cropping is not applied.
 
