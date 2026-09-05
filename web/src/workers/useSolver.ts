@@ -5,7 +5,7 @@ import type {LiveGeometry} from '../geometry/live';
 
 export type RunState='Ready'|'Initializing'|'Running'|'Checking'|'Complete'|'Stopped'|'Error';
 export type Timing={sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
-export type Diagnostics={solverRevision:string;seed:string;buildMode:string;initializationMs?:number;stopReason?:string;history:Timing[];liveSnapshots?:number};
+export type Diagnostics={solverRevision:string;seed:string;buildMode:string;initializationMs?:number;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
 export type LiveFrame=LiveGeometry & {sequence:number;result:Result;report:string};
 type Run={id:number;revision:number;doc:Document;seed:string;solver?:Worker;checker:Worker;preview:Worker;active?:{candidate:Candidate;result:Result};
   latest?:Candidate;previewActive?:{candidate:Candidate;result:Result};frame?:LiveFrame;previewSequence:number;previewError?:string;
@@ -79,12 +79,17 @@ export function useSolver() {
     const checker=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
     const preview=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
     const r:Run={id,revision,doc,seed,solver,checker,preview,previewSequence:0,watchdog:setTimeout(()=>end('Stopped','Initialization exceeded 15 seconds.'),15_000),
-      diagnostics:{solverRevision:SOLVER_REVISION,seed,buildMode:'Initializing',history:[],liveSnapshots:0}};
+      diagnostics:{solverRevision:SOLVER_REVISION,seed,buildMode:'Initializing',history:[],liveSnapshots:0,liveErrors:[]}};
     run.current=r;diagnostics.current=r.diagnostics;
     preview.onmessage=({data}:MessageEvent<GeometryReply>)=>{
       if(run.current!==r||data.runId!==r.id||data.documentRevision!==r.revision)return;
       if(data.type==='error'){r.previewError=data.message;r.previewActive=undefined;preview.terminate();return;}
       if(data.type!=='live-frame'||!r.previewActive||data.sequence!==r.previewActive.candidate.sequence)return;
+      if(data.geometry.errors.length) {
+        r.diagnostics.liveErrors.push(...data.geometry.errors.map(message=>({sequence:data.sequence,message})));
+        // ponytail: retain the last 100 live clip failures; diagnostics stay bounded during long searches.
+        if(r.diagnostics.liveErrors.length>100)r.diagnostics.liveErrors.splice(0,r.diagnostics.liveErrors.length-100);
+      }
       r.frame={...data.geometry,sequence:data.sequence,result:r.previewActive.result,report:r.previewActive.candidate.report};r.previewActive=undefined;
     };
     preview.onerror=e=>{if(run.current===r){r.previewError=e.message;r.previewActive=undefined;preview.terminate();}};
@@ -125,7 +130,7 @@ export function useSolver() {
   function invalidate() {clear();setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setState('Ready');setError('');}
   function load(checked:Result) {
     clear();setWorkers(undefined);setLive(undefined);setLiveError('');setResult(checked);setElapsed(checked.elapsedSeconds);setState('Complete');setError('');
-    diagnostics.current={solverRevision:checked.solverRevision,seed:checked.seed,buildMode:'Loaded project; result rechecked locally',stopReason:'Loaded project',history:[]};
+    diagnostics.current={solverRevision:checked.solverRevision,seed:checked.seed,buildMode:'Loaded project; result rechecked locally',stopReason:'Loaded project',history:[],liveErrors:[]};
   }
   return {state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
 }

@@ -52,6 +52,15 @@ test('latest-only queue retains a longer passed result over a shorter failed can
   expect(render().state).toBe('Complete');
 });
 
+test('live clip failures are logged without stopping the preview worker',()=>{
+  render().start(doc,7);const [solver,,preview]=WorkerStub.all;
+  solver.deliver({...candidate(1,7,1,20),type:'live'});
+  vi.advanceTimersByTime(100);
+  preview.deliver({type:'live-frame',runId:1,documentRevision:7,sequence:1,geometry:{world:[],overlaps:[],errors:['clip failed']}});
+  expect(preview.terminated).toBe(false);
+  expect(render().diagnostics.current?.liveErrors).toEqual([{sequence:1,message:'clip failed'}]);
+});
+
 test('old runs, revisions and validation sequences cannot overwrite the current result',()=>{
   render().start(doc,7);const [oldSolver,oldChecker]=WorkerStub.all;
   oldSolver.deliver(candidate(1,7,1,20));
