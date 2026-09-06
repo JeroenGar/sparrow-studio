@@ -14,17 +14,14 @@ toolchain section below. Dataset provenance and license: examples/NOTICE.txt.
 jagua-rs 0.8.1 is MPL-2.0. Its upstream source is available at:
 https://github.com/JeroenGar/jagua-rs/tree/824ab31cf8a58eecf5d87527260c92510626661b/jagua-rs
 https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
-The modified source distributed with this application is included in
-sparrow-source.zip under web/wasm/vendor/jagua-rs, with changes documented in
-STUDIO_PATCH.md. The MPL text is included below. The solver sparrow is MIT at its pinned revision;
+The modified jagua-rs source is available in the public sparrow-studio repository
+under web/wasm/vendor/jagua-rs, with changes documented in STUDIO_PATCH.md. The
+MPL text is included below. The solver sparrow is MIT at its pinned revision;
 it is distinct from the original sparroWASM wrapper repository's MPL license.
-Corresponding local web application, WASM bridge and patched solver sources, build scripts,
-lockfiles and required runtime assets are distributed in the sibling archive:
-sparrow-source.zip
-SOURCE-MANIFEST.json inside that archive records SHA-256 for each included file.
-The archive includes the repository LICENSE and build instructions in web/README.md.
+The corresponding web application, WASM bridge and patched solver sources are
+available at:
+https://github.com/JeroenGar/sparrow-studio
 Upstream dependencies are identified by the exact source references above/below.
-The archive is published alongside these notices.
 
 PACKAGE INDEX
 npm @xmldom/xmldom 0.9.12
@@ -610,7 +607,7 @@ Package VCS metadata: {"git": {"sha1": "af77385d0daf4d0e949e81f2588be2e44f69f086
 
 Rust jagua-rs 0.8.1
 Declared license: MPL-2.0
-Source: sparrow-source.zip: web/wasm/vendor/jagua-rs (upstream provenance and changes: STUDIO_PATCH.md)
+Source: https://github.com/JeroenGar/sparrow-studio/tree/main/web/wasm/vendor/jagua-rs (upstream provenance and changes: STUDIO_PATCH.md)
 Repository: https://github.com/JeroenGar/jagua-rs
 Authors: Jeroen Gardeyn
   LICENSE
@@ -1066,7 +1063,7 @@ Package VCS metadata: {"git": {"sha1": "aa22a8ff83108228b6d941b83fc91399267d72c9
 
 Rust sparrow 0.2.0
 Declared license: MIT (from the pinned repository LICENSE; Cargo omits this field)
-Source: sparrow-source.zip: web/wasm/vendor/sparrow (upstream provenance and changes: STUDIO_PATCH.md)
+Source: https://github.com/JeroenGar/sparrow-studio/tree/main/web/wasm/vendor/sparrow (upstream provenance and changes: STUDIO_PATCH.md)
 Repository: not declared
 Authors: not declared
   LICENSE

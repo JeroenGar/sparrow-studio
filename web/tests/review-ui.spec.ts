@@ -23,7 +23,7 @@ test('quantity errors, immediate contour review, and mobile diagnostics are acce
   await expect(dialog).toHaveCount(0);
   await page.setViewportSize({width:390,height:844});
   await page.getByRole('button',{name:'About sparrow/studio',exact:true}).click();
-  await expect(page.getByRole('link',{name:'Open-source licenses and source code'})).toHaveAttribute('href','./THIRD_PARTY_NOTICES.txt');
+  await expect(page.getByRole('link',{name:'Source code on GitHub ↗'})).toHaveAttribute('href','https://github.com/JeroenGar/sparrow-studio');
   const pending=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download diagnostics',exact:true}).click();
   const path=info.outputPath('diagnostics.json');await(await pending).saveAs(path);

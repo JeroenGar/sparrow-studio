@@ -38,7 +38,7 @@ test('dark palette and ghost mode remain clear on desktop and mobile',async({pag
   await page.emulateMedia({colorScheme:'dark'});await page.goto('/');
   await openExamples(page);
   await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await expect(page.getByRole('img',{name:'Valid nesting result'})).toBeVisible();
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
   const paths=page.locator('.workspace-svg g[data-part] > path');

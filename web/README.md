@@ -36,7 +36,7 @@ Solver options offer Automatic or 1–3 threads. Automatic reserves one reported
 
 `.github/workflows/pages.yml` builds and publishes GitHub Pages on pushes to `main`, or through its manual Run workflow action. It installs Node 24, stable Rust, nightly 2026-08-30 and wasm-pack 0.15.0, uses the dependency lockfiles, and builds both solver variants. Unit tests and the Chromium production browser suite must pass before the Pages artifact is published. A failed build leaves the previous deployment in place.
 
-The initial Pages address is https://jeroengar.github.io/sparrow-studio/. The custom domain is `sparrowstudio.app`, registered at Spaceship. GitHub Pages remains the host when a custom domain is connected. The repository stays private; the website and its linked build-source download are public.
+The initial Pages address is https://jeroengar.github.io/sparrow-studio/. The custom domain is `sparrowstudio.app`, registered at Spaceship. GitHub Pages remains the host when a custom domain is connected. The repository and website are public.
 
 Domain setup uses GitHub's repository Pages setting, four apex A records pointing to `185.199.108.153`, `185.199.109.153`, `185.199.110.153` and `185.199.111.153`, and a `www` CNAME pointing to `jeroengar.github.io`. Keep the `_github-pages-challenge-JeroenGar` TXT record used for account-level domain verification. HTTPS is provided by GitHub Pages. The custom domain is configured in GitHub settings; Actions publishing does not use a CNAME file in the build.
 
@@ -69,7 +69,7 @@ On 2026-09-05, `npm test` passed **109 tests in 17 files**. The production build
 
 Native Safari 26.6 also completed a production run, Stop and restart using three solver threads. Desktop and mobile normal/ghost views were inspected with computer use. All three browser engines passed a separate `/repo/` static-host test, including isolation-worker scope and thread restart; Chromium additionally verified worker-pool disposal directly.
 
-Independent XML/GEOS checks passed 12 exported SVGs, and ezdxf/GEOS checks passed three holed DXF exports. An extracted source archive successfully rebuilt both WASM variants and the complete static app using only its contents and the documented installed toolchains/dependency caches.
+Independent XML/GEOS checks passed 12 exported SVGs, and ezdxf/GEOS checks passed three holed DXF exports. The public repository contains the sources needed to rebuild both WASM variants and the complete static app using the documented toolchains and dependency lockfiles.
 
 Two generated 100,000-vertex preparation workloads imported and remained interactive with no measured main-thread task over 50 ms. Those extreme workloads reached the solver initialization watchdog before producing a candidate; being under the import limits does not guarantee a completed nesting result. Stop remained responsive. High-limit candidate-validation responsiveness was therefore not measured. See [the performance record](../notes/preparation-performance.md) and [acceptance audit](../notes/web-app-acceptance-audit.md) for the machine, methods and precise scope. Physical iPhone/iPad testing has not been performed.
 
@@ -101,18 +101,4 @@ python3 web/scripts/generate-notices.py
 python3 web/scripts/generate-notices.py --check
 ```
 
-See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The build includes corresponding application source in `sparrow-source.zip`, linked from About and the notices. Preserve that archive and the notice files when publishing, and verify their deployed relative links. The public demo includes the source archive.
-
-## Downloadable build source
-
-Every `npm run build` creates `public/sparrow-source.zip` before Vite copies it to `dist/`. The archive contains the exact local frontend and WASM bridge sources, lockfiles, build scripts, configuration, repository license, implementation notes and required static runtime assets. Benchmark files are included once, so rebuilding retains the dataset picker. Patched sparrow and jagua-rs sources and licenses are included under wasm/vendor. Other dependencies, generated WASM, test fixtures and build outputs are excluded. This is a build-source archive; the repository workspace contains the separate developer test suite.
-
-Extract the archive, enter its `web/` directory, install the toolchains listed above, then run `npm ci` and `npm run build`. The build fetches dependencies identified by the included lockfiles. No original wrapper checkout or sibling solver directory is required. `SOURCE-MANIFEST.json` records every archived file's SHA-256. Archive metadata and ordering are fixed; unchanged inputs produce identical archive bytes.
-
-```sh
-python3 scripts/package-source.py
-python3 scripts/package-source.py --check
-python3 tests/test_source_archive.py
-```
-
-The last command runs from the repository's `web/` workspace. The static notices identify the sibling archive; its relative path works at a GitHub Pages repository subdirectory as well as at the origin root. Providing this local artifact does not publish a site.
+See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The public sparrow-studio repository contains the application and modified dependency sources. Preserve the notice files when publishing, and verify their deployed relative links.

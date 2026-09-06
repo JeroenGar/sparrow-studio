@@ -32,20 +32,12 @@ The published crate archives for `defmt-parser`, `geo`, `rstar`, and `jagua-rs` 
 
 The pinned solver `sparrow` has a full MIT LICENSE even though its Cargo license field is absent. `jagua-rs` is MPL-2.0. The original `sparroWASM` wrapper's MPL license is a separate artifact and was not substituted for the solver's license.
 
-Both the exact jagua-rs source tree and the published 0.8.1 crate download returned HTTP 200 during this audit. Their links and the full MPL text are included in the public notice. The app has not been published. This audit does not verify deployed source availability: before a public release, expose the corresponding application source and any modified MPL-covered files, preserve their notices, and check the deployed documentation and source links. No deployment was performed.
+Both the exact jagua-rs source tree and the published 0.8.1 crate download returned HTTP 200 during this audit. Their links and the full MPL text are included in the public notice. The public sparrow-studio repository exposes the corresponding application source and modified MPL-covered files; the deployed About link points to that repository.
 
 ## Interior label dependency
 
 The preparation label worker adds exact `polylabel` 2.1.0 and locked `tinyqueue` 3.0.0, both ISC. The upstream API and installed source were inspected before use. This provides the requested pole-of-inaccessibility labels without maintaining a second polygon search implementation. Both full license texts are included in the regenerated notices. `npm install` reported no known vulnerabilities.
 
-## Local corresponding-source archive
+## Public source availability
 
-The build now generates `public/sparrow-source.zip` before copying static assets into `dist/`. The notice header points to that sibling download. It includes frontend and WASM bridge source, lockfiles, build scripts/configuration, README, repository LICENSE, implementation notes and runtime static assets. Upstream dependencies remain identified by exact source links and lockfiles. Generated binaries, installed dependencies and test fixtures are excluded. The archive does not require a sibling solver checkout.
-
-`python3 web/tests/test_source_archive.py` verifies deterministic bytes, fixed metadata, required build inputs, excluded artifacts and every per-file SHA-256 in `SOURCE-MANIFEST.json`. Packaging and `--check` passed on the current worktree. A fresh production build must copy the archive alongside the notices. This is a locally distributed source artifact, not a public deployment or proof that an external host is serving it.
-
-### Isolated archive rebuild
-
-On 2026-09-05, archive SHA-256 `8a385be75f59cdf42213e2d699493b441181ab9a7b6f271af1bf87e6c0842ba0` was extracted outside the checkout into a fresh temporary directory. All 111 source-file hashes matched its manifest. Running the packaging script inside the extracted archive reproduced the original ZIP byte for byte. `npm ci` and `npm run build` both passed there, with fresh WASM target directories and no original checkout, sibling solver checkout, installed node_modules or generated binaries copied in. The standard global Cargo dependency cache and installed toolchains were available.
-
-Verified output contains both HTML entrypoints, both serial/threaded WASM variants, solver/geometry/Rayon workers, all 34 dataset files with their catalog hashes, isolation worker, full notices and an unchanged source ZIP. All manifest hashes still matched the extracted source after building; `package-source.py --check` passed. Prerequisites used were Node 26.7.0, Python 3.9.6, stable Rust 1.97.0, nightly Rust 1.100.0 from the pinned 2026-08-30 toolchain with rust-src, and wasm-pack 0.15.0. This proves rebuildability of that exact archived snapshot, not an external deployment.
+The public sparrow-studio repository is the canonical source for the application, WASM bridge and patched solver dependencies. The About panel links to it directly; third-party license notices remain published with the site.

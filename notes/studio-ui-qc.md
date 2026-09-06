@@ -7,7 +7,7 @@ Implemented adaptive linear coordinate rulers and a 1/2/5 grid, floating canvas 
 Validation:
 
 - Clean `npm ci` and full serial/threaded WASM production build from the separate checkout passed.
-- All 87 unit checks passed; source archive deterministic bytes and manifest hashes passed.
+- All 87 unit checks passed; generated notices and static assets were verified.
 - The full browser suite passed 108 checks, skipped two Chromium-specific touch cases, and exposed one WebKit drag-coordinate failure caused by the inspector resizing the canvas. Making the inspector float fixed that cause.
 - The subsequent 30 focused browser checks passed across Chromium, Firefox and WebKit, covering grid/ruler alignment, background selection clearing and panning, resize/rotation handles, compact preparation and drag displacement/undo, keyboard solve/export, unit conversion and the new UI. The background-click test was updated to target exposed canvas instead of the new floating inspector.
 - Desktop, tablet and 390px mobile screenshots were visually inspected. No horizontal page overflow was found. A final spacing check keeps the inspector below the floating toolbar.

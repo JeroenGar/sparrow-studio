@@ -87,7 +87,7 @@ for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version
     source = package['source']
     if source is None:
         assert root.parent == WEB / 'wasm/vendor', f'Unexpected local dependency: {root}'
-        source = f'sparrow-source.zip: web/wasm/vendor/{package["name"]} (upstream provenance and changes: STUDIO_PATCH.md)'
+        source = f'https://github.com/JeroenGar/sparrow-studio/tree/main/web/wasm/vendor/{package["name"]} (upstream provenance and changes: STUDIO_PATCH.md)'
     if source.startswith('registry+'):
         source = f"https://crates.io/api/v1/crates/{package['name']}/{package['version']}/download"
     extra = f"Repository: {package.get('repository') or 'not declared'}\nAuthors: {', '.join(package['authors']) or 'not declared'}"
@@ -130,17 +130,14 @@ toolchain section below. Dataset provenance and license: examples/NOTICE.txt.
 jagua-rs 0.8.1 is MPL-2.0. Its upstream source is available at:
 https://github.com/JeroenGar/jagua-rs/tree/824ab31cf8a58eecf5d87527260c92510626661b/jagua-rs
 https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
-The modified source distributed with this application is included in
-sparrow-source.zip under web/wasm/vendor/jagua-rs, with changes documented in
-STUDIO_PATCH.md. The MPL text is included below. The solver sparrow is MIT at its pinned revision;
+The modified jagua-rs source is available in the public sparrow-studio repository
+under web/wasm/vendor/jagua-rs, with changes documented in STUDIO_PATCH.md. The
+MPL text is included below. The solver sparrow is MIT at its pinned revision;
 it is distinct from the original sparroWASM wrapper repository's MPL license.
-Corresponding local web application, WASM bridge and patched solver sources, build scripts,
-lockfiles and required runtime assets are distributed in the sibling archive:
-sparrow-source.zip
-SOURCE-MANIFEST.json inside that archive records SHA-256 for each included file.
-The archive includes the repository LICENSE and build instructions in web/README.md.
+The corresponding web application, WASM bridge and patched solver sources are
+available at:
+https://github.com/JeroenGar/sparrow-studio
 Upstream dependencies are identified by the exact source references above/below.
-The archive is published alongside these notices.
 
 PACKAGE INDEX
 '''

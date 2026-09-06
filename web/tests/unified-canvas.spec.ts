@@ -99,7 +99,7 @@ test('solver completion keeps the same canvas and a manual result edit invalidat
   await expect.poll(async()=>copies(page).count()).toBe(12);
   const canvas=page.locator('.workspace-svg');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  await page.getByRole('button',{name:'Valid ✓',exact:true}).click();
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});
   const camera=await canvas.getAttribute('viewBox');
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();

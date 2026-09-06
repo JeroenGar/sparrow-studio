@@ -19,7 +19,7 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await page.getByLabel('Export format').selectOption('dxf');

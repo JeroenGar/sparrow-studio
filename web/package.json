@@ -9,7 +9,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "npm run build && playwright test",
-    "build": "npm run wasm:build && npm run typecheck && python3 scripts/package-source.py && vite build",
+    "build": "npm run wasm:build && npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1"
   },
   "devDependencies": {

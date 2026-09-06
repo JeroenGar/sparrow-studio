@@ -18,7 +18,7 @@ for(const engine of [chromium,firefox,webkit]) {
       console.log(engine.name(), 'run', i+1);
       await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
       await expect(page.getByRole('dialog',{name:'Try an example'})).toHaveCount(0);
-      await expect(page.getByRole('button',{name:'Valid ✓',exact:true})).toBeEnabled({timeout:20_000});
+      await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:20_000});
       if(cdp)await expect.poll(poolCount).toBeGreaterThan(1);
       await page.getByRole('button',{name:'Stop',exact:true}).click();
       if(cdp)await expect.poll(poolCount).toBe(0);
@@ -30,8 +30,8 @@ for(const engine of [chromium,firefox,webkit]) {
       runs.push({buildMode:data.buildMode,copies:data.result.placements.length,status:data.result.validation.status});
     }
     await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
-    const notices=await page.getByRole('link',{name:'Open-source licenses and source code',exact:true}).getAttribute('href');
-    const noticeReply=await page.evaluate(async href=>{const response=await fetch(href);return {url:response.url,status:response.status,text:await response.text()};},notices);
+    await expect(page.getByRole('link',{name:'Source code on GitHub ↗',exact:true})).toHaveAttribute('href','https://github.com/JeroenGar/sparrow-studio');
+    const noticeReply=await page.evaluate(async href=>{const response=await fetch(href);return {url:response.url,status:response.status,text:await response.text()};},`${url}THIRD_PARTY_NOTICES.txt`);
     expect(noticeReply.status).toBe(200);expect(noticeReply.url).toBe(`${url}THIRD_PARTY_NOTICES.txt`);expect(noticeReply.text).toContain('jagua');
     expect(escaped).toEqual([]);reports.push({browser:engine.name(),version:browser.version(),scope,runs,notices:noticeReply.url,escapedRequests:escaped,poolDisposalVerified:cdp?true:null});
   }finally{await browser.close();}

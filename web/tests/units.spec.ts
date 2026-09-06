@@ -10,7 +10,7 @@ async function project(page:Page):Promise<Project> {
 
 test('inch display preserves checked millimetre geometry, converts edits, and persists',async({page})=>{
   await page.goto('/');await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   const before=await project(page);expect(before.result?.validation.status).toBe('passed');
   await page.locator('.part-select').first().click();

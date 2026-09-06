@@ -5,7 +5,7 @@ test('dragging outside the bin pans without Space and preserves the checked layo
   await page.goto('/');
   await openExamples(page);
   await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   const svg=page.getByRole('img',{name:'Valid nesting result'});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await page.getByRole('button',{name:'Fit',exact:true}).click();

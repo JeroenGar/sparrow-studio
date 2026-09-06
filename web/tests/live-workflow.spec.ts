@@ -17,6 +17,7 @@ test('live search shows red overlaps and toggles to independently checked output
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible({timeout:20_000});
   await expect(page.locator('.live-dot')).toBeVisible();
+  await expect(page.locator('.live-details .result-mode')).toBeVisible();
   await page.waitForFunction(()=>{const seen=(window as unknown as {liveSeen:{frames:Set<string>;overlap:boolean}}).liveSeen;return seen.overlap&&seen.frames.size>=3;},{},{timeout:15_000});
   const ghost=page.getByRole('button',{name:'👻 mode',exact:true});
   await expect(ghost).toHaveAttribute('aria-pressed','true');
@@ -26,13 +27,13 @@ test('live search shows red overlaps and toggles to independently checked output
   })).toBeCloseTo(.1,2);
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('live.png'),fullPage:true});
-  await page.getByRole('button',{name:'Valid ✓',exact:true}).click();
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
   await expect(page.getByRole('img',{name:'Valid nesting result'})).toBeVisible();
   await expect(page.locator('.live-dot')).toBeVisible();
   await expect(ghost).toHaveAttribute('aria-pressed','false');
   await expect(page.locator('[data-overlap]')).toHaveCount(0);
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Live',exact:true}).click();
+  await page.getByRole('button',{name:'Live search',exact:true}).click();
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible();
   await expect(ghost).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('.workspace-svg')).toBeVisible();

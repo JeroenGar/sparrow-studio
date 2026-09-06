@@ -18,7 +18,7 @@ test('project and checked result ZIP downloads include runnable CLI input',async
   const path=info.outputPath('project.zip');await download.saveAs(path);let files=entries(await readFile(path));
   const project=JSON.parse(files.get('project.sparrow-project.json')!),instance=JSON.parse(files.get('sparrow-instance.json')!);
   expect(project.parts).toHaveLength(4);expect(instance.items).toHaveLength(3);expect(instance.items.map((item:{id:number})=>item.id)).toEqual([0,1,2]);expect(files.has('layout.svg')).toBe(false);
-  await page.getByRole('button',{name:'Nest parts',exact:true}).click();await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20000});await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20000});await page.getByRole('button',{name:'Stop',exact:true}).click();
   await page.getByLabel('Export format').selectOption('zip');pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download ZIP',exact:true}).click();download=await pending;
   await download.saveAs(path);files=entries(await readFile(path));expect(files.get('layout.svg')).toContain('viewBox=');expect(files.get('layout.dxf')).toContain('ENTITIES');expect(files.get('README.txt')).toContain('hole');
 });

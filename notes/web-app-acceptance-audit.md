@@ -17,12 +17,12 @@ Final local verification: 2026-09-05. Branch: `jg-web-app`. The implementation f
 - Native Safari 26.6 completed a production run, an explicit Stop with checked output retained, and another completed run. Downloaded diagnostics confirm three threads and 12 valid workshop placements. This is separate from the automated WebKit engine evidence.
 - Chromium, Firefox and WebKit passed static `/repo/` hosting, scoped isolation service-worker setup, checked multithreaded runs, Stop/restart and notice retrieval. Chromium directly observed pool workers disappear after Stop.
 - Independent Python XML/Shapely audits passed 12 SVG exports; ezdxf 1.4.3 and GEOS passed three DXF exports with preserved holes. No overlap or boundary violation was measured in those files.
-- Full notices and exact source links are distributed. The build creates a deterministic `sparrow-source.zip`, linked from About and the notices. Its manifest hashes and reproducibility were checked; an isolated extraction passed `npm ci` and `npm run build` without using the original checkout or generated artifacts.
+- Full notices and exact source links are distributed. The public sparrow-studio repository contains the application and modified dependency sources, and is linked from About.
 
 ## Scope and known limits
 
 Two generated 100,000-demanded-vertex workloads (500 × 200 and 20 × 5,000 vertices) imported successfully after a conservative edge-box rejection was added before exact segment predicates. The measured preparation and search-start/Stop phases had no main-thread task over 50 ms on the recorded machine. Both extreme solver inputs reached the 15-second initialization watchdog without a candidate in the longer run; candidate-validation performance at that limit is **not proven**. Import limits are guards, not a promise that every admitted input will finish nesting. See `preparation-performance.md` for before/after timings and Stop measurements.
 
-The app is a local, static prototype. Physical iPhone/iPad testing and an actual public host have not been exercised. Publishing and checking links on that chosen host remain a separate owner action. The current relative-path build, source archive and notices are prepared for it.
+The app is a local, static prototype. Physical iPhone/iPad testing and an actual public host have not been exercised. Publishing and checking links on that chosen host remain a separate owner action. The current relative-path build and notices are prepared for it.
 
 The solver reserves full outer footprints: holes are preserved and exported, but cannot receive other parts. Exports contain the polygonal approximation used for checking, not original curves or toolpaths. Email remains unconfigured at the owner's request; the subtle contact route links to the supplied LinkedIn destination after interaction.
