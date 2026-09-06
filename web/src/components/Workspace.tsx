@@ -152,7 +152,7 @@ export default function Workspace({ document: doc, result, live, selected, selec
       <small>Hold Alt to bypass. Numeric fields stay exact.</small>
     </div></details><button aria-pressed={outlines} title="Show outlines with a faint fill" onClick={() => setOutlines(!outlines)}>👻 mode</button>
       <button onClick={fit}>Fit</button><button aria-label="Zoom out" onClick={() => zoom(1.25)}>−</button><button aria-label="Zoom in" onClick={() => zoom(.8)}>+</button></div>
-    <svg ref={svg} tabIndex={0} className="workspace-svg" aria-label={world ? (live ? 'Live nesting search' : 'Checked nesting result') : 'Preparation drawing'} role="img" data-live-sequence={live?.sequence}
+    <svg ref={svg} tabIndex={0} className="workspace-svg" aria-label={world ? (live ? 'Live nesting search' : 'Valid nesting result') : 'Preparation drawing'} role="img" data-live-sequence={live?.sequence}
       style={{ '--camera-unit': `${unit}px` } as CSSProperties} viewBox={`${camera.x} ${camera.y} ${camera.w} ${camera.h}`}
       onPointerDown={event => {
         event.currentTarget.focus({preventScroll:true});

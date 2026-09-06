@@ -10,7 +10,7 @@ async function project(page:Page):Promise<Project> {
 
 test('inch display preserves checked millimetre geometry, converts edits, and persists',async({page})=>{
   await page.goto('/');await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   const before=await project(page);expect(before.result?.validation.status).toBe('passed');
   await page.locator('.part-select').first().click();
@@ -18,7 +18,7 @@ test('inch display preserves checked millimetre geometry, converts edits, and pe
   const firstWidthIn=Number((firstWidthMm/25.4).toPrecision(9)).toString();
   await page.getByRole('button',{name:'About sparrow/studio',exact:true}).click();await page.getByRole('combobox',{name:'Display units',exact:true}).selectOption('in');await page.getByRole('button',{name:'Close',exact:true}).click();
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
-  await expect(page.getByRole('img',{name:'Checked nesting result'})).toContainText('in ×');
+  await expect(page.getByRole('img',{name:'Valid nesting result'})).toContainText('in ×');
   expect(Number(await page.getByRole('spinbutton',{name:'Width, in',exact:true}).inputValue())).toBeCloseTo(Number(firstWidthIn),3);
   for(const name of ['X, in','Y, in','Width, in','Height, in']) {await page.getByRole('spinbutton',{name,exact:true}).focus();await page.getByRole('spinbutton',{name,exact:true}).press('Tab');}
   await page.getByLabel('Material width',{exact:false}).focus();await page.getByLabel('Material width',{exact:false}).press('Tab');

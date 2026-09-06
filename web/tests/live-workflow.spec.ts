@@ -16,6 +16,7 @@ test('live search shows red overlaps and toggles to independently checked output
   });
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible({timeout:20_000});
+  await expect(page.locator('.live-dot')).toBeVisible();
   await page.waitForFunction(()=>{const seen=(window as unknown as {liveSeen:{frames:Set<string>;overlap:boolean}}).liveSeen;return seen.overlap&&seen.frames.size>=3;},{},{timeout:15_000});
   const ghost=page.getByRole('button',{name:'👻 mode',exact:true});
   await expect(ghost).toHaveAttribute('aria-pressed','true');
@@ -25,8 +26,9 @@ test('live search shows red overlaps and toggles to independently checked output
   })).toBeCloseTo(.1,2);
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('live.png'),fullPage:true});
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click();
-  await expect(page.getByRole('img',{name:'Checked nesting result'})).toBeVisible();
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click();
+  await expect(page.getByRole('img',{name:'Valid nesting result'})).toBeVisible();
+  await expect(page.locator('.live-dot')).toBeVisible();
   await expect(ghost).toHaveAttribute('aria-pressed','false');
   await expect(page.locator('[data-overlap]')).toHaveCount(0);
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
@@ -36,6 +38,7 @@ test('live search shows red overlaps and toggles to independently checked output
   await expect(page.locator('.workspace-svg')).toBeVisible();
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
+  await expect(page.locator('.live-dot')).toHaveCount(0);
   await expect(ghost).toHaveAttribute('aria-pressed','false');
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
   const path=testInfo.outputPath('checked.sparrow-project.json');await(await pending).saveAs(path);

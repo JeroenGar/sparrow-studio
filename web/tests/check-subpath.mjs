@@ -18,7 +18,7 @@ for(const engine of [chromium,firefox,webkit]) {
       console.log(engine.name(), 'run', i+1);
       await page.getByRole('button',{name:'Try example',exact:true}).click();await page.getByRole('button',{name:'Run example',exact:true}).click();
       await expect(page.getByRole('dialog',{name:'Try an example'})).toHaveCount(0);
-      await expect(page.getByRole('button',{name:'Checked ✓',exact:true})).toBeEnabled({timeout:20_000});
+      await expect(page.getByRole('button',{name:'Valid ✓',exact:true})).toBeEnabled({timeout:20_000});
       if(cdp)await expect.poll(poolCount).toBeGreaterThan(1);
       await page.getByRole('button',{name:'Stop',exact:true}).click();
       if(cdp)await expect.poll(poolCount).toBe(0);

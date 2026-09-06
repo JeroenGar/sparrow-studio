@@ -16,7 +16,7 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
   for (let attempt = 0; attempt < 2; attempt++) {
     await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
     await expect(page.getByRole('dialog',{name:'Try an example'})).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Checked ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
+    await expect(page.getByRole('button', { name: 'Valid ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
     if (cdp) await expect.poll(poolCount).toBeGreaterThan(1);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     if (cdp) await expect.poll(poolCount).toBe(0);
@@ -57,7 +57,7 @@ test('failed pool initialization disposes the pool and retries serially', async 
   await page.locator('.solver-options>summary').click();
   await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption('2');
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await expect(page.getByRole('button', { name: 'Checked ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
+  await expect(page.getByRole('button', { name: 'Valid ✓', exact: true })).toBeEnabled({ timeout: 20_000 });
   await page.getByRole('button', { name: 'Stop', exact: true }).click();
   const pending = page.waitForEvent('download');
   await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();

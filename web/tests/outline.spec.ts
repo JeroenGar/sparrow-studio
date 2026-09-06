@@ -34,8 +34,8 @@ test('outlines preserve interior selection and dragging across drawing views',as
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible({timeout:20_000});
   expect(await paths.evaluateAll(nodes=>nodes.length>0&&nodes.every(n=>n.getAttribute('fill')==='light-dark(black, white)'&&n.getAttribute('fill-opacity')==='0.1'))).toBe(true);
   await page.waitForFunction(()=>Reflect.get(window,'outlineOverlapSeen')===true,{},{timeout:15_000});
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
-  await expect(page.getByRole('img',{name:'Checked nesting result'})).toBeVisible();
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
+  await expect(page.getByRole('img',{name:'Valid nesting result'})).toBeVisible();
   await expect(page.locator('.workspace-svg > rect')).toHaveAttribute('fill','none');
   expect(await paths.evaluateAll(nodes=>nodes.length>0&&nodes.every(n=>n.getAttribute('fill')==='light-dark(black, white)'&&n.getAttribute('fill-opacity')==='0.1'))).toBe(true);
   await page.getByRole('button',{name:'Stop',exact:true}).click();

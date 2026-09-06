@@ -11,7 +11,7 @@ test('JSON import, checked result, serialized export and invalidation',async({pa
   await expect(page.getByRole('status')).toHaveText('Ready');
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
   await expect(page.getByRole('button',{name:'Download SVG'})).toHaveCount(0);
   await page.getByRole('button',{name:'Stop',exact:true}).click();
@@ -31,7 +31,7 @@ test('390px example stays usable and makes no external requests',async({page},te
   await page.setViewportSize({width:390,height:844});
   const external:string[]=[];page.on('request',r=>{if(!r.url().startsWith('http://127.0.0.1:4173')&&!r.url().startsWith('blob:'))external.push(r.url());});
   await page.goto('/');await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled({timeout:30_000});

@@ -17,7 +17,7 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   await expect(page.getByRole('dialog')).toHaveCount(0);
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
   for(const format of ['svg','dxf']){
     await page.getByLabel('Export format').selectOption(format);

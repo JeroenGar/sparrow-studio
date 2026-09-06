@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 test('saves a real checked layout, confirms replacement, rechecks load and invalidates on edit',async({page},testInfo)=>{
   await page.goto('/');
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
-  await page.getByRole('button',{name:'Checked ✓',exact:true}).click({timeout:20_000});
+  await page.getByRole('button',{name:'Valid ✓',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
