@@ -65,6 +65,8 @@ test('deleting the last copy keeps a zero-quantity type, undo restores it, and s
   // dense-copy WASM input and its result mapping are exercised as well.
   const middleQuantity=page.locator('.parts-list input[type=number]').nth(1);
   await middleQuantity.fill('0');await expect.poll(async()=>copies(page).count()).toBe(9);
+  // Automatic search has no wall-clock cap and can outlast this test's 30 s assertion.
+  await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});await page.getByRole('button',{name:'Stop',exact:true}).click();await expect(middleQuantity).toBeEnabled();await expect(middleQuantity).toHaveValue('0');await expect.poll(async()=>copies(page).count()).toBe(9);
   await middleQuantity.fill('3');await expect.poll(async()=>copies(page).count()).toBe(12);
