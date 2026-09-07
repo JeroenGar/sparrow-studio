@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 
 test('keyboard import, validation errors, sizing, run, stop and export',async({page})=>{
   await page.goto('/');
-  await expect(page.locator('nav').getByRole('button',{name:'Say hello 👋',exact:true})).toHaveCount(0);
+  await expect(page.locator('nav').getByRole('button',{name:'Say hello 👋',exact:true})).toBeVisible();
   const chooser=page.waitForEvent('filechooser');
   await page.getByRole('button',{name:'Import shapes',exact:true}).focus();
   await page.keyboard.press('Enter');

@@ -94,3 +94,7 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .nesting-about>section{position:absolute;bottom:100%;left:0;right:0;z-index:3;max-height:70dvh;overflow:auto;overscroll-behavior:contain;padding:24px max(24px,calc((100% - 880px)/2));background:var(--panel);color:var(--ink);border-top:1px solid var(--border);box-shadow:0 -8px 24px #0002;line-height:1.65}
 .nesting-about h2{font-size:16px;margin-top:20px}.nesting-about p{margin-top:10px}.nesting-about ul{padding-left:22px}.nesting-about li+li{margin-top:8px}
 @media(min-width:700px){body:has(>.nesting-about) .app{height:calc(100dvh - 44px)}}
+
+.hello-wave{display:inline-block;transform-origin:70% 75%;animation:hello-wave 1.4s ease-in-out}
+@keyframes hello-wave{0%,100%{transform:rotate(0)}15%,45%,75%{transform:rotate(22deg)}30%,60%{transform:rotate(-12deg)}}
+@media(prefers-reduced-motion:reduce){.hello-wave{animation:none}}

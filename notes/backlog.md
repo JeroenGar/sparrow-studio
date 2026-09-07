@@ -16,11 +16,12 @@
 - Metadata changes should not alter the workspace layout. Personal LinkedIn posting is not part of this work.
 - Implemented canonical and social tags, a locally hosted README screenshot, robots.txt, sitemap, and the native HTML disclosure covering textiles, wood, metal, printing, signage, packaging, foam, rubber, leather, composites, and research. Both local README callouts are updated. See [validation and remaining publication steps](search-discovery.md).
 
-## Subtle contact invitation
+## Subtle contact invitation — implemented
 
 - Keep "Say hello" visible from startup and retain the existing contact dialog and LinkedIn destination.
 - Give the button one small wave after the first successful download of a checked nested result in a session. Respect reduced-motion preferences and do not open the dialog automatically.
 - Keep the existing GitHub star link. Use search, GitHub, documentation, and organic sharing to attract visitors; LinkedIn is a contact destination, with no personal posting requirement.
+- The hand uses a 1.4-second CSS wrist rotation after the first checked SVG, DXF, ZIP, or project download per editor session. Unchecked project downloads and diagnostics do not trigger it. No timers or new dependencies. Type checking and the frontend build passed; 24 browser checks passed across Chromium, Firefox, and WebKit, covering export paths, no repeat animation, reduced motion, keyboard contact access, and responsive layout.
 
 ## Show mixed rotation settings for multi-selection
 

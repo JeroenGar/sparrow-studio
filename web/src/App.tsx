@@ -30,7 +30,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const [fitRequest,setFitRequest]=useState(0);
   const [resultMode,setResultMode]=useState<'live'|'checked'>('live');
   const [threads,setThreads]=useState(0),[library,setLibrary]=useState(false),[examples,setExamples]=useState(false);
-  const [sizeValid,setSizeValid]=useState(true),[engaged,setEngaged]=useState(false);
+  const [sizeValid,setSizeValid]=useState(true),[downloadedResult,setDownloadedResult]=useState(false);
   const [theme,setTheme]=useState<'system'|'light'|'dark'>(()=>{try{const saved=localStorage.getItem('sparrow-theme');return saved==='light'||saved==='dark'||saved==='system'?saved:'system';}catch{return 'system';}});
   useEffect(()=>{document.documentElement.dataset.theme=theme;try{localStorage.setItem('sparrow-theme',theme);}catch{/* The theme still works when storage is unavailable. */}},[theme]);
   const [unit,setUnit]=useState<DisplayUnit>(()=>{try{return localStorage.getItem('sparrow-units')==='in'?'in':'mm';}catch{return 'mm';}});
@@ -97,7 +97,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     try {canonical=withDocumentPlacements({...next,placements});} catch(error) {setError(String(error));return;}
     setSelectedCopies(previous=>previous.filter(copy=>canonical.parts.some(part=>part.id===copy.partId&&copy.copyIndex<part.quantity)));
     history.current=[...history.current.slice(-49),{doc,geometry,selection:selectedCopies}];future.current=[];
-    cancelDefaultExample();setDoc(canonical);setEngaged(true);setError('');
+    cancelDefaultExample();setDoc(canonical);setError('');
     if(geometry) {setRevision(r=>r+1);solver.invalidate();}
   }
   async function prepareDocument(next:Document,pinnedIds:string[]=[],compact=false) {
@@ -161,7 +161,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     window.addEventListener('keydown',key);return ()=>window.removeEventListener('keydown',key);
   });
   async function run(document=doc,rev=revision) {
-    setEngaged(true);setBusy(true);setError('');setResultMode('live');
+    setBusy(true);setError('');setResultMode('live');
     const id=++operation.current;
     try {
       const reply=await geometryTask({type:'normalize',runId:id,documentRevision:rev,document});
@@ -195,7 +195,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     const nextRevision=revision+1,checked=next.result?{...next.result,documentRevision:nextRevision}:undefined;
     const document=withDocumentPlacements(next.document,checked?.placements ?? next.document.placements);
     ++operation.current;solver.invalidate();setRevision(nextRevision);setDoc(document);
-    history.current=[];future.current=[];setSelectedCopies([]);setPolygon(undefined);setFiles(undefined);setReview(undefined);setPendingProject(undefined);setError('');setImportWarnings(next.warnings??[]);setEngaged(true);setFitRequest(n=>n+1);setResultMode(checked?'checked':'live');
+    history.current=[];future.current=[];setSelectedCopies([]);setPolygon(undefined);setFiles(undefined);setReview(undefined);setPendingProject(undefined);setError('');setImportWarnings(next.warnings??[]);setFitRequest(n=>n+1);setResultMode(checked?'checked':'live');
     if(checked)solver.load(checked);
     setSaved({document:next.saved?document:withDocumentPlacements(emptyProject()),result:next.saved?checked:undefined});
     if(next.nest)void run(document,nextRevision);
@@ -249,7 +249,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     setBusy(true);setError('');
     try {
       const reply=await geometryTask({type:'export',runId:++operation.current,documentRevision:revision,document:doc,result});
-      if(reply.type==='export-result')download(`sparrow-studio-layout.${exportFormat}`,reply.bundle[exportFormat],exportFormat==='svg'?'image/svg+xml':'application/dxf');
+      if(reply.type==='export-result'){download(`sparrow-studio-layout.${exportFormat}`,reply.bundle[exportFormat],exportFormat==='svg'?'image/svg+xml':'application/dxf');setDownloadedResult(true);}
     } catch(e){setError(String(e));}finally{setBusy(false);}
   }
   async function downloadArchive() {
@@ -257,7 +257,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     try {
       const reply=await geometryTask({type:'archive',runId:++operation.current,documentRevision:revision,document:doc,result});
       if(reply.type!=='archive-result')throw Error('Could not create the ZIP archive.');
-      download('sparrow-studio-project.zip',reply.archive,'application/zip');setSaved({document:doc,result});
+      download('sparrow-studio-project.zip',reply.archive,'application/zip');if(result)setDownloadedResult(true);setSaved({document:doc,result});
     }catch(error){setError(String(error));}finally{setBusy(false);}
   }
   function diagnostics() {download('sparrow-studio-diagnostics.json',JSON.stringify({document:doc,documentRevision:revision,policy:POLICY,importWarnings,...solver.diagnostics.current,result},null,2));}
@@ -267,7 +267,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
       const reply=await geometryTask({type:'save-project',runId:++operation.current,documentRevision:revision,document:doc,result});
       if(reply.type!=='project-file')throw Error('Could not save the project.');
       const name=doc.name.trim().replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/g,'').slice(0,100)||'project';
-      download(`${name}.sparrow-project.json`,reply.text);setSaved({document:doc,result});return true;
+      download(`${name}.sparrow-project.json`,reply.text);if(result)setDownloadedResult(true);setSaved({document:doc,result});return true;
     }catch(e){setError(String(e));return false;}finally{setBusy(false);}
   }
   const maxApprox=useMemo(()=>Math.max(0,...doc.parts.map(p=>p.approximationToleranceMm)),[doc.parts]);
@@ -282,7 +282,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
         <button disabled={locked} onClick={()=>{projectMenu.current!.open=false;setProjectName(doc.name);setNameDialog('rename');}}>Rename project</button>
         <button disabled={locked||invalidSettings||!!polygon||!doc.parts.some(part=>part.quantity>0)} title="Includes the editable project, CLI input, and checked SVG/DXF when available." onClick={()=>{projectMenu.current!.open=false;void downloadArchive();}}>Download project ZIP</button>
       </div></details><button disabled={locked} onClick={()=>setExamples(true)}>Load example project</button><button title="Downloads a project file. Open it later to continue." onClick={()=>void saveProject()} disabled={locked||invalidSettings||!!polygon}>Save project</button><small className="project-status">{dirty?'Unsaved changes':'No unsaved changes'}</small></div>
-      <nav><button className="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={()=>setTheme(theme==='dark'||theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark')}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/></svg></button><a href="https://arxiv.org/abs/2509.13329" target="_blank" rel="noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h8"/></svg>Read the paper</a><a className="github-link" href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer" aria-label="☆ Star sparrow on GitHub"><span aria-hidden="true">☆</span>Star sparrow on GitHub</a><button aria-label="About sparrow/studio" onClick={()=>setInfo('about')}><span aria-hidden="true">ⓘ</span>About</button>{engaged&&<button className="hello-button" aria-label="Say hello 👋" onClick={()=>setInfo('contact')}><span aria-hidden="true">👋</span>Say hello</button>}</nav>
+      <nav><button className="theme-toggle" title="Toggle light/dark mode" aria-label="Toggle light/dark mode" onClick={()=>setTheme(theme==='dark'||theme==='system'&&matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark')}><svg aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 0 1 0 16Z" fill="currentColor" stroke="none"/></svg></button><a href="https://arxiv.org/abs/2509.13329" target="_blank" rel="noreferrer"><svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H5v20h14V7zM14 2v5h5M8 12h8M8 16h8"/></svg>Read the paper</a><a className="github-link" href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer" aria-label="☆ Star sparrow on GitHub"><span aria-hidden="true">☆</span>Star sparrow on GitHub</a><button aria-label="About sparrow/studio" onClick={()=>setInfo('about')}><span aria-hidden="true">ⓘ</span>About</button><button className="hello-button" aria-label="Say hello 👋" onClick={()=>setInfo('contact')}><span className={downloadedResult?'hello-wave':undefined} aria-hidden="true">👋</span>Say hello</button></nav>
       <input ref={input} hidden type="file" multiple accept=".json,.svg,.dxf" onChange={e=>{if(e.target.files)void openFiles(e.target.files,'shapes');e.target.value='';}}/>
       <input ref={projectInput} hidden type="file" accept=".sparrow-project.json,.json" onChange={e=>{if(e.target.files)void openFiles(e.target.files,'project');e.target.value='';}}/>
     </header>
