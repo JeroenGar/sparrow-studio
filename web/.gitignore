@@ -8,3 +8,6 @@ test-results/
 !wasm/Cargo.lock
 wasm/pkg-threads/
 public/sparrow-source.zip
+
+wasm/pkg-nosimd/
+wasm/pkg-threads-nosimd/

@@ -1,3 +1,4 @@
+import { loadSerialWasm, loadThreadedWasm, supportsSIMD, type SolverBinary } from '../wasm';
 import type { Start, SolverMessage } from './protocol';
 import { normalizeDocument } from '../geometry/normalize';
 import { solverInput } from '../import/sparrow';
@@ -9,18 +10,19 @@ self.onmessage = async ({ data }: MessageEvent<Start | {type:'preload';threads:n
   try {
     let wasm: Pick<typeof import('../../wasm/pkg/sparrow_web'), 'run' | 'thread_count'>;
     if (data.threads && data.threads > 1) {
-      const threaded = await import('../../wasm/pkg-threads/sparrow_web');
+      const threaded = await loadThreadedWasm();
       await threaded.default();
       if(data.type!=='preload')await threaded.initThreadPool(data.threads);
       wasm = threaded;
     } else {
-      const serial = await import('../../wasm/pkg/sparrow_web');
+      const serial = await loadSerialWasm();
       await serial.default();
       wasm = serial;
     }
     // Download and compile off the UI thread; actual runs still own fresh workers.
     if(data.type==='preload'){self.postMessage({type:'preloaded'});self.close();return;}
-    send({ type: 'ready', threads: wasm.thread_count() });
+    const solverBinary: SolverBinary = `${data.threads && data.threads > 1 ? 'threaded' : 'serial'}-${supportsSIMD ? 'simd' : 'nosimd'}`;
+    send({ type: 'ready', threads: wasm.thread_count(), solverBinary, simd: supportsSIMD });
     const doc=data.type==='start'?normalizeDocument(data.document):null;
     const input=doc?solverInput(doc):(data as Extract<Start,{type:'bridge'}>).input;
     wasm.run(input, data.type==='bridge'?data.seconds:doc!.settings.timeLimitSeconds??undefined, data.seed, doc?.settings.clearanceMm ?? 0, doc?.settings.solverPreset??'standard', (json: string) => {

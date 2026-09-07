@@ -45,7 +45,7 @@ jobs:
       - run: npm ci
       - name: Check native solver boundaries
         run: cargo +nightly-2026-08-30 test --manifest-path wasm/Cargo.toml --features sparrow/simd --locked
-      - name: Build both solver variants and site
+      - name: Build all four solver variants and site
         run: npm run build
       - run: npm test
       - name: Save compiled Rust cache

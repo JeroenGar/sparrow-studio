@@ -1,7 +1,8 @@
-import {openExamples,workshop,finishSwitch} from './project-helpers';
+import {openExamples,workshop,finishSwitch,newProject} from './project-helpers';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { preview } from 'vite';
+import { basename, join } from 'node:path';
 
 test('solver preloads before Nest without starting a run',async({page})=>{
   let preloaded=false;
@@ -46,6 +47,7 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
     const path = testInfo.outputPath(`threads-${attempt}.json`);
     await (await pending).saveAs(path);
     const diagnostic = JSON.parse(await readFile(path, 'utf8'));
+    expect(diagnostic.solverBinary).toBe(isolated ? 'threaded-simd' : 'serial-simd');
     expect(diagnostic.buildMode).toMatch(isolated ? /^2 solver threads, SIMD$/ : /^1 solver thread, SIMD; serial fallback:/);
     await expect(page.locator('[data-worker-count]')).toHaveAttribute('data-worker-count',isolated?'2':'1');
     await expect(page.locator('[data-worker-count]')).toContainText('/ 2 requested');
@@ -91,7 +93,50 @@ test('failed pool initialization disposes the pool and retries serially', async 
   await (await pending).saveAs(path);
   const diagnostic = JSON.parse(await readFile(path, 'utf8'));
   await expect(page.locator('[data-worker-count]')).toContainText('1 solver worker / 2 requested · fallback');
+  expect(diagnostic.solverBinary).toBe('serial-simd');
   expect(diagnostic.buildMode).toContain('1 solver thread, SIMD; serial fallback:');
   expect(diagnostic.result.validation.status).toBe('passed');
   } finally { await context.close(); await host.close(); }
+});
+
+for (const threads of [1,2]) test(`SIMD unavailable: SVG import and ${threads} solver threads`, async ({browser},testInfo)=>{
+  const context=await browser.newContext({serviceWorkers:'block'});
+  const host=await preview({configFile:false,preview:{host:'127.0.0.1',port:0},
+    plugins:[{name:'browser-without-simd',configurePreviewServer(server){
+      // Serve the override to nested workers too; browser request routing misses those.
+      server.middlewares.use(async(request,response,next)=>{
+        response.setHeader('Cross-Origin-Opener-Policy','same-origin');
+        response.setHeader('Cross-Origin-Embedder-Policy','require-corp');
+        if(!request.url?.startsWith('/assets/')||!request.url.endsWith('.js'))return next();
+        try {
+          const script=await readFile(join('dist/assets',basename(request.url)),'utf8');
+          response.setHeader('Content-Type','text/javascript');
+          response.end('WebAssembly.validate=()=>false;\n'+script);
+        } catch(error){next(error);}
+      });
+    }}]});
+  try {
+    const page=await context.newPage();
+    const address=host.httpServer.address();
+    if(!address||typeof address==='string')throw Error('Missing preview port');
+    await page.goto(`http://127.0.0.1:${address.port}/`);await newProject(page);
+    expect(await page.evaluate(()=>crossOriginIsolated)).toBe(true);
+    await page.locator('input[type=file]').first().setInputFiles({name:'part.svg',mimeType:'image/svg+xml',
+      buffer:Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="20mm" height="20mm" viewBox="0 0 20 20"><rect width="10" height="15"/></svg>')});
+    await page.getByRole('button',{name:'Preview import',exact:true}).click();
+    await page.getByRole('button',{name:/^Add 1 shape to project$/}).click();
+    await expect(page.getByText('10 × 15 mm',{exact:true})).toBeVisible();
+    await page.locator('.solver-options>summary').click();
+    await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption(String(threads));
+    await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+    await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:20_000});
+    await page.getByRole('button',{name:'Stop',exact:true}).click();
+    const pending=page.waitForEvent('download');
+    await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
+    const path=testInfo.outputPath('nosimd.json');await(await pending).saveAs(path);
+    const diagnostic=JSON.parse(await readFile(path,'utf8'));
+    expect(diagnostic.solverBinary).toBe(threads===1?'serial-nosimd':'threaded-nosimd');
+    expect(diagnostic.buildMode).toBe(`${threads} solver thread${threads===1?'':'s'}, no SIMD`);
+    expect(diagnostic.result.validation.status).toBe('passed');
+  } finally {await context.close();await host.close();}
 });

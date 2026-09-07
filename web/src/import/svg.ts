@@ -1,12 +1,13 @@
 import { DOMParser, XMLSerializer, type Element as XMLElement } from '@xmldom/xmldom';
-import init, { svg_paths } from '../../wasm/pkg/sparrow_web';
+import { loadSerialWasm } from '../wasm';
 import { DEFAULT_SETTINGS,newPart,type Part,type Point,type Ring } from '../model';
 import { area,bounds,inside,normalizeDocument,normalizeRing,ringCrosses } from '../geometry/normalize';
 import { apply,multiply,append,bezier,type Matrix } from '../geometry/flatten';
 import { localize,type ImportReview } from './sparrow';
 
 // Initialized only for SVG imports, not other geometry-worker tasks.
-export const initializeSVG=()=>init();
+let svg_paths: typeof import('../../wasm/pkg/sparrow_web').svg_paths;
+export const initializeSVG=async()=>{const wasm=await loadSerialWasm();await wasm.default();svg_paths=wasm.svg_paths;};
 type Contour={ring:Ring;entityId:string;curved:boolean};
 type Command=['M'|'L'|'Q'|'C'|'Z',...number[]];
 type ResolvedSVG={height:number;paths:{id:string;commands:Command[];transform:Matrix;rule:'evenodd'|'nonzero'}[]};

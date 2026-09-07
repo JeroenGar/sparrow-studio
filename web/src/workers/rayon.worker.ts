@@ -1,11 +1,12 @@
-import init, { wbg_rayon_start_worker } from '../../wasm/pkg-threads/sparrow_web';
+import { loadThreadedWasm } from '../wasm';
 
 self.onmessage = async ({ data }) => {
   self.onmessage = null;
   try {
-    await init(data.init);
+    const wasm = await loadThreadedWasm();
+    await wasm.default(data.init);
     self.postMessage({ type: 'ready' });
-    wbg_rayon_start_worker(data.receiver);
+    wasm.wbg_rayon_start_worker(data.receiver);
   } catch (error) {
     self.postMessage({ type: 'error', message: String(error) });
   }

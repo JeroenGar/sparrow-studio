@@ -22,7 +22,7 @@ npm run preview
 
 Run `npm run wasm:build` before the first development session and before unit tests after changing Rust. SVG tests execute the compiled usvg parser. Both `build` and `test:e2e` compile the actual WASM sources; neither depends on an untracked prebuilt binary. `test:e2e` tests production `dist` on port 4173 in Chromium, Firefox and WebKit. `npx playwright test --list` lists the current cases; `npx playwright test tests/theme.spec.ts` reuses an already built `dist`.
 
-The build isolates Cargo from the ancestor wrapper configuration. It pins sparrow to merged main revision `9ef45676695ef94d045ac8bff0530822127f1437` including [PR #159](https://github.com/JeroenGar/sparrow/pull/159) and uses unmodified jagua-rs 0.8.1 from crates.io. Failed initial placement returns an explanatory error; exact material-boundary contact retains upstream collision semantics. Both WASM variants use pinned nightly Rust with Sparrow’s portable-SIMD collision kernel and `+simd128`. The shared-memory variant also rebuilds the standard library with atomics and wasm-bindgen-rayon 1.3.0. SIMD support is required in both variants; serial fallback only removes the shared-memory requirement. Exact resolved dependencies are in the npm and Cargo lockfiles.
+The build isolates Cargo from the ancestor wrapper configuration. It pins sparrow to merged main revision `9ef45676695ef94d045ac8bff0530822127f1437` including [PR #159](https://github.com/JeroenGar/sparrow/pull/159) and uses unmodified jagua-rs 0.8.1 from crates.io. Failed initial placement returns an explanatory error; exact material-boundary contact retains upstream collision semantics. Four WASM variants use pinned nightly Rust: serial and shared-memory, each with and without SIMD. SIMD builds enable Sparrow’s portable-SIMD collision kernel and `+simd128`; compatibility builds disable SIMD. Both shared-memory variants rebuild the standard library with atomics and wasm-bindgen-rayon 1.3.0. A native feature probe selects SIMD when supported, including for SVG import. Shared-memory startup can fall back to serial independently. Diagnostics record the initialized variant in `solverBinary`, alongside the solver revision and actual thread count. Exact resolved dependencies are in the npm and Cargo lockfiles.
 
 ## Static hosting and threads
 
@@ -34,7 +34,7 @@ Solver options offer Automatic or 1–3 threads. Automatic reserves one reported
 
 ## Deployment
 
-`.github/workflows/pages.yml` builds and publishes GitHub Pages on pushes to `main`, or through its manual Run workflow action. It installs Node 24, stable Rust, nightly 2026-08-30 and wasm-pack 0.15.0, uses the dependency lockfiles, and builds both solver variants. Unit tests and the Chromium production browser suite must pass before the Pages artifact is published. A failed build leaves the previous deployment in place.
+`.github/workflows/pages.yml` builds and publishes GitHub Pages on pushes to `main`, or through its manual Run workflow action. It installs Node 24, stable Rust, nightly 2026-08-30 and wasm-pack 0.15.0, uses the dependency lockfiles, and builds all four solver variants. Unit tests and the Chromium production browser suite must pass before the Pages artifact is published. A failed build leaves the previous deployment in place.
 
 The initial Pages address is https://jeroengar.github.io/sparrow-studio/. The custom domain is `sparrowstudio.app`, registered at Spaceship. GitHub Pages remains the host when a custom domain is connected. The repository and website are public.
 
@@ -70,7 +70,7 @@ On 2026-09-05, `npm test` passed **109 tests in 17 files**. The production build
 
 Native Safari 26.6 also completed a production run, Stop and restart using three solver threads. Desktop and mobile normal/ghost views were inspected with computer use. All three browser engines passed a separate `/repo/` static-host test, including isolation-worker scope and thread restart; Chromium additionally verified worker-pool disposal directly.
 
-Independent XML/GEOS checks passed 12 exported SVGs, and ezdxf/GEOS checks passed three holed DXF exports. The public repository contains the sources needed to rebuild both WASM variants and the complete static app using the documented toolchains and dependency lockfiles.
+Independent XML/GEOS checks passed 12 exported SVGs, and ezdxf/GEOS checks passed three holed DXF exports. The public repository contains the sources needed to rebuild all four WASM variants and the complete static app using the documented toolchains and dependency lockfiles.
 
 Two generated 100,000-vertex preparation workloads imported and remained interactive with no measured main-thread task over 50 ms. Those extreme workloads reached the solver initialization watchdog before producing a candidate; being under the import limits does not guarantee a completed nesting result. Stop remained responsive. High-limit candidate-validation responsiveness was therefore not measured. See [the performance record](../notes/preparation-performance.md) and [acceptance audit](../notes/web-app-acceptance-audit.md) for the machine, methods and precise scope. Physical iPhone/iPad testing has not been performed.
 
