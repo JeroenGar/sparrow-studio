@@ -68,7 +68,9 @@ test('deleting the last copy keeps a zero-quantity type, undo restores it, and s
   // Automatic search has no wall-clock cap and can outlast this test's 30 s assertion.
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});await page.getByRole('button',{name:'Stop',exact:true}).click();await expect(middleQuantity).toBeEnabled();await expect(middleQuantity).toHaveValue('0');await expect.poll(async()=>copies(page).count()).toBe(9);
+  // Wait for the capped solve to finish; Stop disappears when it completes.
+  await expect(middleQuantity).toBeEnabled({timeout:30_000});
+  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();await expect(middleQuantity).toHaveValue('0');await expect.poll(async()=>copies(page).count()).toBe(9);
   await middleQuantity.fill('3');await expect.poll(async()=>copies(page).count()).toBe(12);
 
   const existingIds=new Set((await state(page)).map(copy=>copy.id));
