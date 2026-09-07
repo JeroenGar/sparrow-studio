@@ -25,6 +25,9 @@ pub fn thread_count() -> usize {
 
 mod svg;
 
+#[cfg(feature = "benchmark")]
+pub mod benchmark;
+
 #[cfg(test)]
 mod tests;
 
