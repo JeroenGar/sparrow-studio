@@ -3,6 +3,26 @@ import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
 import { preview } from 'vite';
 
+test('solver preloads before Nest without starting a run',async({page})=>{
+  let preloaded=false;
+  await page.exposeFunction('solverPreloaded',()=>{preloaded=true;});
+  await page.addInitScript(()=>{
+    const Original=Worker;
+    window.Worker=class extends Original {
+      constructor(url:string|URL,options?:WorkerOptions){
+        super(url,options);
+        this.addEventListener('message',event=>{
+          if(event.data.type==='preloaded')void (window as unknown as {solverPreloaded:()=>Promise<void>}).solverPreloaded();
+        });
+      }
+    };
+  });
+  await page.goto('/');
+  await expect.poll(()=>preloaded).toBe(true);
+  await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Stop',exact:true})).toHaveCount(0);
+});
+
 for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parallel static-host startup and restart' : 'serial fallback'}`, async ({ browser }, testInfo) => {
   const context = await browser.newContext({ serviceWorkers: isolated ? 'allow' : 'block' });
   const page = await context.newPage();
@@ -31,6 +51,12 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
     await expect(page.locator('[data-worker-count]')).toContainText('/ 2 requested');
     expect(diagnostic.result.validation.status).toBe('passed');
     expect(diagnostic.result.placements).toHaveLength(12);
+    const startup=diagnostic.startup;
+    expect(startup.preparedMs).toBeGreaterThanOrEqual(0);
+    expect(startup.solverReadyMs).toBeGreaterThanOrEqual(startup.preparedMs);
+    expect(startup.firstCandidateMs).toBeGreaterThanOrEqual(startup.solverReadyMs);
+    expect(startup.firstValidMs).toBeGreaterThanOrEqual(startup.firstCandidateMs);
+    expect(startup.firstResultRenderedMs).toBeGreaterThanOrEqual(Math.min(startup.firstValidMs,startup.firstPreviewMs??Infinity));
   }
   await context.close();
 });

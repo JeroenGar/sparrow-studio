@@ -5,9 +5,11 @@ import type {LiveGeometry} from '../geometry/live';
 
 export type RunState='Ready'|'Initializing'|'Running'|'Checking'|'Complete'|'Stopped'|'Error';
 export type Timing={sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
-export type Diagnostics={solverRevision:string;seed:string;buildMode:string;initializationMs?:number;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
+// Cumulative milliseconds since Nest was requested, including preparation and worker loading.
+type StartupTiming={preparedMs:number;solverReadyMs?:number;firstCandidateMs?:number;firstValidMs?:number;firstPreviewMs?:number;firstResultRenderedMs?:number};
+export type Diagnostics={solverRevision:string;seed:string;buildMode:string;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
 export type LiveFrame=LiveGeometry & {sequence:number;result:Result;report:string};
-type Run={id:number;revision:number;doc:Document;seed:string;solver?:Worker;checker:Worker;preview:Worker;active?:{candidate:Candidate;result:Result};
+type Run={id:number;revision:number;doc:Document;seed:string;requestedAt:number;solver?:Worker;checker:Worker;preview:Worker;active?:{candidate:Candidate;result:Result};
   latest?:Candidate;previewActive?:{candidate:Candidate;result:Result};frame?:LiveFrame;previewSequence:number;previewError?:string;
   pending?:Candidate;best?:Result;ended?:'Complete'|'Stopped'|'Error';startedAt?:number;watchdog:ReturnType<typeof setTimeout>;
   validationWatchdog?:ReturnType<typeof setTimeout>;diagnostics:Diagnostics};
@@ -27,6 +29,12 @@ export function useSolver() {
   const [workers,setWorkers]=useState<{actual:number;requested?:number;reason?:string}>();
   const run=useRef<Run|undefined>(undefined),serial=useRef(0);
   const diagnostics=useRef<Diagnostics|undefined>(undefined);
+  useEffect(()=>{
+    const r=run.current;
+    // Record the React commit containing a new run's result, not a previous run's retained frame.
+    if(r?.diagnostics.startup && ((result && result===r.best) || (live && live===r.frame)))
+      r.diagnostics.startup.firstResultRenderedMs??=performance.now()-r.requestedAt;
+  },[result,live]);
   function clear() {
     const r=run.current;
     if(r) {r.solver?.postMessage({type:'stop'});r.checker.terminate();r.preview.terminate();clearTimeout(r.watchdog);clearTimeout(r.validationWatchdog);}
@@ -72,19 +80,21 @@ export function useSolver() {
     },30_000);
     r.checker.postMessage({type:'validate',runId:r.id,documentRevision:r.revision,sequence:candidate.sequence,document:r.doc,result});
   }
-  function start(doc:Document,revision:number,threads?:number) {
+  function start(doc:Document,revision:number,threads?:number,requestedAt=performance.now()) {
+    const startup:StartupTiming={preparedMs:performance.now()-requestedAt};
     clear();setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setError('');setElapsed(0);setState('Initializing');
     const id=++serial.current,seed=crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     const solver=new Worker(new URL('./solver.worker.ts',import.meta.url),{type:'module'});
     const checker=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
     const preview=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
-    const r:Run={id,revision,doc,seed,solver,checker,preview,previewSequence:0,watchdog:setTimeout(()=>end('Stopped','Initialization exceeded 15 seconds.'),15_000),
-      diagnostics:{solverRevision:SOLVER_REVISION,seed,buildMode:'Initializing',history:[],liveSnapshots:0,liveErrors:[]}};
+    const r:Run={id,revision,doc,seed,requestedAt,solver,checker,preview,previewSequence:0,watchdog:setTimeout(()=>end('Stopped','Initialization exceeded 15 seconds.'),15_000),
+      diagnostics:{solverRevision:SOLVER_REVISION,seed,buildMode:'Initializing',startup,history:[],liveSnapshots:0,liveErrors:[]}};
     run.current=r;diagnostics.current=r.diagnostics;
     preview.onmessage=({data}:MessageEvent<GeometryReply>)=>{
       if(run.current!==r||data.runId!==r.id||data.documentRevision!==r.revision)return;
       if(data.type==='error'){r.previewError=data.message;r.previewActive=undefined;preview.terminate();return;}
       if(data.type!=='live-frame'||!r.previewActive||data.sequence!==r.previewActive.candidate.sequence)return;
+      startup.firstPreviewMs??=performance.now()-requestedAt;
       if(data.geometry.errors.length) {
         r.diagnostics.liveErrors.push(...data.geometry.errors.map(message=>({sequence:data.sequence,message})));
         // ponytail: retain the last 100 live clip failures; diagnostics stay bounded during long searches.
@@ -102,7 +112,10 @@ export function useSolver() {
       const checked={...r.active.result,validation:data.validation};
       const timing=r.diagnostics.history.find(t=>t.sequence===data.sequence);
       if(timing) Object.assign(timing,{validation:data.validation.status,validationMs:data.elapsedMs,errors:data.validation.errors});
-      if(data.validation.status==='passed' && (!r.best || checked.usedLengthMm<r.best.usedLengthMm)) r.best=checked;
+      if(data.validation.status==='passed' && (!r.best || checked.usedLengthMm<r.best.usedLengthMm)) {
+        startup.firstValidMs??=performance.now()-requestedAt;
+        r.best=checked;
+      }
       r.active=undefined;
       if(r.pending) {const next=r.pending;r.pending=undefined;check(r,next);} else settled(r);
     };
@@ -110,13 +123,14 @@ export function useSolver() {
     solver.onmessage=({data}:MessageEvent<SolverMessage>)=>{
       if(run.current!==r || !r.solver || data.runId!==r.id || data.documentRevision!==r.revision) return;
       switch(data.type) {
-        case 'ready': setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, no SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
+        case 'ready': startup.solverReadyMs=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, no SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
           setWorkers(previous=>previous?{...previous,actual:data.workers}:previous);
           if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);if(doc.settings.timeLimitSeconds!==null)r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}
           setState('Running');break;
         case 'live':r.latest=data;r.diagnostics.liveSnapshots!++;break;
         case 'candidate':
+          startup.firstCandidateMs??=performance.now()-requestedAt;
           r.latest=data;r.diagnostics.liveSnapshots!++;
           r.diagnostics.history.push({sequence:data.sequence,elapsedMs:data.elapsedMs,lengthMm:data.solution.strip_width});
           check(r,data);break;

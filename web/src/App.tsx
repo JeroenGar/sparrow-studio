@@ -71,6 +71,16 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const result=solver.result?.documentRevision===revision?solver.result:undefined;
   const [saved,setSaved]=useState<{document:Document;result?:Result}>(()=>({document:doc}));
   const [loadingExample,setLoadingExample]=useState(loadDefaultExample);
+  useEffect(()=>{
+    if(loadingExample)return;
+    const worker=new Worker(new URL('./workers/solver-runtime.worker.ts',import.meta.url),{type:'module'});
+    const timeout=setTimeout(()=>worker.terminate(),15_000);
+    const done=()=>{clearTimeout(timeout);worker.terminate();};
+    worker.onmessage=done;
+    worker.onerror=event=>{event.preventDefault();done();};
+    worker.postMessage({type:'preload',threads:crossOriginIsolated&&typeof SharedArrayBuffer!=='undefined'&&navigator.hardwareConcurrency>2?3:1});
+    return done;
+  },[loadingExample]);
   const defaultExampleCancelled=useRef(false);
   function cancelDefaultExample() {defaultExampleCancelled.current=true;setLoadingExample(false);}
   useEffect(()=>{
@@ -185,12 +195,13 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     window.addEventListener('keydown',key);return ()=>window.removeEventListener('keydown',key);
   });
   async function run(document=doc,rev=revision) {
+    const requestedAt=performance.now();
     setBusy(true);setError('');setResultMode('live');
     const id=++operation.current;
     try {
       const reply=await geometryTask({type:'normalize',runId:id,documentRevision:rev,document});
       if(id!==operation.current || reply.type!=='normalized') return;
-      solver.start(reply.document,rev,threads||undefined);
+      solver.start(reply.document,rev,threads||undefined,requestedAt);
     } catch(e) {setError(String(e));} finally {if(id===operation.current)setBusy(false);}
   }
   async function openFiles(list:FileList|File[],intent:'project'|'shapes'|'auto'='auto') {
