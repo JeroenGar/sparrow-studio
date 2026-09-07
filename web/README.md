@@ -92,7 +92,7 @@ The historical native fixture requested a 2 mm gap between 10 mm rectangles in a
 
 ## Privacy and notices
 
-Files, geometry and diagnostics are processed locally. Ordinary static asset requests still reach the host and can appear in its access logs. Explicit GitHub/LinkedIn/paper links navigate externally. No analytics, social embeds, external fonts, account service or upload endpoint is included. The privacy browser test permits only known built-asset GETs and checks import/export content is absent from request URLs, bodies and headers.
+Files, geometry and diagnostics are processed locally. Ordinary static asset requests still reach the host and can appear in its access logs. Explicit GitHub/LinkedIn/paper links navigate externally. Cloudflare Web Analytics measures traffic and performance only on sparrowstudio.app and www.sparrowstudio.app in production builds. No project names, file contents, or geometry are supplied to the beacon. No social embeds, external fonts, account service or upload endpoint is included. Local previews do not load analytics; the privacy browser test permits only known built-asset GETs and checks import/export content is absent from request URLs, bodies and headers.
 
 Third-party full texts and source references are in `public/THIRD_PARTY_NOTICES.txt`, the two `public/RUST-LIBRARY-*.html` files and `public/examples/NOTICE.txt`. Regenerate/check from the repository root:
 

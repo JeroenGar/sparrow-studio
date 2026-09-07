@@ -6,6 +6,13 @@ import type {Document} from './model';
 import './styles.css';
 import { prepareIsolation } from './isolation';
 void prepareIsolation().then(async () => {
+  if (import.meta.env.PROD && ['sparrowstudio.app', 'www.sparrowstudio.app'].includes(location.hostname)) {
+    const beacon = document.createElement('script');
+    beacon.type = 'module';
+    beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+    beacon.dataset.cfBeacon = JSON.stringify({token: '570458f3f91e4805b21cdc84923f0057'});
+    document.head.append(beacon);
+  }
   let initialDocument:Document|undefined,initialError='';
   try {
     const imported=await loadExample('gardeyn2.json',AbortSignal.timeout(10000));
