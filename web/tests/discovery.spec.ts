@@ -11,7 +11,7 @@ test('search metadata, sitemap and sharing image are available without rendering
   expect(html).toContain('name="twitter:card" content="summary_large_image"');
   expect(html).toContain('<title>sparrow/studio | Open-source 2D nesting</title>');
   expect(html).toContain('property="og:title" content="sparrow/studio: Open-source 2D nesting in your browser"');
-  expect(html).not.toMatch(/Free (online|browser-based)/);
+  expect(html).toContain('Free, open-source 2D nesting software');
   expect(html).toContain('Printing and print-and-cut');
   expect(html).toContain('id="nesting-heading"');
   const imageUrl=html.match(/property="og:image" content="([^"]+)"/)![1];
@@ -46,9 +46,9 @@ for(const javaScriptEnabled of [true,false]) {
         }
         const summary=page.locator('.nesting-about>summary');
         await summary.scrollIntoViewIfNeeded();
-        await expect(page.getByRole('heading',{name:'Open-source 2D nesting with sparrow/studio'})).toBeHidden();
+        await expect(page.getByRole('heading',{name:'Free, open-source 2D nesting with sparrow/studio'})).toBeHidden();
         await summary.focus();await page.keyboard.press('Enter');
-        await expect(page.getByRole('heading',{name:'Open-source 2D nesting with sparrow/studio'})).toBeVisible();
+        await expect(page.getByRole('heading',{name:'Free, open-source 2D nesting with sparrow/studio'})).toBeVisible();
         const section=page.locator('.nesting-about>section');
         await expect(section).toContainText('Printing and print-and-cut');
         const box=await section.boundingBox();

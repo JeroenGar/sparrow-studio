@@ -66,6 +66,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const [shape,setShape]=useState<'rectangle'|'circle'|'polygon'>(),[shapeWidth,setShapeWidth]=useState(40),[shapeHeight,setShapeHeight]=useState(30),[polygon,setPolygon]=useState<Point[]>();
   const history=useRef<{doc:Document;geometry:boolean;selection:CopyRef[];unused:string[]}[]>([]),future=useRef<{doc:Document;geometry:boolean;selection:CopyRef[];unused:string[]}[]>([]),operation=useRef(0);
   const input=useRef<HTMLInputElement>(null),solver=useSolver();
+  const fieldEdit=useRef<{key:string;document:Document}|undefined>(undefined);
   const running=['Initializing','Running','Checking'].includes(solver.state),locked=running||busy;
   const result=solver.result?.documentRevision===revision?solver.result:undefined;
   const [saved,setSaved]=useState<{document:Document;result?:Result}>(()=>({document:doc}));
@@ -106,14 +107,17 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     if(!placementLayoutsEqual(doc,next)) setDoc(next);
   },[running,result,doc]);
   useEffect(()=>{if(!running&&result)setResultMode('checked');},[running,result]);
-  function commit(next:Document,geometry=true) {
+  function commit(next:Document,geometry=true,field?:string) {
     const parts=new Map(next.parts.map(part=>[part.id,part]));
     const placements=next.placements?.filter(copy=>parts.has(copy.partId)&&copy.copyIndex<(Number.isInteger(parts.get(copy.partId)!.quantity)?Math.max(0,parts.get(copy.partId)!.quantity):1));
     let canonical:Document;
     try {canonical=withDocumentPlacements({...next,placements});} catch(error) {setError(String(error));return;}
     setUnusedSelection(previous=>previous.filter(id=>canonical.parts.some(part=>part.id===id&&part.quantity===0)));
     setSelectedCopies(previous=>previous.filter(copy=>canonical.parts.some(part=>part.id===copy.partId&&copy.copyIndex<part.quantity)));
-    history.current=[...history.current.slice(-49),{doc,geometry,selection:selectedCopies,unused:unusedSelection}];future.current=[];
+    // Keep live field feedback, but record only the value before this editing session.
+    if(!field||fieldEdit.current?.key!==field||fieldEdit.current.document!==doc)
+      history.current=[...history.current.slice(-49),{doc,geometry,selection:selectedCopies,unused:unusedSelection}];
+    fieldEdit.current=field?{key:field,document:canonical}:undefined;future.current=[];
     cancelDefaultExample();setDoc(canonical);setError('');
     if(geometry) {setRevision(r=>r+1);solver.invalidate();}
   }
@@ -130,6 +134,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   }
   function restore(redo=false) {
     if(locked) return;
+    fieldEdit.current=undefined;
     const from=redo?future:history,to=redo?history:future,entry=from.current.pop();
     if(!entry) return;
     to.current.push({doc,geometry:entry.geometry,selection:selectedCopies,unused:unusedSelection});setDoc(withDocumentPlacements(entry.doc));
@@ -214,7 +219,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     const nextRevision=revision+1,checked=next.result?{...next.result,documentRevision:nextRevision}:undefined;
     const document=withDocumentPlacements(next.document,checked?.placements ?? next.document.placements);
     ++operation.current;solver.invalidate();setRevision(nextRevision);setDoc(document);
-    history.current=[];future.current=[];partAnchor.current=0;setUnusedSelection([]);setSelectedCopies([]);setPolygon(undefined);setFiles(undefined);setReview(undefined);setPendingProject(undefined);setError('');setImportWarnings(next.warnings??[]);setFitRequest(n=>n+1);setResultMode(checked?'checked':'live');
+    history.current=[];future.current=[];fieldEdit.current=undefined;partAnchor.current=0;setUnusedSelection([]);setSelectedCopies([]);setPolygon(undefined);setFiles(undefined);setReview(undefined);setPendingProject(undefined);setError('');setImportWarnings(next.warnings??[]);setFitRequest(n=>n+1);setResultMode(checked?'checked':'live');
     if(checked)solver.load(checked);
     setSaved({document:next.saved?document:withDocumentPlacements(emptyProject()),result:next.saved?checked:undefined});
     if(next.nest)void run(document,nextRevision);
@@ -238,7 +243,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
       else{await addParts(review.document.parts,review.warnings);setFiles(undefined);setReview(undefined);setFitRequest(n=>n+1);}
     }catch(e){setError(String(e));}finally{setBusy(false);}
   }
-  function editPart(change:Partial<Part>,geometry=true) {if(chosen)commit({...doc,parts:doc.parts.map(p=>selected.includes(p.id)?{...p,...change}:p)},geometry);}
+  function editPart(change:Partial<Part>,geometry=true,field?:string) {if(chosen)commit({...doc,parts:doc.parts.map(p=>selected.includes(p.id)?{...p,...change}:p)},geometry,field);}
   function positionSelection(axis:0|1,value:number) {
     if(!selectedBox||locked)return;
     const delta=value-selectedBox[axis];
@@ -284,7 +289,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const totalArea=useMemo(()=>doc.parts.reduce((n,p)=>n+netArea(p)*p.quantity,0),[doc.parts]);
   const utilization=result?totalArea/(doc.settings.materialWidthMm*result.usedLengthMm)*100:0;
   const first=solver.diagnostics.current?.history.find(t=>t.validation==='passed');
-  return <div className="app" onMouseDownCapture={e=>{const target=e.target;focusClick.current=target instanceof HTMLInputElement&&['text','number'].includes(target.type)&&document.activeElement!==target?target:null;}} onMouseUpCapture={e=>{if(focusClick.current===e.target){e.preventDefault();focusClick.current.select();}focusClick.current=null;}} onFocusCapture={e=>{const input=e.target;if(input instanceof HTMLInputElement&&['text','number'].includes(input.type))input.select();}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!document.querySelector('dialog[open]'))void openFiles(e.dataTransfer.files);}}>
+  return <div className="app" onBlurCapture={()=>{fieldEdit.current=undefined;}} onKeyDown={e=>{if(e.key==='Enter'&&e.target instanceof HTMLInputElement&&e.target.hasAttribute('data-undo-field')){e.preventDefault();e.target.blur();}}} onMouseDownCapture={e=>{const target=e.target;focusClick.current=target instanceof HTMLInputElement&&['text','number'].includes(target.type)&&document.activeElement!==target?target:null;}} onMouseUpCapture={e=>{if(focusClick.current===e.target){e.preventDefault();focusClick.current.select();}focusClick.current=null;}} onFocusCapture={e=>{const input=e.target;if(input instanceof HTMLInputElement&&['text','number'].includes(input.type))input.select();}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!document.querySelector('dialog[open]'))void openFiles(e.dataTransfer.files);}}>
     <header className="header"><div className="brand-block"><a className="brand" aria-label="sparrow/studio" href={import.meta.env.BASE_URL}>sparrow<span>/studio</span><small className="demo-badge">demo</small></a><p className="tagline">An interactive sparrow demo, on your device</p></div>
       <div className="header-primary project-bar"><details className="project-menu" ref={projectMenu}><summary aria-label={`Project: ${doc.name}`}>{doc.name}<span aria-hidden="true"> ▾</span></summary><div>
         <button disabled={locked} onClick={()=>{projectMenu.current!.open=false;setProjectName('Untitled project');setNameDialog('new');}}>New project</button>
@@ -316,7 +321,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
           }}>
             <svg aria-hidden="true" viewBox={`${b[0]-2} ${-b[3]-2} ${b[2]-b[0]+4} ${b[3]-b[1]+4}`}><path d={pathData([p.outer,...p.holes])} transform="scale(1 -1)" fillRule="evenodd" fill={colors[i%colors.length]}/></svg>
             <span>{p.name}<small>{length(b[2]-b[0])} × {length(b[3]-b[1])} {unit}</small><small className="rotation-summary">{rotationSummary(p.rotations)}</small></span>
-          </button><input aria-label={`Quantity for ${p.name}`} type="number" min="0" max="500" aria-invalid={!validQuantity(p.quantity)} value={Number.isFinite(p.quantity)?p.quantity:''} disabled={locked} onChange={e=>commit(syncQuantity({...doc,parts:doc.parts.map(part=>part.id===p.id?{...part,quantity:e.target.valueAsNumber}:part)}))}/>
+          </button><input data-undo-field aria-label={`Quantity for ${p.name}`} type="number" min="0" max="500" aria-invalid={!validQuantity(p.quantity)} value={Number.isFinite(p.quantity)?p.quantity:''} disabled={locked} onChange={e=>commit(syncQuantity({...doc,parts:doc.parts.map(part=>part.id===p.id?{...part,quantity:e.target.valueAsNumber}:part)}),true,`quantity:${p.id}`)}/>
           {!validQuantity(p.quantity)&&<small role="alert" className="field-error quantity-error">Enter a whole number from 0 to 500.</small>}
         </div>;})}</div>
         {doc.parts.reduce((n,p)=>n+(Number.isFinite(p.quantity)?p.quantity:0),0)>500&&<p role="alert" className="field-error quantity-total">This drawing exceeds the 500-copy limit. Reduce quantities to continue.</p>}
@@ -324,9 +329,9 @@ export default function App({initialDocument=emptyProject(),initialError='',load
         <p className="import-formats">Import SVG, DXF or sparrow instance JSON.</p>
         <div className="row-actions history"><button disabled={locked||!history.current.length} onClick={()=>restore()}>Undo</button><button disabled={locked||!future.current.length} onClick={()=>restore(true)}>Redo</button></div>
         <section className="settings"><h2>Material & run</h2>
-          <label>Material width <span>{unit}</span><input type="number" min={0.001/factor} max={100000/factor} step="any" value={inputLength(doc.settings.materialWidthMm)} onFocus={()=>setMaterialWidthFocused(true)} onBlur={()=>setMaterialWidthFocused(false)} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,materialWidthMm:e.target.valueAsNumber*factor}})}/></label>
+          <label>Material width <span>{unit}</span><input data-undo-field type="number" min={0.001/factor} max={100000/factor} step="any" value={inputLength(doc.settings.materialWidthMm)} onFocus={()=>setMaterialWidthFocused(true)} onBlur={()=>setMaterialWidthFocused(false)} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,materialWidthMm:e.target.valueAsNumber*factor}},true,'material-width')}/></label>
           {(!Number.isFinite(doc.settings.materialWidthMm)||doc.settings.materialWidthMm<=0||doc.settings.materialWidthMm>100_000)&&<small role="alert" className="field-error">Enter a positive material width up to {length(100000)} {unit}.</small>}
-          <label>Clearance <span>{unit}</span><input type="number" min="0" step="any" value={inputLength(doc.settings.clearanceMm)} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,clearanceMm:e.target.valueAsNumber*factor}})}/></label>
+          <label>Clearance <span>{unit}</span><input data-undo-field type="number" min="0" step="any" value={inputLength(doc.settings.clearanceMm)} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,clearanceMm:e.target.valueAsNumber*factor}},true,'clearance')}/></label>
           {doc.settings.clearanceMm>0&&<small>sparrow also reserves {length(doc.settings.clearanceMm)} {unit} at material edges. This is not cutting kerf.</small>}
           {(!Number.isFinite(doc.settings.clearanceMm)||doc.settings.clearanceMm<0||doc.settings.clearanceMm>=doc.settings.materialWidthMm)&&<small role="alert" className="field-error">Enter zero or a positive clearance smaller than the material width.</small>}
           <label>Stop condition<select value={doc.settings.timeLimitSeconds??'auto'} disabled={locked} onChange={e=>commit({...doc,settings:{...doc.settings,timeLimitSeconds:e.target.value==='auto'?null:Number(e.target.value) as 10|30|60|120|300|600}},false)}><option value="auto">Automatic</option>{[10,30,60,120,300,600].map(s=><option value={s} key={s}>{s<60?`Up to ${s} seconds`:`Up to ${s/60} minute${s>60?'s':''}`}</option>)}</select></label>
@@ -344,7 +349,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
         {(live||result)&&<div className={`result-details${showingLive?' live-details':''}`}><div className="result-mode" role="group" aria-label="Result display"><button aria-pressed={resultMode==='live'} disabled={!live} onClick={()=>setResultMode('live')}>{running&&<i className="live-dot" aria-hidden="true"/>}Live search</button><button aria-pressed={resultMode==='checked'} disabled={!result} onClick={()=>setResultMode('checked')}>Best valid solution</button></div><div className="result-copy">{showingLive?<><span><i className="overlap-key"/>Overlaps in red</span><p>Intermediate layouts may overlap. {result?'Downloads use the best valid layout.':'Waiting for a valid solution before downloads are available.'}</p></>:result&&<><span className="checked">✓ Geometry checked</span><span>{maxApprox?`Curves approximated to ${displayLength(maxApprox,unit)} ${unit}`:'Polygonal contours'}</span><details><summary>Check details</summary><p>Outer footprints, holes, copy counts, rotations, boundaries, overlap, and clearance. Boundary/clearance tolerance {POLICY.linearMm} mm; overlap threshold {POLICY.overlapMm2} mm² per pair. This is not manufacturing certification.</p></details></>}</div></div>}
         {solver.liveError&&<p className="field-error">Live preview unavailable: {solver.liveError}</p>}
       </section>
-        {chosen&&<aside className="selection-panel" aria-label="Part properties"><div className="panel-title"><h2>Part properties</h2><button aria-label="Clear selection" onClick={()=>{setUnusedSelection([]);setSelectedCopies([]);}}>×</button></div><section className="part-settings">{selected.length===1?<label>Name<input value={chosen.name} disabled={locked} onChange={e=>editPart({name:e.target.value},false)}/></label>:<h2>{selected.length} parts selected</h2>}
+        {chosen&&<aside className="selection-panel" aria-label="Part properties"><div className="panel-title"><h2>Part properties</h2><button aria-label="Clear selection" onClick={()=>{setUnusedSelection([]);setSelectedCopies([]);}}>×</button></div><section className="part-settings">{selected.length===1?<label>Name<input data-undo-field value={chosen.name} disabled={locked} onChange={e=>editPart({name:e.target.value},false,`name:${chosen.id}`)}/></label>:<h2>{selected.length} parts selected</h2>}
           {selectedBox?<SelectionControls key={JSON.stringify(selectedCopies)} unit={unit} box={selectedBox} disabled={locked} onPosition={positionSelection} onSize={(axis,value)=>void transformSelection({kind:'scale',factor:value/(selectedBox[axis+2]-selectedBox[axis]),pivot:[selectedBox[0],selectedBox[1]]})} onRotate={degrees=>void transformSelection({kind:'rotate',degrees,pivot:[(selectedBox[0]+selectedBox[2])/2,(selectedBox[1]+selectedBox[3])/2]})} onValidity={setSizeValid}/>:<p className="muted">No copies selected. Add a copy using its quantity to move or resize this part.</p>}
           <RotationControl key={JSON.stringify([selected,mixedRotations,chosen.rotations])} rule={chosen.rotations} mixed={!!mixedRotations} disabled={locked} onChange={rotations=>editPart({rotations})}/>
 

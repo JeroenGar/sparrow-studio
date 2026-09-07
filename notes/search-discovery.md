@@ -28,9 +28,11 @@ Tests inspect raw HTML, canonical/social URLs, PNG dimensions, robots.txt, and s
 
 ## Publication and indexing
 
-These changes have not been deployed or submitted to Google Search Console. Once published:
+Production was checked on 2026-09-07: the homepage, robots.txt, sitemap and 352,460-byte sharing image all return HTTP 200 with the correct content types. Canonical and social tags match the production URL, the introduction is present in the initial HTML, crawling is allowed and no noindex directive was found. Public site-search returned no results, which does not establish whether Google has indexed the site. The owner subsequently confirmed successful domain verification, sitemap submission and an indexing request in Google Search Console. Actual indexing and search performance remain to be checked.
 
-1. Fetch the production homepage, robots.txt, sitemap, and sharing image to confirm they are served successfully with the expected content and types.
+Remaining steps:
+
+1. Production publication checks are complete.
 2. In a verified Search Console property for sparrowstudio.app, inspect the homepage's live URL and rendered content, request indexing, and submit `https://sparrowstudio.app/sitemap.xml`. Account verification may require the domain owner's DNS access. No verification token or account access was supplied for this work.
 3. Inspect the social preview in LinkedIn's Post Inspector, without publishing a post, to verify image cropping and refresh its cache.
 4. Monitor impressions and queries such as "2D nesting", "online nesting", and "print and cut nesting". Metadata and a sitemap do not guarantee indexing or rankings.
@@ -42,3 +44,5 @@ References: [Google canonical guidance](https://developers.google.com/search/doc
 Signal limit verified against [its preview fetch implementation](https://github.com/signalapp/Signal-Desktop/blob/main/ts/linkPreviews/linkPreviewFetch.preload.ts). The old live PNG returned HTTP 200 with the correct image/png type; the missing thumbnail was consistent with its oversized response. Actual rendering in Signal remains a post-deployment check. Existing messages may retain their original preview.
 
 Product copy now emphasizes open-source software rather than "free": the browser title is "sparrow/studio | Open-source 2D nesting" and sharing titles are "sparrow/studio: Open-source 2D nesting in your browser". Descriptions and the introduction use the same positioning; "free rotation" retains its geometric meaning.
+
+Search descriptions and the About introduction now explicitly describe Studio as free and open-source. The introduction clarifies that importing, nesting and downloading layouts are free to use. Browser and sharing titles retain the open-source branding.

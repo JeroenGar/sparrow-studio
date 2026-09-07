@@ -7,9 +7,9 @@
 - Keep the initial download small and reuse existing caching. Verify slow-network and failed-example startup as well as ordinary loading.
 - The editor now mounts before example download and preparation; user-created, opened, or edited projects take precedence over late responses. In a local Chromium check with a two-second example-download delay, editor availability improved from 2,328 ms to 65 ms. See [measurements and validation](startup-loading.md).
 
-## Search and sharing metadata — implemented, publication and indexing pending
+## Search and sharing metadata — published, indexing requested
 
-- Target discovery for "2D nesting" and "open-source 2D nesting". Add the production canonical URL, Open Graph and social-card metadata, and a sitemap. Verify indexing and rendered content through Google Search Console when account access is available.
+- Target discovery for "2D nesting", "free 2D nesting" and "open-source 2D nesting". Production metadata, the sitemap and the About introduction are published. The owner confirmed domain verification, sitemap submission and an indexing request in Search Console. Actual indexing and search performance remain to be checked.
 - Reuse the Studio screenshot embedded in the upstream sparrow README: https://github.com/user-attachments/assets/4d84bb67-ff98-4310-82de-5350baa02427. Prepare a locally hosted sharing image from it and verify preview cropping and legibility.
 - Add a direct live-demo link to the Studio README using "Try 2D nesting with sparrow in your browser" and use that wording in the upstream README's existing prominent demo callout. Keep its screenshot and placement.
 - Add a small "About 2D nesting" expandable section inside the About dialog, collapsed by default, with useful explanatory content present in the initial HTML and accessible to visitors. Explain browser-based nesting, intended uses, supported inputs, and local processing. Keep the canvas prominent; do not add text hidden solely for search engines.
@@ -196,7 +196,7 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 - Review header, panels, dialogs and bottom controls on narrow screens for clipping, crowding and lost canvas space. Prioritize desktop editing quality over mobile feature parity.
 - Retain the playful ghost emoji; renaming ghost mode is not requested.
 
-## Group field edits into one Undo step — low priority
+## Group field edits into one Undo step — implemented
 
-- Commit part-name and other applicable field edits on blur or Enter, following the existing position/size controls, rather than consuming history per keystroke.
-- Verify that one Undo restores the previous field value and earlier geometry edits remain available. Keep this behind the other refinements.
+- Group part-name, quantity, material-width and clearance edits until blur or Enter. Keep live geometry and validation feedback while storing just one Undo snapshot per editing session. Position, size and custom rotation controls already commit on blur or Enter.
+- One Undo restores the complete previous value, Redo restores the edited value, and earlier geometry edits remain available even after typing a name longer than the 50-entry history limit. Type checking, the frontend build and 24 browser checks passed across Chromium, Firefox and WebKit.
