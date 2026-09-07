@@ -1,3 +1,4 @@
+import {readFile} from 'node:fs/promises';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
@@ -13,7 +14,7 @@ test('JSON import, checked result, serialized export and invalidation',async({pa
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
-  await expect(page.getByRole('button',{name:'Download SVG'})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled({timeout:30_000});
   await page.screenshot({path:testInfo.outputPath('desktop.png'),fullPage:true});
@@ -22,9 +23,9 @@ test('JSON import, checked result, serialized export and invalidation',async({pa
   const diagnostics=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   await (await diagnostics).saveAs(testInfo.outputPath('diagnostics.json'));
   await page.getByLabel('Material width',{exact:false}).fill('6000');
-  await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   await page.getByRole('button',{name:'Undo',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
 });
 
 test('390px example stays usable and makes no external requests',async({page},testInfo)=>{
@@ -38,4 +39,27 @@ test('390px example stays usable and makes no external requests',async({page},te
   await page.screenshot({path:testInfo.outputPath('mobile.png'),fullPage:true});
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
   expect(external).toEqual([]);
+});
+
+test('downloads manual canvas geometry in both formats and snapshots live search',async({page},testInfo)=>{
+  await page.goto('/');await workshop(page);
+  for(const format of ['SVG','DXF']){
+    await page.getByLabel('Export format',{exact:true}).selectOption(format.toLowerCase());
+    const pending=page.waitForEvent('download');
+    await page.getByRole('button',{name:`Download ${format}`,exact:true}).click();
+    const path=testInfo.outputPath(`manual.${format.toLowerCase()}`);await(await pending).saveAs(path);
+    const text=await readFile(path,'utf8');
+    if(format==='SVG'){
+      expect(text.match(/<path id="part-/g)).toHaveLength(12);
+      expect(text).toContain('Canvas layout (not checked for nesting)');
+    }else expect(text.match(/LWPOLYLINE/g)).toHaveLength(12);
+  }
+  await page.getByLabel('Export format',{exact:true}).selectOption('svg');
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await expect(page.getByRole('img',{name:'Live nesting search',exact:true})).toBeVisible();
+  const pending=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download SVG',exact:true}).click();
+  const path=testInfo.outputPath('live.svg');await(await pending).saveAs(path);
+  expect(await readFile(path,'utf8')).toContain('Canvas layout (not checked for nesting)');
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
 });

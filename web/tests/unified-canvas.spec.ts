@@ -42,9 +42,9 @@ async function clickCopy(page:Page,locator:Locator) {
 }
 async function openSavedProject(page:Page,path:string) {
   const chooser=page.waitForEvent('filechooser');
-  await page.locator('.project-menu>summary').click();await page.getByRole('button',{name:'Open project',exact:true}).click();
+  await page.locator('.project-menu>summary').click();await page.getByRole('button',{name:'Import project',exact:true}).click();
   await (await chooser).setFiles(path);await page.getByRole('button',{name:'Preview import',exact:true}).click();
-  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
 }
 
 test('one unified canvas renders every demanded copy without preparation labels or view tabs',async({page})=>{
@@ -88,14 +88,14 @@ test('R rotates only the selected copy and adding quantity preserves existing pl
 test('saving and reopening preserves per-copy placement identities and transforms',async({page},testInfo)=>{
   await page.goto('/');await workshop(page);
   await expect.poll(async()=>copies(page).count()).toBe(12);
-  const before=await copyState(page),pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
+  const before=await copyState(page),pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();
   const download=await pending,path=testInfo.outputPath('unified.zip');await download.saveAs(path);
   const saved=JSON.parse(projectArchiveText(await readFile(path))) as {placements?:unknown};expect(Array.isArray(saved.placements)).toBe(true);expect(saved.placements).toHaveLength(12);
   await openSavedProject(page,path);
   expect(await copyState(page)).toEqual(before);
 });
 
-test('solver completion keeps the same canvas and a manual result edit invalidates export without snapping back',async({page})=>{
+test('solver completion keeps the same canvas and a manual result edit keeps canvas export available without snapping back',async({page})=>{
   await page.goto('/');await workshop(page);
   await expect.poll(async()=>copies(page).count()).toBe(12);
   const canvas=page.locator('.workspace-svg');
@@ -110,7 +110,7 @@ test('solver completion keeps the same canvas and a manual result edit invalidat
   await drag(page,target,24,18);
   await expect.poll(async()=>signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!)).not.toBe(before);
   const moved=signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!);
-  await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);
   await expect.poll(async()=>signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!)).toBe(moved);
   expect(await canvas.getAttribute('viewBox')).toBe(camera);

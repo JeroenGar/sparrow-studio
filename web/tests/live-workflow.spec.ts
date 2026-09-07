@@ -20,7 +20,7 @@ test('live search shows red overlaps and toggles to independently checked output
   await expect(page.locator('.live-dot')).toBeVisible();
   await expect(page.locator('.live-details .result-mode')).toBeVisible();
   await page.waitForFunction(()=>{const seen=(window as unknown as {liveSeen:{frames:Set<string>;overlap:boolean}}).liveSeen;return seen.overlap&&seen.frames.size>=3;},{},{timeout:15_000});
-  const ghost=page.getByRole('button',{name:'👻 mode',exact:true});
+  const ghost=page.getByRole('button',{name:'Ghost mode',exact:true});
   await expect(ghost).toHaveAttribute('aria-pressed','true');
   await expect.poll(()=>page.locator('.workspace-svg').evaluate(node=>{
     const svg=node as SVGSVGElement,box=svg.getBoundingClientRect();
@@ -39,10 +39,10 @@ test('live search shows red overlaps and toggles to independently checked output
   await expect(ghost).toHaveAttribute('aria-pressed','true');
   await expect(page.locator('.workspace-svg')).toBeVisible();
   await page.getByRole('button',{name:'Stop',exact:true}).click();
-  await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
+  await expect(page.getByRole('button',{name:'Export project',exact:true})).toBeEnabled();
   await expect(page.locator('.live-dot')).toHaveCount(0);
   await expect(ghost).toHaveAttribute('aria-pressed','false');
-  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();
   const path=testInfo.outputPath('checked.zip');await(await pending).saveAs(path);
   const saved=JSON.parse(projectArchiveText(await readFile(path)));
   expect(saved.result.validation.status).toBe('passed');expect(saved.result.placements).toHaveLength(12);

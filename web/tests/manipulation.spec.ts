@@ -19,7 +19,7 @@ test('a selected group of copies moves together and undoes as one edit',async({p
   const delta=(i:number)=>translation(after[i]).map((n,axis)=>n-translation(before[i])[axis]);
   expect(delta(8)[0]).not.toBe(0);expect(delta(9)[0]).toBeCloseTo(delta(8)[0]);expect(delta(9)[1]).toBeCloseTo(delta(8)[1]);
   expect(after.slice(0,6)).toEqual(before.slice(0,6));expect(await page.locator('.part-select[aria-pressed=true]').count()).toBe(2);
-  await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   await page.getByRole('button',{name:'Undo',exact:true}).click();
   expect(await groups.evaluateAll(nodes=>nodes.map(n=>n.getAttribute('transform')))).toEqual(before);
 });

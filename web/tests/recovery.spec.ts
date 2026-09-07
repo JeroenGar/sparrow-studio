@@ -62,7 +62,7 @@ test('unavailable storage leaves the editor usable and reports failed recovery',
   });
   await page.goto('/');
   await expect(page.locator('.project-menu>summary')).toContainText('gardeyn2');
-  await expect(page.getByText('Automatic recovery is unavailable. Use Save project to keep a copy.')).toBeVisible();
+  await expect(page.getByText('Browser saving is unavailable. Export the project to keep a copy.')).toBeVisible();
   await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();
 });
 
@@ -81,8 +81,36 @@ test('an unreadable recovery entry is preserved instead of overwritten by the de
   }));
   await page.reload();
   await expect(page.locator('.project-menu>summary')).toContainText('gardeyn2');
-  await expect(page.getByText('Automatic recovery is unavailable. Use Save project to keep a copy.')).toBeVisible();
+  await expect(page.getByText('Browser saving is unavailable. Export the project to keep a copy.')).toBeVisible();
   await page.getByLabel('Quantity for Part 0',{exact:true}).fill('2');
   await page.waitForTimeout(700);
   expect((await snapshot(page)).schemaVersion).toBe(999);
+});
+
+test('browser-save indicator follows IndexedDB writes, including failures, independently of export',async({page})=>{
+  await page.goto('/');
+  const status=page.locator('.project-status');
+  await expect(status).toHaveAttribute('data-save-state','saved');
+  const quantity=page.getByLabel('Quantity for Part 0',{exact:true});
+  await quantity.fill('2');
+  await expect(status).toHaveAttribute('data-save-state','saving');
+  await expect(status).toHaveAttribute('data-save-state','saved');
+  expect((await snapshot(page)).parts[0].quantity).toBe(2);
+  await quantity.fill('');
+  await expect(status).toHaveAttribute('data-save-state','unsaved');
+  await quantity.fill('3');await expect(status).toHaveAttribute('data-save-state','saved');
+  await page.evaluate(()=>{
+    const put=IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put=function(...args){
+      if(this.name==='recovery')throw new DOMException('Full','QuotaExceededError');
+      return put.apply(this,args);
+    };
+  });
+  await quantity.fill('4');
+  await expect(status).toHaveAttribute('data-save-state','error');
+  await expect(status).toContainText('Not saved in browser');
+  expect((await snapshot(page)).parts[0].quantity).toBe(3);
+  const download=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Export project',exact:true}).click();await download;
+  await expect(status).toHaveAttribute('data-save-state','error');
 });

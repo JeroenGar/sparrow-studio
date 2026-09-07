@@ -95,7 +95,7 @@ test('native dialogs, shape creation, proportional sizing, undo and polygon canc
   const canvas=page.getByRole('img',{name:'Preparation drawing'});
   await canvas.click({position:{x:100,y:100}});await canvas.click({position:{x:180,y:100}});await canvas.click({position:{x:140,y:180}});
   await page.getByRole('button',{name:'Finish polygon'}).click();
-  await expect(page.getByRole('button',{name:/Polygon/})).toBeVisible();
+  await expect(page.locator('.part-select').filter({hasText:'Polygon'})).toBeVisible();
   await page.getByRole('button',{name:'Draw shape',exact:true}).click();
   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toHaveCount(0);
 });

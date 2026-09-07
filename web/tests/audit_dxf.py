@@ -16,13 +16,20 @@ args = parser.parse_args()
 doc = ezdxf.readfile(args.file)
 assert doc.dxfversion == "AC1015" and doc.units == 4
 assert not doc.audit().has_errors, "Independent DXF structural audit failed"
-outer, holes = [], []
+outer, holes, annotations = [], [], []
 for entity in doc.modelspace():
+    if entity.dxftype() == "TEXT":
+        assert entity.dxf.layer == "SPARROW_INFO"
+        assert "nested with sparrow/studio" in entity.dxf.text and "https://sparrowstudio.app" in entity.dxf.text
+        assert doc.layers.get("SPARROW_INFO").dxf.plot == 0
+        annotations.append(entity)
+        continue
     assert entity.dxftype() == "LWPOLYLINE" and entity.closed
     assert entity.dxf.layer in ("PARTS", "HOLES")
     polygon = Polygon([(p[0], p[1]) for p in entity.get_points()])
     assert polygon.is_valid and polygon.area > 0
     (outer if entity.dxf.layer == "PARTS" else holes).append(polygon)
+assert len(annotations) == 1
 assert len(outer) == args.copies and len(holes) == args.holes
 assert all(sum(part.contains(hole) for part in outer) == 1 for hole in holes)
 overlap = max((a.intersection(b).area for i, a in enumerate(outer) for b in outer[:i]), default=0)

@@ -14,10 +14,10 @@ test('system is the default; borders follow the theme and explicit choices persi
   await expect.poll(background).toBe('rgb(17, 25, 31)');
   await expect(border).not.toHaveCSS('stroke','rgb(100, 116, 139)');
   await page.getByRole('button',{name:'Close',exact:true}).click();
-  await page.getByRole('button',{name:'👻 mode',exact:true}).click();
+  await page.getByRole('button',{name:'Ghost mode',exact:true}).click();
   await expect(border).toHaveCSS('fill','rgb(255, 255, 255)');await expect(border).toHaveCSS('fill-opacity','0.1');
   await page.emulateMedia({colorScheme:'light'});await expect(border).toHaveCSS('fill','rgb(0, 0, 0)');
-  await page.getByRole('button',{name:'👻 mode',exact:true}).click();
+  await page.getByRole('button',{name:'Ghost mode',exact:true}).click();
   await page.emulateMedia({colorScheme:'dark'});
   await page.reload();
   await page.emulateMedia({colorScheme:'light'});
@@ -47,7 +47,7 @@ test('dark palette and ghost mode remain clear on desktop and mobile',async({pag
   await page.screenshot({path:testInfo.outputPath('palette-dark-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:testInfo.outputPath('palette-dark-mobile.png'),fullPage:true});
-  await page.getByRole('button',{name:'👻 mode',exact:true}).click();
+  await page.getByRole('button',{name:'Ghost mode',exact:true}).click();
   expect(await paths.evaluateAll(nodes=>nodes.length>0&&nodes.every(n=>n.getAttribute('fill')==='light-dark(black, white)'&&n.getAttribute('fill-opacity')==='0.1'))).toBe(true);
   await expect(page.locator('.workspace-svg > rect').first()).toHaveAttribute('fill','none');
   await page.screenshot({path:testInfo.outputPath('ghost-dark-mobile.png'),fullPage:true});

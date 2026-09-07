@@ -7,7 +7,7 @@ export const transform = (ring: Ring, p: Placement): Ring => {
   const angle = p.angleDeg * Math.PI / 180, c = Math.cos(angle), s = Math.sin(angle);
   return ring.map(([x,y]) => [x*c-y*s+p.xMm, x*s+y*c+p.yMm]);
 };
-export function worldParts(doc: Document, result: Result): WorldPart[] {
+export function worldParts(doc: Document, result: Pick<Result,'placements'>): WorldPart[] {
   const parts = new Map(doc.parts.map(p => [p.id,p]));
   return result.placements.map(p => {
     const part = parts.get(p.partId);

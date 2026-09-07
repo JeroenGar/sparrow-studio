@@ -21,6 +21,12 @@ describe('independent layout validation',()=>{
     const {doc,result}=fixture();result.validation=validate(doc,result);
     expect(result.validation.status).toBe('passed');
     const exported=exportSVG(doc,result);expect(exported.svg).toContain('width="2.2mm"');
+    expect(exported.svg).toContain('nested with sparrow/studio · https://sparrowstudio.app');
+    expect(exported.svg).toContain('<a href="https://sparrowstudio.app"');
+    expect(exported.dxf).toContain('nested with sparrow/studio');
+    expect(exported.dxf).toContain('https://sparrowstudio.app');
+    expect(exported.dxf).toContain('SPARROW_INFO');
+    expect(exported.dxf).toContain('290\n0\n');
     expect(exported.world[1].outer).toEqual([[1,0],[2,0],[2,1],[1,1]]);
   });
   it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
@@ -86,4 +92,32 @@ it('JSON preserves rotation semantics, scales geometry and rejects empty orienta
   const part=importSparrow(JSON.stringify(data),'input.json',25.4).document.parts[0];
   expect(part.rotations).toEqual({kind:'continuous'});expect(part.outer[2][0]).toBeCloseTo(25.4);expect(part.outer[2][1]).toBeCloseTo(50.8);
   Object.assign(data.items[0],{allowed_orientations:[]});expect(()=>importSparrow(JSON.stringify(data),'input.json',1)).toThrow('nonempty');
+});
+
+it('exports overlapping manual copies outside the material without moving or certifying them',()=>{
+  const {doc,result}=fixture();
+  doc.parts[0].holes=[[[.2,.2],[.2,.4],[.4,.4],[.4,.2]]];
+  doc.placements=result.placements.map(p=>({...p,xMm:-5,yMm:4}));
+  const bundle=exportSVG(doc);
+  expect(bundle.world[0].outer).toEqual([[-5,4],[-4,4],[-4,5],[-5,5]]);
+  expect(bundle.world[1]).toEqual({...bundle.world[0],copyIndex:1});
+  expect(bundle.svg).toContain('not checked for nesting');
+  expect(bundle.svg).not.toContain('Checked nesting layout');
+  expect(bundle.svg).toContain('viewBox="-5.3 -3.25 6.6 5.5"');
+  expect(bundle.dxf).toContain('10\n-5\n20\n4\n');
+  expect(bundle.dxf).toContain('HOLES');
+});
+
+it('writes unique handles and model-space ownership for strict R2000 importers',()=>{
+  const {doc}=fixture(),text=exportSVG(doc).dxf,lines=text.trimEnd().split('\n');
+  const pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
+  const ids=pairs.filter(([code])=>code==='5').map(([,value])=>value);
+  expect(new Set(ids).size).toBe(ids.length);
+  for(const [,owner] of pairs.filter(([code])=>code==='330'))expect(owner==='0'||ids.includes(owner)).toBe(true);
+  expect(text).toContain('2\nBLOCK_RECORD\n5\n20\n');
+  expect(text).toContain('2\n*Model_Space\n');
+  expect(text).toContain('2\n*Paper_Space\n');
+  expect(text).toContain('2\nBLOCKS\n');
+  const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
+  expect(entities.match(/330\n21\n/g)).toHaveLength(3);
 });

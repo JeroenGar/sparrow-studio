@@ -41,7 +41,7 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
     if (cdp) await expect.poll(poolCount).toBeGreaterThan(1);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     if (cdp) await expect.poll(poolCount).toBe(0);
-    await expect(page.getByRole('button', { name: 'Save project', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Export project', exact: true })).toBeEnabled();
     const pending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();
     const path = testInfo.outputPath(`threads-${attempt}.json`);

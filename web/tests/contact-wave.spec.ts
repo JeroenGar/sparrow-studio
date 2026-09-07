@@ -18,7 +18,7 @@ for(const first of ['svg','dxf','project','reduced-motion'] as const) {
     await page.getByLabel('Project name',{exact:true}).fill('My cutting / job: sample');
     await page.getByRole('button',{name:'Rename',exact:true}).click();
     let pending=page.waitForEvent('download');
-    await page.getByRole('button',{name:'Save project',exact:true}).click();await pending;
+    await page.getByRole('button',{name:'Export project',exact:true}).click();await pending;
     await expect(hand).not.toHaveClass('hello-wave');
     await page.getByRole('button',{name:'Nest parts',exact:true}).click();
     await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
@@ -26,7 +26,7 @@ for(const first of ['svg','dxf','project','reduced-motion'] as const) {
     const format=first==='reduced-motion'?'svg':first;
     if(format!=='project')await page.getByLabel('Export format').selectOption(format);
     pending=page.waitForEvent('download');
-    await page.getByRole('button',{name:format==='project'?'Save project':`Download ${format.toUpperCase()}`,exact:true}).click();
+    await page.getByRole('button',{name:format==='project'?'Export project':`Download ${format.toUpperCase()}`,exact:true}).click();
     expect((await pending).suggestedFilename()).toBe(`sparrow_studio_My cutting - job- sample.${format==='project'?'zip':format}`);
     await expect(hand).toHaveClass('hello-wave');
     if(first==='reduced-motion') {
@@ -39,7 +39,7 @@ for(const first of ['svg','dxf','project','reduced-motion'] as const) {
     }
     await expect(page.getByRole('dialog')).toHaveCount(0);
     pending=page.waitForEvent('download');
-    await page.getByRole('button',{name:'Save project',exact:true}).click();await pending;
+    await page.getByRole('button',{name:'Export project',exact:true}).click();await pending;
     expect(await hand.evaluate(element=>element.getAnimations().length)).toBe(0);
     expect(await page.locator('html').getAttribute('data-hello-waves')).toBe(first==='reduced-motion'?null:'1');
     await hello.click();

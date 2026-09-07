@@ -19,7 +19,7 @@ test('gardeyn2 loads without solving, rotation labels are visible and dialogs st
     await page.setViewportSize(viewport);
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(viewport.width);
     if(viewport.width===1440){
-      const project=await page.locator('.project-menu>summary').boundingBox(),save=await page.getByRole('button',{name:'Save project',exact:true}).boundingBox();
+      const project=await page.locator('.project-menu>summary').boundingBox(),save=await page.getByRole('button',{name:'Export project',exact:true}).boundingBox();
       expect(project!.height).toBeCloseTo(save!.height,0);
     }
     await openExamples(page);

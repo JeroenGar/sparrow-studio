@@ -32,7 +32,7 @@ test('library modifier selection imports one atomic batch and clears across coll
   await library.getByRole('button',{name:'Add 3 selected shapes to project',exact:true}).click();await expect(library.getByText('3 shapes added to your project.',{exact:true})).toBeVisible();
   await library.getByRole('navigation',{name:'Source files'}).getByRole('button',{name:/^My shapes/}).click();await expect(library.locator('.library-grid [aria-pressed=true]')).toHaveCount(0);
   await library.getByRole('button',{name:'Done',exact:true}).click();await expect(page.locator('.part-select')).toHaveCount(before+3);
-  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();const saved=JSON.parse(projectArchiveText(await readFile((await (await pending).path())!)));
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();const saved=JSON.parse(projectArchiveText(await readFile((await (await pending).path())!)));
   expect(saved.parts.slice(-3).map((p:{name:string})=>p.name)).toEqual(names);expect(new Set(saved.parts.map((p:{id:string})=>p.id)).size).toBe(before+3);
   await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(page.locator('.part-select')).toHaveCount(before);
 });
@@ -43,7 +43,7 @@ test('two-decimal millimetre fields never round the stored shape on focus and bl
   await expect(modal).toHaveCount(0);
   const width=page.getByRole('spinbutton',{name:'Width, mm',exact:true}),height=page.getByRole('spinbutton',{name:'Height, mm',exact:true});
   await expect(width).toHaveValue('27.69');await expect(height).toHaveValue('27.98');
-  const save=async()=>{const event=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();return JSON.parse(projectArchiveText(await readFile((await (await event).path())!)));};
+  const save=async()=>{const event=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();return JSON.parse(projectArchiveText(await readFile((await (await event).path())!)));};
   const before=await save();await width.focus();await width.press('Tab');await height.focus();await height.press('Tab');expect(await save()).toEqual(before);
   const part=before.parts.at(-1);expect(Math.max(...part.outer.map((p:number[])=>p[0]))-Math.min(...part.outer.map((p:number[])=>p[0]))).toBeCloseTo(27.693954,9);
 });

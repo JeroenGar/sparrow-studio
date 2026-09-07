@@ -32,9 +32,9 @@ test('the unified preparation canvas renders every demanded copy without labels'
   await expect(quantity).toHaveAttribute('aria-invalid','false');await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();await expect.poll(async()=>copies(page).count()).toBe(11);
   await quantity.fill('500');await expect(page.getByRole('alert')).toContainText('500-copy limit');
   await quantity.fill('7');await expect.poll(async()=>copies(page).count()).toBe(18);await expect(page.locator('text[data-copy-count]')).toHaveCount(0);
-  await page.getByRole('button',{name:'👻 mode',exact:true}).click();await expect(page.locator('text[data-copy-count]')).toHaveCount(0);
+  await page.getByRole('button',{name:'Ghost mode',exact:true}).click();await expect(page.locator('text[data-copy-count]')).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('preparation-ghost-desktop.png'),fullPage:true});
-  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Settings',exact:true}).click();await page.getByRole('button',{name:'Fit',exact:true}).click();
+  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Parts & settings',exact:true}).click();await page.getByRole('button',{name:'Fit',exact:true}).click();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);await page.screenshot({path:testInfo.outputPath('preparation-ghost-mobile.png'),fullPage:true});
 });
 

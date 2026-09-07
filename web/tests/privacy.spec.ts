@@ -25,7 +25,7 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
     const pending=page.waitForEvent('download');await page.getByRole('button',{name:`Download ${format.toUpperCase()}`,exact:true}).click();
     await(await pending).saveAs(testInfo.outputPath(`${marker}.${format}`));
   }
-  const projectDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
+  const projectDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();
   const project=testInfo.outputPath(`${marker}.zip`);await(await projectDownload).saveAs(project);
   const saved=JSON.parse(projectArchiveText(await readFile(project)));expect(saved.result.validation.status).toBe('passed');
   const diagnosticDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
@@ -39,7 +39,7 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   await page.locator('input[type=file]').first().setInputFiles(project);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('Saved result rechecked successfully');
-  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button',{name:'Download DXF',exact:true})).toBeEnabled();
   expect(sockets).toEqual([]);
   expect(requests.length).toBeGreaterThan(0);

@@ -3,10 +3,12 @@ import {test,expect} from '@playwright/test';
 
 test('selection inspector leaves material in place and header owns contact links',async({page},testInfo)=>{
   await page.setViewportSize({width:1440,height:900});await page.goto('/');await workshop(page);
+  await expect(page.getByRole('button',{name:'Parts & settings',exact:true})).toBeHidden();
   const material=page.getByRole('heading',{name:'Material & run'});
   const before=(await material.boundingBox())!;
   const canvasBefore=await page.locator('.workspace-svg').boundingBox();
   expect(canvasBefore!.y).toBe((await page.locator('.canvas-wrap').boundingBox())!.y);
+  expect(canvasBefore!.y).toBe((await page.locator('.drawing-panel').boundingBox())!.y);
   expect((await page.locator('.canvas-tools').boundingBox())!.y).toBeGreaterThan(canvasBefore!.y);
   const part=page.locator('.part-select').first();await part.click();
   const inspector=page.getByRole('complementary',{name:'Part properties'});
@@ -31,7 +33,27 @@ test('selection inspector leaves material in place and header owns contact links
   for(const width of [900,390]){
     await page.setViewportSize({width,height:900});
     expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
+    const settings=page.getByRole('button',{name:'Parts & settings',exact:true});
+    await settings.click();await expect(page.locator('#parts-settings')).toBeHidden();
+    await settings.click();await expect(page.locator('#parts-settings')).toBeVisible();
     await page.getByRole('button',{name:'Clear selection'}).scrollIntoViewIfNeeded();await expect(page.getByRole('button',{name:'Clear selection'})).toBeVisible();
     await page.screenshot({path:testInfo.outputPath(`studio-${width}.png`),fullPage:true});
   }
+});
+
+test('running hides editing controls and restores the selection after Stop',async({page},testInfo)=>{
+  await page.setViewportSize({width:1440,height:900});await page.goto('/');await workshop(page);
+  await page.locator('.part-select').first().click();
+  const inspector=page.getByRole('complementary',{name:'Part properties'});
+  await expect(inspector).toBeVisible();
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Stop',exact:true})).toBeVisible();
+  await expect(inspector).toHaveCount(0);
+  await expect(page.locator('.preparation-shortcuts')).toHaveCount(0);
+  const spinner=(await page.locator('.status-symbol').boundingBox())!;
+  const status=(await page.locator('.run-state').boundingBox())!;
+  expect(status.x-spinner.x-spinner.width).toBeGreaterThanOrEqual(14);
+  await page.screenshot({path:testInfo.outputPath('running-desktop.png')});
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await expect(inspector).toBeVisible();await expect(page.locator('.preparation-shortcuts')).toBeVisible();
 });

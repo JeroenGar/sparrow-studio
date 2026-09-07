@@ -49,13 +49,13 @@ test('Shift-drag selects copies for an atomic move, clone and delete',async({pag
 
 test('remove unused parts clears zero quantities and supports Undo',async({page})=>{
   await page.goto('/');await workshop(page);
-  const cleanup=page.getByRole('button',{name:'Remove unused parts',exact:true});
+  const cleanup=page.getByRole('button',{name:'Remove zero-quantity parts',exact:true});
   const rows=page.locator('.part-row'),quantities=rows.locator('input');
   const count=await rows.count();
-  await expect(cleanup).toBeDisabled();
+  await expect(cleanup).toHaveCount(0);
   await quantities.nth(0).fill('0');await quantities.nth(1).fill('0');
   await cleanup.click();await expect(rows).toHaveCount(count-2);
-  await expect(cleanup).toBeDisabled();
+  await expect(cleanup).toHaveCount(0);
   await page.getByRole('button',{name:'Undo',exact:true}).click();
   await expect(rows).toHaveCount(count);
   await expect(quantities.nth(0)).toHaveValue('0');await expect(quantities.nth(1)).toHaveValue('0');
@@ -63,4 +63,17 @@ test('remove unused parts clears zero quantities and supports Undo',async({page}
   await cleanup.click();await expect(rows).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeDisabled();
   await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(rows).toHaveCount(count);
+});
+
+test('removes a populated part with all copies and restores it with Undo',async({page})=>{
+  await page.goto('/');await workshop(page);
+  const rows=page.locator('.part-row'),count=await rows.count();
+  const quantity=await rows.first().locator('input').inputValue();
+  const copies=page.locator('.workspace-svg [data-part]'),copyCount=await copies.count();
+  await rows.first().getByRole('button',{name:/^Remove /}).click();
+  await expect(rows).toHaveCount(count-1);
+  await expect(copies).toHaveCount(copyCount-Number(quantity));
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await expect(rows).toHaveCount(count);await expect(copies).toHaveCount(copyCount);
+  await expect(rows.first().locator('input')).toHaveValue(quantity);
 });

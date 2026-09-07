@@ -22,7 +22,7 @@ test('top-bar examples include every benchmark and normalize scale while preserv
   await expect(dialog).toHaveCount(0);
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   const pending=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Save project',exact:true}).click();
+  await page.getByRole('button',{name:'Export project',exact:true}).click();
   const path=testInfo.outputPath('benchmark.zip');await(await pending).saveAs(path);
   const saved=JSON.parse(projectArchiveText(await readFile(path)));
   const source=importSparrow(await readFile('public/examples/gardeyn0_c.json','utf8'),'gardeyn0_c.json',1).document,original=normalizeSampleDocument(source);

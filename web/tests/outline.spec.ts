@@ -3,7 +3,7 @@ import {test,expect} from '@playwright/test';
 
 test('outlines preserve interior selection and dragging across drawing views',async({page},testInfo)=>{
   await page.goto('/');await workshop(page);
-  const toggle=page.getByRole('button',{name:'👻 mode',exact:true});
+  const toggle=page.getByRole('button',{name:'Ghost mode',exact:true});
   const paths=page.locator('.workspace-svg g[data-part] > path');
   await expect(toggle).toHaveAttribute('aria-pressed','false');
   await toggle.click();

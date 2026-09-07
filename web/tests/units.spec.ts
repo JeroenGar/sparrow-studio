@@ -5,7 +5,7 @@ import {readFile} from 'node:fs/promises';
 import type {Project} from '../src/model';
 
 async function project(page:Page):Promise<Project> {
-  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
+  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();
   return JSON.parse(projectArchiveText(await readFile((await (await pending).path())!)));
 }
 

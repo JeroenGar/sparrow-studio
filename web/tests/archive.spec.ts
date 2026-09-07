@@ -14,11 +14,11 @@ test('project and checked result ZIP downloads include runnable CLI input',async
   await page.goto('/');await workshop(page);
   await page.getByLabel('Quantity for Shield').fill('0');
   let pending=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Save project',exact:true}).click();let download=await pending;
+  await page.getByRole('button',{name:'Export project',exact:true}).click();let download=await pending;
   const path=info.outputPath('project.zip');await download.saveAs(path);let files=entries(await readFile(path));
   const project=JSON.parse(files.get('project.sparrow-project.json')!),instance=JSON.parse(files.get('cli.json')!);
   expect(project.parts).toHaveLength(4);expect(instance.items).toHaveLength(3);expect(instance.items.map((item:{id:number})=>item.id)).toEqual([0,1,2]);expect(files.has('layout.svg')).toBe(false);
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20000});await page.getByRole('button',{name:'Stop',exact:true}).click();
-  pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();download=await pending;
+  pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();download=await pending;
   await download.saveAs(path);files=entries(await readFile(path));expect(files.get('layout.svg')).toContain('viewBox=');expect(files.get('layout.dxf')).toContain('ENTITIES');expect(files.get('README.txt')).toContain('hole');
 });

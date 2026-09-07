@@ -31,7 +31,7 @@ export type GeometryRequest = Identity & (
   | { type:'library'; text:string; fileName:string }
   | { type:'import'; files:{name:string;text:string}[]; scale:number; tolerance?:number; enclosed?:'holes'|'parts'; layers?:string[] }
   | { type:'validate'; sequence:number; document:Document; result:Result }
-  | { type:'export'; document:Document; result:Result }
+  | { type:'export'; document:Document; result?:Result }
   | { type:'archive'; document:Document; result?:Result }
   | { type:'live-preview'; sequence:number; document:Document; result:Result }
 );
