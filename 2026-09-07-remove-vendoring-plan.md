@@ -1,5 +1,7 @@
 # Remove vendoring through graceful initialization errors
 
+Implemented on 2026-09-07 using temporary sparrow PR #159 pin `bd8fdb7560243a49d54c573a59b0146a86d72662` and unmodified registry jagua-rs 0.8.1. Both vendor directories are removed. Native, frontend, serial/threaded WASM builds, and browser failure/recovery checks passed. Replace the PR pin with a merged upstream revision when available. The original investigation and plan follow.
+
 Plan based on local source inspection on 2026-09-07. No implementation changes or reproductions have been run. The linked GitHub discussion was not independently checked; this plan relies on the checked-out code.
 
 ## Verified starting point

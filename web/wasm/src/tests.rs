@@ -37,7 +37,7 @@ fn clearance_is_a_full_gap_and_a_full_edge_allowance() {
         Xoshiro256PlusPlus::seed_from_u64(42),
         LBF_SAMPLE_CONFIG,
     )
-    .construct();
+    .construct().unwrap();
     let solution = export(&instance, &builder.prob.save(), epoch);
     let mut positions: Vec<_> = solution
         .layout
@@ -93,25 +93,18 @@ fn fast_preset_matches_imported_search_config_and_respects_worker_limit() {
 }
 
 #[test]
-fn exact_material_fit_constructs_without_padding() {
-    let input: ExtSPInstance = serde_json::from_value(json!({
-        "name":"exact fit", "strip_height":60.0,
-        "items":[{"id":0,"demand":2,"allowed_orientations":[0.0],
-            "shape":{"type":"rectangle","data":{"x_min":0.0,"y_min":0.0,"width":100.0,"height":60.0}}}]
-    })).unwrap();
-    let importer = Importer::new(DEFAULT_SPARROW_CONFIG.cde_config, None, None, None);
-    let instance = import_instance(&importer, &input).unwrap();
-    let builder = LBFBuilder::new(
-        instance.clone(),
-        Xoshiro256PlusPlus::seed_from_u64(42),
-        LBF_SAMPLE_CONFIG,
-    )
-    .construct();
-    assert!(builder.prob.layout.is_feasible());
-    let solution = export(&instance, &builder.prob.save(), Instant::now());
-    assert_eq!(solution.layout.placed_items.len(), 2);
-    for item in solution.layout.placed_items {
-        assert_eq!(item.transformation.translation.1, 0.0);
+fn exact_material_fit_returns_construction_error() {
+    for demand in [1, 2] {
+        let input: ExtSPInstance = serde_json::from_value(json!({
+            "name":"exact fit", "strip_height":60.0,
+            "items":[{"id":0,"demand":demand,"allowed_orientations":[0.0],
+                "shape":{"type":"rectangle","data":{"x_min":0.0,"y_min":0.0,"width":100.0,"height":60.0}}}]
+        })).unwrap();
+        let importer = Importer::new(DEFAULT_SPARROW_CONFIG.cde_config, None, None, None);
+        let instance = import_instance(&importer, &input).unwrap();
+        let error = LBFBuilder::new(instance, Xoshiro256PlusPlus::seed_from_u64(42), LBF_SAMPLE_CONFIG)
+            .construct().err().expect("exact boundary contact must be rejected");
+        assert_eq!(error.item_id, 0);
     }
 }
 
@@ -130,30 +123,33 @@ fn rectangular_boundary_contact_preserves_collision_and_collection_checks() {
     let importer = Importer::new(DEFAULT_SPARROW_CONFIG.cde_config, None, None, None);
     let instance = import_instance(&importer, &input).unwrap();
     let mut prob = SPProblem::new(instance.clone());
-    for (y, collides) in [(30.0, false), (30.001, true), (29.999, true)] {
+    for y in [30.0, 30.001, 29.999] {
         let transform = Transformation::from_translation((50.0, y));
         let shape = instance.item(0).shape_cd.transform_clone(&transform);
         let cde = prob.layout.cde();
-        assert_eq!(cde.detect_poly_collision(&shape, &NoFilter), collides);
+        assert!(cde.detect_poly_collision(&shape, &NoFilter));
         let mut collisions = BasicHazardCollector::new();
         cde.collect_poly_collisions(&shape, &mut collisions);
-        assert_eq!(!collisions.is_empty(), collides);
-        if !collides {
-            assert!(!cde.detect_surrogate_collision(
-                shape.surrogate(),
-                &Transformation::empty(),
-                &NoFilter
-            ));
-        }
+        assert!(!collisions.is_empty());
     }
+    let mut interior_input = input;
+    interior_input.strip_height = 62.0;
+    let instance = import_instance(&importer, &interior_input).unwrap();
+    prob = SPProblem::new(instance.clone());
+    let interior = instance.item(0).shape_cd.transform_clone(&Transformation::from_translation((51.0, 31.0)));
+    assert!(!prob.layout.cde().detect_poly_collision(&interior, &NoFilter));
+    assert!(!prob.layout.cde().detect_surrogate_collision(interior.surrogate(), &Transformation::empty(), &NoFilter));
+    let mut interior_collisions = BasicHazardCollector::new();
+    prob.layout.cde().collect_poly_collisions(&interior, &mut interior_collisions);
+    assert!(interior_collisions.is_empty());
     prob.place_item(SPPlacement {
         item_id: 0,
-        d_transf: jagua_rs::geometry::DTransformation::new(0.0, (50.0, 30.0)),
+        d_transf: jagua_rs::geometry::DTransformation::new(0.0, (51.0, 31.0)),
     });
     let shape = instance
         .item(0)
         .shape_cd
-        .transform_clone(&Transformation::from_translation((50.0, 30.0)));
+        .transform_clone(&Transformation::from_translation((51.0, 31.0)));
     assert!(prob.layout.cde().detect_poly_collision(&shape, &NoFilter));
     let mut collisions = BasicHazardCollector::new();
     prob.layout

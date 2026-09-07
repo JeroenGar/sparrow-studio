@@ -40,4 +40,4 @@ The preparation label worker adds exact `polylabel` 2.1.0 and locked `tinyqueue`
 
 ## Public source availability
 
-The public sparrow-studio repository is the canonical source for the application, WASM bridge and patched solver dependencies. The About panel links to it directly; third-party license notices remain published with the site.
+As of 2026-09-07, the public sparrow-studio repository contains the application and WASM bridge. The solver is temporarily pinned to commit `bd8fdb7560243a49d54c573a59b0146a86d72662` from sparrow PR #159, and jagua-rs uses the unmodified crates.io 0.8.1 release. Both vendor directories have been removed. Generated notices identify the exact Git revision and crate download, and retain the full license texts. The About panel links to the application repository; third-party license notices remain published with the site.

@@ -85,9 +85,7 @@ for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version
             assert hashlib.sha256(content).hexdigest() == fallback['sha256'], fallback['file']
             docs.append((fallback['url'], content.decode()))
     source = package['source']
-    if source is None:
-        assert root.parent == WEB / 'wasm/vendor', f'Unexpected local dependency: {root}'
-        source = f'https://github.com/JeroenGar/sparrow-studio/tree/main/web/wasm/vendor/{package["name"]} (upstream provenance and changes: STUDIO_PATCH.md)'
+    assert source is not None, f'Unexpected local dependency: {root}'
     if source.startswith('registry+'):
         source = f"https://crates.io/api/v1/crates/{package['name']}/{package['version']}/download"
     extra = f"Repository: {package.get('repository') or 'not declared'}\nAuthors: {', '.join(package['authors']) or 'not declared'}"
@@ -130,11 +128,10 @@ toolchain section below. Dataset provenance and license: examples/NOTICE.txt.
 jagua-rs 0.8.1 is MPL-2.0. Its upstream source is available at:
 https://github.com/JeroenGar/jagua-rs/tree/824ab31cf8a58eecf5d87527260c92510626661b/jagua-rs
 https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
-The modified jagua-rs source is available in the public sparrow-studio repository
-under web/wasm/vendor/jagua-rs, with changes documented in STUDIO_PATCH.md. The
-MPL text is included below. The solver sparrow is MIT at its pinned revision;
+Studio uses the unmodified published jagua-rs crate. The MPL text is included below.
+The solver sparrow is MIT at its pinned revision;
 it is distinct from the original sparroWASM wrapper repository's MPL license.
-The corresponding web application, WASM bridge and patched solver sources are
+The corresponding web application and WASM bridge sources are
 available at:
 https://github.com/JeroenGar/sparrow-studio
 Upstream dependencies are identified by the exact source references above/below.

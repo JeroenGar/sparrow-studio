@@ -34,13 +34,12 @@
 - Use the existing project-name sanitization for SVG, DXF, and ZIP downloads, replacing generic layout and project filenames.
 - SVG, DXF, ZIP, and saved project files now share the existing sanitized project name. Updated the contact invitation to "I’d like to hear how you’re using sparrow and what you’d like to do with it next." Type checking and frontend build passed. Filename, contact, and ZIP checks passed across Chromium, Firefox, and WebKit; the keyboard test now waits for an enabled checked-result button and passed in all three browsers on rerun.
 
-## Remove vendoring through graceful initialization errors
+## Remove vendoring through graceful initialization errors — implemented with temporary PR pin
 
-- Follow the [implementation plan](../2026-09-07-remove-vendoring-plan.md).
-- Make upstream sparrow return a typed construction error when it cannot build an initial placement, with bounded retries and support for equal-coordinate sampling ranges.
-- Preserve jagua-rs's conservative collision semantics. Replace the vendored exact-boundary exemption with an explanatory Studio error and allow editing and a fresh solve after failure.
-- Propagate errors through native and WASM callers, then pin a published upstream revision, remove both vendored libraries, and update lockfiles, revision metadata, documentation, and license notices.
-- Verify ordinary construction, legitimate strip expansion, exact-fit failure, and recovery in serial and threaded WASM. Investigate any separate jagua-rs quadtree failure before completing the migration.
+- Implemented the [plan](../2026-09-07-remove-vendoring-plan.md) with sparrow [PR #159](https://github.com/JeroenGar/sparrow/pull/159), temporarily pinned to `bd8fdb7560243a49d54c573a59b0146a86d72662`. Replace this pin with a merged upstream revision when available.
+- Removed both vendored libraries and the jagua-rs patch. jagua-rs now resolves to unmodified crates.io 0.8.1. Updated lockfile, solver revision, documentation and generated license notices.
+- Construction errors reach the existing Studio error state before `finished` is sent. Exact boundary contact is rejected; users can edit material settings and start a fresh solve.
+- Native checks, 111 frontend tests, both WASM builds, and serial/threaded SVG failure-to-edit-to-export checks in Chromium, Firefox and WebKit passed. Chromium pool restart and startup fallback checks passed. No separate jagua-rs quadtree failure appeared in these checks.
 - This supersedes the vendored approach recorded under "Exact material fit in the native solver" below.
 
 ## Refine SVG and DXF import
@@ -55,7 +54,7 @@
 - Default to ghost mode while showing Live optimization so collisions are easier to see.
 - Treat this as a temporary view override: restore the previous ghost/normal preference when leaving Live, switching to Checked, or stopping/completing the solve. Do not overwrite the saved display preference.
 
-## Exact material fit in the native solver — implemented
+## Exact material fit in the native solver — superseded by upstream migration
 
 Fixed zero-range sampling and rectangular material-boundary contact in the vendored native dependencies, without padding the requested dimensions. Quadtree traversal also handles edges collinear with a node bisector. Native checks cover exact fits, out-of-bounds rejection and item collisions; the SVG browser workflow nests a 100 × 60 mm holed part in exactly 60 mm material.
 

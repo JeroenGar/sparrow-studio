@@ -22,7 +22,7 @@ npm run preview
 
 Run `npm run wasm:build` before the first development session. Both `build` and `test:e2e` compile the actual WASM sources; neither depends on an untracked prebuilt binary. `test:e2e` tests production `dist` on port 4173 in Chromium, Firefox and WebKit. `npx playwright test --list` lists the current cases; `npx playwright test tests/theme.spec.ts` reuses an already built `dist`.
 
-The build isolates Cargo from the ancestor wrapper configuration. It vendors sparrow at `120cf937de5e74c292406bc9947276c9dd49217f` and jagua-rs 0.8.1, with small exact-fit boundary fixes documented in each vendor directory’s `STUDIO_PATCH.md`. It does not use a sibling checkout or replace the optimizer. Serial WASM uses stable Rust; shared-memory WASM rebuilds the standard library with nightly and wasm-bindgen-rayon 1.3.0. Exact resolved dependencies are in the npm and Cargo lockfiles.
+The build isolates Cargo from the ancestor wrapper configuration. It temporarily pins sparrow to `bd8fdb7560243a49d54c573a59b0146a86d72662` from [PR #159](https://github.com/JeroenGar/sparrow/pull/159) and uses unmodified jagua-rs 0.8.1 from crates.io. Replace the PR pin with a merged upstream revision when available. Failed initial placement returns an explanatory error; exact material-boundary contact retains upstream collision semantics. Serial WASM uses stable Rust; shared-memory WASM rebuilds the standard library with nightly and wasm-bindgen-rayon 1.3.0. Exact resolved dependencies are in the npm and Cargo lockfiles.
 
 ## Static hosting and threads
 
@@ -101,4 +101,4 @@ python3 web/scripts/generate-notices.py
 python3 web/scripts/generate-notices.py --check
 ```
 
-See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The public sparrow-studio repository contains the application and modified dependency sources. Preserve the notice files when publishing, and verify their deployed relative links.
+See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The public sparrow-studio repository contains the application and WASM bridge; exact upstream dependency sources are linked in the notices. Preserve the notice files when publishing, and verify their deployed relative links.

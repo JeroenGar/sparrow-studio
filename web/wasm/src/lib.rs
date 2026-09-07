@@ -86,7 +86,8 @@ pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset
         exploration_workers: config.expl_cfg.separator_config.n_workers,
         compression_workers: config.cmpr_cfg.separator_config.n_workers };
     optimize(instance, Xoshiro256PlusPlus::seed_from_u64(seed), &mut listener,
-        &mut WebTerminator { timed: seconds.is_some(), inner: BasicTerminator::new() }, &config.expl_cfg, &config.cmpr_cfg, None);
+        &mut WebTerminator { timed: seconds.is_some(), inner: BasicTerminator::new() }, &config.expl_cfg, &config.cmpr_cfg, None)
+        .map_err(|error| JsValue::from_str(&format!("No valid initial placement could be constructed for item {}. Review the part size, allowed rotations, material width, and clearance.", error.item_id)))?;
     listener.send(json!({"type": "finished"}));
     Ok(())
 }
