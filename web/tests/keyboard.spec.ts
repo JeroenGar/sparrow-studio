@@ -4,7 +4,7 @@ test('keyboard import, validation errors, sizing, run, stop and export',async({p
   await page.goto('/');
   await expect(page.locator('nav').getByRole('button',{name:'Say hello 👋',exact:true})).toBeVisible();
   const chooser=page.waitForEvent('filechooser');
-  await page.getByRole('button',{name:'Import shapes',exact:true}).focus();
+  await page.locator('.sidebar').getByRole('button',{name:'Import shapes',exact:true}).focus();
   await page.keyboard.press('Enter');
   await(await chooser).setFiles('public/examples/swim.json');
   await page.getByRole('button',{name:'Preview import',exact:true}).press('Enter');

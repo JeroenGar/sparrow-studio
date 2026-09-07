@@ -44,10 +44,66 @@
 
 ## Refine SVG and DXF import
 
+- DXF library slice implemented locally: replaced `dxf-parser` with pinned `dxf` 5.3.1 for parsing, spline evaluation and export verification. Added transformed/nested block arrays, ellipses, and degree 1–3 positive-weight splines while preserving units, holes, layer selection and bounded curve approximation. Native browser workflows cover import, nesting and export round trips. SVG now uses usvg 0.48.1 via WASM for styles, transforms, use/symbol references and shape conversion. Illustrator exports, CSS classes, hidden shapes and unclipped nested viewports are covered. Clipping/masks remain unsupported; garment DXF block separation remains open.
+
 - SVG and DXF import are not yet properly supported in practice. Review the current import flow and identify where real files fail, lose geometry, or produce confusing results.
 - Collect representative SVG and DXF files, reproduce the problems, and define the supported behavior before implementing targeted fixes.
 - Preserve geometry, dimensions, units, and holes within the supported scope. Explain unsupported content and partial imports clearly before changing the project.
 - Add regression coverage for the identified failures and verify the complete import-to-edit-to-solve workflow.
+
+## Consistent input focus and keyboard actions
+
+- Select existing values on focus in fields normally replaced wholesale, such as shape dimensions, positions and names, so typing replaces the default instead of appending to it. Preserve normal caret editing after focus.
+- Make Enter submit applicable dialogs, including Draw shape; keep Escape cancellation consistent.
+- Project-name selection in New/Rename is already fixed locally and verified in Chromium, Firefox and WebKit. Apply the same attention to the remaining editing controls.
+
+## Consistent menu dismissal
+
+- Close the project dropdown and Snap popup on Escape or outside click. Return focus to the trigger on Escape.
+- Ensure menus do not remain open underneath dialogs or reappear unexpectedly after a dialog closes.
+
+## Consistent selection modifiers
+
+- Use Cmd/Ctrl-click to toggle individual selections and Shift-click to select a range in both the parts sidebar and shape library.
+- Preserve the distinction between selecting part types in a list and individual copies on the canvas.
+
+## Select and inspect unused parts
+
+- Allow zero-quantity parts to be selected in the sidebar for inspecting properties, renaming and saving to the shape library.
+- Do not require adding a canvas copy before accessing those properties. Keep copy movement controls unavailable when there are no selected copies.
+
+## Consistent project navigation
+
+- Group New, Open, Examples and Rename coherently in the project menu; retain a prominent Save project shortcut.
+- Opening the user's own project should be at least as discoverable as opening an example. Align labels and ordering across the header, menu and dialogs.
+- Coordinate this with the Save project archive change below rather than adding more parallel file actions.
+
+## Save project as one archive
+
+- Make Save project produce a project-named ZIP containing the editable Studio project and Sparrow CLI-compatible JSON, with a simple internal filename such as `cli.json`. Keep the existing checked SVG/DXF attachments when a valid result is available.
+- Remove the separate Download project ZIP menu entry and ZIP/CLI option from the result export selector. Keep result exports focused on SVG and DXF; the CLI file is available inside the saved project for users who want it.
+- Make Open project restore these saved ZIPs, while retaining support for existing standalone project JSON files. Saving and reopening an empty or unsolved editable project must remain possible.
+- Use Save project consistently in the toolbar and unsaved-change dialog; explain that it downloads an archive. Preserve unsaved-change tracking and use the same save flow before switching projects.
+- This supersedes the separate ZIP affordances described in the completed CLI-ready downloads item below.
+
+## Consistent import preview updates
+
+- Make units, curve tolerance, DXF layers and enclosed-contour changes follow one refresh rule.
+- Prefer an explicit Update preview action after settings change. Retain the previous preview visibly marked outdated, and prevent adding it until refreshed.
+
+## Inline custom rotation editing
+
+- Replace the native browser prompt for Custom degrees with a small field beneath the rotation selector.
+- Show validation beside the field and use consistent Enter/blur commit behavior, including mixed selections and Undo.
+
+## Hosted PR previews and staging
+
+- Make work on a PR browsable before merging: build the app and both WASM variants on branch pushes, publish a preview, and expose its URL on the PR. Previews update after pushed commits; uncommitted local edits remain local.
+- Keep `sparrowstudio.app` on production/main. Prefer a separate preview origin, with an optional stable `staging.sparrowstudio.app` URL for the branch currently being reviewed. Show the branch/commit and a small staging indicator, and prevent search indexing.
+- Evaluate Cloudflare Pages for previews while retaining GitHub Pages for production. It provides branch/PR preview URLs and supports a custom domain for a branch. Reuse the existing GitHub Actions build if needed for the pinned Rust/WASM toolchains. See [preview deployments](https://developers.cloudflare.com/pages/configuration/preview-deployments/) and [custom branch domains](https://developers.cloudflare.com/pages/how-to/custom-branch-aliases/).
+- GitHub Pages is also possible with custom preview directories or a separate staging repository, but it has one site per repository rather than native independent PR deployments. Account for deployment preservation, cleanup and service-worker/storage isolation if using subdirectories. See [GitHub Pages hosting model](https://docs.github.com/en/pages/getting-started-with-github-pages/what-is-github-pages).
+- Verify HTTPS, WASM/worker loading, serial and threaded solving, and isolation from production browser storage/service workers. Define preview cleanup and handling of fork PRs without exposing deployment credentials.
+- Planning only: choose and configure the hosting/deployment approach in a later slice.
 
 ## Ghost mode during live optimization — implemented
 
@@ -88,6 +144,7 @@ Fixed zero-range sampling and rectangular material-boundary contact in the vendo
 
 - Bundle a sparrow CLI-compatible instance JSON with downloaded projects/results, ideally in the requested ZIP package.
 - Project menu offers a ZIP download; checked-result export includes a ZIP option. Archives contain the editable project, CLI input, README, and checked SVG/DXF when available. CLI footprints use outer contours, matching the browser solver; the README explains that holes remain in the project and drawing exports.
+- Follow-up decision: fold this archive into Save project and remove the separate ZIP download choices; see "Save project as one archive" above.
 
 ## Favicon — implemented
 
@@ -126,6 +183,13 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 ## Nesting viewport — implemented
 
 - Put the origin 10% from the left at solve start and after viewport resizing, preserving zoom and vertical positioning. Subsequent candidates and manual panning do not recenter it.
+
+## Mobile layout polish — low priority
+
+- Aim for a credible, browsable demonstration that visitors can explore and return to on desktop, rather than optimizing the full CAD workflow for a phone.
+- Keep the project name and dropdown arrow visible; wrap secondary header actions before squeezing the project trigger. Make adjacent controls consistent in height and touch size.
+- Review header, panels, dialogs and bottom controls on narrow screens for clipping, crowding and lost canvas space. Prioritize desktop editing quality over mobile feature parity.
+- Retain the playful ghost emoji; renaming ghost mode is not requested.
 
 ## Group field edits into one Undo step — low priority
 

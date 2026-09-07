@@ -34,3 +34,20 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();
 });
+
+
+test('nested DXF block arrays import transformed parts and holes',async({page})=>{
+  await page.goto('/');await newProject(page);
+  await page.locator('input[type=file]').first().setInputFiles('tests/fixtures/blocks.dxf');
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  const dialog=page.getByRole('dialog');
+  await expect(dialog).toContainText('2 part types · 2 copies · 2 holes');
+  await expect(dialog.getByText('30 × 40 mm · 1 copies · 1 holes',{exact:true})).toHaveCount(2);
+  await page.getByRole('button',{name:'Add 2 shapes to project',exact:true}).click();
+  await expect(page.locator('.part-row')).toHaveCount(2);
+  await page.getByLabel('Stop condition').selectOption('10');
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
+  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
+  const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
+});

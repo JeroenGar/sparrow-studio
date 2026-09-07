@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState,type MouseEvent} from 'react';
-import {DEFAULT_SETTINGS,type Part} from '../model';
+import {DEFAULT_SETTINGS,newPartId,type Part} from '../model';
 import {bounds} from '../geometry/normalize';
 import {pathData} from '../geometry/path';
 import {geometryTask} from '../workers/geometryTask';
@@ -130,7 +130,7 @@ export default function ShapeLibrary({selectedParts=[],onAdd,onClose,unit='mm'}:
           {selected.length>0&&<div className="library-detail" aria-label="Selected library shapes">
             <h3>{chosen?chosen.name:`${selected.length} shapes selected`}</h3>
             {chosen&&<><Preview part={chosen}/><SizeControls unit={unit} key={chosen.id} part={chosen} disabled={blocked} onApply={resize} onValidity={setValid}/><small>{chosen.holes.length?`${chosen.holes.length} hole${chosen.holes.length===1?'':'s'} · `:''}{chosen.rotations.kind==='continuous'?'Free rotation':`${chosen.rotations.degrees.join('°, ')}°`}</small></>}
-            <button type="button" className="primary" disabled={blocked||!!chosen&&!valid} onClick={()=>void perform(async()=>{await onAdd(selected.map(part=>({...part,id:crypto.randomUUID(),quantity:1,preparationPosition:[0,0]})));setNotice(`${selected.length===1?'Shape':`${selected.length} shapes`} added to your project.`);})}>{chosen?'Add shape to project':`Add ${selected.length} selected shapes to project`}</button>
+            <button type="button" className="primary" disabled={blocked||!!chosen&&!valid} onClick={()=>void perform(async()=>{await onAdd(selected.map(part=>({...part,id:newPartId(),quantity:1,preparationPosition:[0,0]})));setNotice(`${selected.length===1?'Shape':`${selected.length} shapes`} added to your project.`);})}>{chosen?'Add shape to project':`Add ${selected.length} selected shapes to project`}</button>
             {chosen&&<button type="button" disabled={blocked||!valid||!!storageError} onClick={()=>save([chosen])}>Save as new personal shape</button>}
             {chosen&&source==='mine'&&<button type="button" disabled={blocked||!!storageError} onClick={()=>void perform(async()=>{await removeShape(chosen.id);setSelected([]);anchor.current=0;setMine(await readShapes());})}>Remove saved shape</button>}
           </div>}

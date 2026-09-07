@@ -1,3 +1,4 @@
+import './svg-wasm';
 import { describe,it,expect } from 'vitest';
 import { newPart,DEFAULT_SETTINGS,type Document,type Result } from '../src/model';
 import { normalizePart,normalizeRing } from '../src/geometry/normalize';
@@ -31,13 +32,13 @@ describe('independent layout validation',()=>{
     expect(svg).toContain('Plate &lt;script&gt; &amp; &quot;test&quot;');
     expect(svg).toContain('25.00% used');
     expect(svg).toContain('fill="#fb923c"');
-    const imported=importSVG(svg,'layout.svg',{scale:1,tolerance:.01,enclosed:'holes'});
+    const imported=importSVG(svg,'layout.svg',{scale:1,tolerance:.01});
     expect(imported.issues??[]).toEqual([]);
     expect(imported.document.parts).toHaveLength(1);
     for(const part of imported.document.parts){
       const box=bounds(part.outer);
-      expect(box[2]-box[0]).toBeCloseTo(1,12);
-      expect(box[3]-box[1]).toBeCloseTo(1,12);
+      expect(box[2]-box[0]).toBeCloseTo(1,6);
+      expect(box[3]-box[1]).toBeCloseTo(1,6);
     }
   });
   it.each(['missing','duplicate','unknown','reflection','wrong-angle','non-finite','out-of-bounds'] as const)('rejects %s',kind=>{

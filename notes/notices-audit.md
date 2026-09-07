@@ -41,3 +41,12 @@ The preparation label worker adds exact `polylabel` 2.1.0 and locked `tinyqueue`
 ## Public source availability
 
 As of 2026-09-07, the public sparrow-studio repository contains the application and WASM bridge. The solver is temporarily pinned to commit `bd8fdb7560243a49d54c573a59b0146a86d72662` from sparrow PR #159, and jagua-rs uses the unmodified crates.io 0.8.1 release. Both vendor directories have been removed. Generated notices identify the exact Git revision and crate download, and retain the full license texts. The About panel links to the application repository; third-party license notices remain published with the site.
+
+
+## DXF library migration
+
+The browser now uses `dxf` 5.3.1 for import parsing, spline evaluation, and export verification. Direct module imports avoid pulling the package's unused rendering helpers into the geometry worker. `dxf-parser` and its `loglevel` dependency were removed. Notices inventory all locked production npm packages, including `dxf`'s transitive dependencies.
+
+`vecks` 3.9.2 declares MIT but ships no license file; upstream tag `3.9.2` also contains none. Its npm `gitHead` does not resolve through the upstream GitHub API. The notice records this packaging gap and includes the canonical SPDX MIT template without inventing copyright attribution. The bundled `dxf` spline evaluator's original copyright statement is retained in its notice entry.
+
+SVG importer migration: replaced npm svgpath with usvg 0.48.1 (default features disabled: no font loading, text conversion or SVGZ). Regenerated notices for the locked Rust dependency graph. Image resolvers are disabled; imported resources remain local.

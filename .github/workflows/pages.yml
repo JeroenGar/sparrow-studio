@@ -43,11 +43,11 @@ jobs:
       - name: Install wasm-pack
         run: npm install --global wasm-pack@0.15.0
       - run: npm ci
-      - run: npm test
       - name: Check native solver boundaries
         run: cargo +stable test --manifest-path wasm/Cargo.toml --locked
       - name: Build both solver variants and site
         run: npm run build
+      - run: npm test
       - name: Save compiled Rust cache
         if: steps.rust-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830

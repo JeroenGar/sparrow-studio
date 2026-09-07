@@ -3,7 +3,7 @@ import { ellipse } from '../geometry/flatten';
 import { newPart,type Ring } from '../model';
 import { validate } from '../geometry/validate';
 import { importSparrow,localize } from '../import/sparrow';
-import { importSVG } from '../import/svg';
+import { importSVG,initializeSVG } from '../import/svg';
 import { importDXF } from '../import/dxf';
 import { importProject,exportProject } from '../import/project';
 import { liveGeometry } from '../geometry/live';
@@ -14,7 +14,7 @@ import { exportSVG } from '../export/svg';
 import { exportProjectArchive } from '../export/zip';
 import type { GeometryReply, GeometryRequest } from './protocol';
 
-self.onmessage=({data}: MessageEvent<GeometryRequest>)=>{
+self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
   const ids={runId:data.runId,documentRevision:data.documentRevision};
   try {
     let reply: GeometryReply;
@@ -41,9 +41,10 @@ self.onmessage=({data}: MessageEvent<GeometryRequest>)=>{
       }
       case 'import': {
         if(!data.files.length || data.files.some(f=>new Blob([f.text]).size>10*1024*1024) || data.files.reduce((n,f)=>n+new Blob([f.text]).size,0)>25*1024*1024) throw Error('Import limit: 10 MiB per file, 25 MiB per batch.');
+        if(data.files.some(f=>f.text.trimStart().startsWith('<')))await initializeSVG();
         const reviews=data.files.map(f=>{
           const text=f.text.trimStart();
-          if(text.startsWith('<'))return importSVG(f.text,f.name,{scale:data.scale,tolerance:data.tolerance??.01,enclosed:data.enclosed??'holes'});
+          if(text.startsWith('<'))return importSVG(f.text,f.name,{scale:data.scale,tolerance:data.tolerance??.01});
           if(text.startsWith('{')) {
             if('schemaVersion' in JSON.parse(text)) {
               if(data.files.length!==1)throw Error('Open a project file on its own. Drawing files can be appended separately.');

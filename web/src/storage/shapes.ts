@@ -1,4 +1,4 @@
-import {DEFAULT_SETTINGS,type Part} from '../model';
+import {DEFAULT_SETTINGS,newPartId,type Part} from '../model';
 import {geometryTask} from '../workers/geometryTask';
 
 async function validate(parts:Part[]) {
@@ -35,7 +35,7 @@ export async function saveShapes(parts:Part[]):Promise<Part[]> {
 }
 async function appendShapes(parts:Part[]):Promise<Part[]> {
   if(!parts.length)return [];
-  const fresh=parts.map(p=>({...p,id:crypto.randomUUID(),quantity:1,preparationPosition:[0,0] as [number,number]}));
+  const fresh=parts.map(p=>({...p,id:newPartId(),quantity:1,preparationPosition:[0,0] as [number,number]}));
   await validate(fresh);
   // Keep the personal library within the same geometry limits as a project.
   await validate([...(await readShapes()),...fresh]);

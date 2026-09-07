@@ -3,6 +3,25 @@ import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 import {pathToFileURL} from 'node:url';
 
+test('imports stylesheet-driven symbol copies through the WASM parser',async({page})=>{
+  await page.goto('/');await newProject(page);
+  const source=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" style="enable-background:new 0 0 100 100">
+    <style>.cut {fill:none;stroke:black} .hidden {display:none}</style>
+    <rect width="100" height="100" fill="none"/>
+    <rect class="hidden" width="100" height="100"/>
+    <defs><path id="part" d="M0 0H10V20H0Z"/></defs>
+    <g class="cut"><use href="#part"/><use href="#part" transform="translate(30 0) scale(2)"/></g>
+  </svg>`;
+  const picker=page.waitForEvent('filechooser');
+  await page.locator('.empty-project').getByRole('button',{name:'Import shapes',exact:true}).click();
+  await(await picker).setFiles({name:'styled.svg',mimeType:'image/svg+xml',buffer:Buffer.from(source)});
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await expect(page.getByRole('dialog')).toContainText('2 part types · 2 copies · 0 holes');
+  await page.getByRole('button',{name:'Add 2 shapes to project',exact:true}).click();
+  await expect(page.getByText('10 × 20 mm',{exact:true})).toBeVisible();
+  await expect(page.getByText('20 × 40 mm',{exact:true})).toBeVisible();
+});
+
 for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit failure and preserves export (${isolated ? 'threaded' : 'serial'})`,async({browser},testInfo)=>{
   const context=await browser.newContext({serviceWorkers:isolated?'allow':'block'});
   const page=await context.newPage();

@@ -45,3 +45,22 @@ test('Shift-drag selects copies for an atomic move, clone and delete',async({pag
   await page.keyboard.press('Backspace');await expect(copies).toHaveCount(12);await expect(page.locator('.part-row')).toHaveCount(4);
   await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(copies).toHaveCount(24);
 });
+
+
+test('remove unused parts clears zero quantities and supports Undo',async({page})=>{
+  await page.goto('/');await workshop(page);
+  const cleanup=page.getByRole('button',{name:'Remove unused parts',exact:true});
+  const rows=page.locator('.part-row'),quantities=rows.locator('input');
+  const count=await rows.count();
+  await expect(cleanup).toBeDisabled();
+  await quantities.nth(0).fill('0');await quantities.nth(1).fill('0');
+  await cleanup.click();await expect(rows).toHaveCount(count-2);
+  await expect(cleanup).toBeDisabled();
+  await page.getByRole('button',{name:'Undo',exact:true}).click();
+  await expect(rows).toHaveCount(count);
+  await expect(quantities.nth(0)).toHaveValue('0');await expect(quantities.nth(1)).toHaveValue('0');
+  for(let i=0;i<count;i++)await quantities.nth(i).fill('0');
+  await cleanup.click();await expect(rows).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(rows).toHaveCount(count);
+});

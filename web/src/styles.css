@@ -96,3 +96,5 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .hello-wave{display:inline-block;transform-origin:70% 75%;animation:hello-wave 1.4s ease-in-out}
 @keyframes hello-wave{0%,100%{transform:rotate(0)}15%,45%,75%{transform:rotate(22deg)}30%,60%{transform:rotate(-12deg)}}
 @media(prefers-reduced-motion:reduce){.hello-wave{animation:none}}
+
+.empty-project-actions{display:flex;justify-content:center;flex-wrap:wrap;gap:8px}

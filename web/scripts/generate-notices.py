@@ -50,6 +50,19 @@ def entry(label, license_name, source, documents, extra=''):
                    + (extra + '\n' if extra else '') + '\n'.join(refs))
 
 
+fallbacks = json.loads((SOURCES / 'sources.json').read_text())
+
+
+def fallback_docs(name, version):
+    docs = []
+    for fallback in fallbacks:
+        if (fallback['package'], fallback['version']) == (name, version):
+            content = (SOURCES / fallback['file']).read_bytes()
+            assert hashlib.sha256(content).hexdigest() == fallback['sha256'], fallback['file']
+            docs.append((fallback['url'], content.decode()))
+    return docs
+
+
 lock = json.loads((WEB / 'package-lock.json').read_text())
 npm_count = 0
 for relative, package in sorted(lock['packages'].items()):
@@ -58,32 +71,34 @@ for relative, package in sorted(lock['packages'].items()):
     root = WEB / relative
     installed = json.loads((root / 'package.json').read_text())
     assert installed['version'] == package['version'], f'Run npm ci: {relative}'
-    docs = [(p.name, p.read_text()) for p in license_files(root)]
+    docs = [(p.name, p.read_text()) for p in license_files(root)] + fallback_docs(installed['name'], installed['version'])
     if installed['name'] == 'splaytree' and not docs:
         docs = [('Readme.md, License section', (root / 'Readme.md').read_text().split('## License\n', 1)[1])]
     repository = installed.get('repository', '')
     if isinstance(repository, dict):
         repository = repository.get('url', '')
+    extra = f'Repository: {repository}\nIntegrity: {package["integrity"]}'
+    if installed['name'] == 'vecks':
+        extra += ('\nThis package declares MIT but includes no license file, and none was found '
+                  'in upstream tag 3.9.2. The canonical SPDX MIT template is reproduced; '
+                  'its placeholders are not a package-specific copyright notice.')
+    if installed['name'] == 'dxf':
+        extra += '\nBundled spline evaluator: Copyright (c) 2015 Thibaut Séguy <thibaut.seguy@gmail.com> (src/util/bSpline.js).'
     entry(f"npm {installed['name']} {installed['version']}", installed['license'],
-          package['resolved'], docs, f'Repository: {repository}\nIntegrity: {package["integrity"]}')
+          package['resolved'], docs, extra)
     npm_count += 1
 
 metadata = json.loads(run('cargo', '+stable', 'metadata', '--manifest-path',
                          str(WEB / 'wasm/Cargo.toml'), '--locked', '--format-version', '1',
                          '--filter-platform', 'wasm32-unknown-unknown', '--features', 'threads'))
 resolved = {node['id'] for node in metadata['resolve']['nodes']}
-fallbacks = json.loads((SOURCES / 'sources.json').read_text())
 rust_count = 0
 for package in sorted(metadata['packages'], key=lambda p: (p['name'], p['version'])):
     if package['id'] not in resolved or package['name'] == 'sparrow-web':
         continue
     root = Path(package['manifest_path']).parent
     docs = [(p.name, p.read_text()) for p in license_files(root)]
-    for fallback in fallbacks:
-        if (fallback['package'], fallback['version']) == (package['name'], package['version']):
-            content = (SOURCES / fallback['file']).read_bytes()
-            assert hashlib.sha256(content).hexdigest() == fallback['sha256'], fallback['file']
-            docs.append((fallback['url'], content.decode()))
+    docs += fallback_docs(package['name'], package['version'])
     source = package['source']
     assert source is not None, f'Unexpected local dependency: {root}'
     if source.startswith('registry+'):

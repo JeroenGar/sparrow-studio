@@ -39,9 +39,47 @@ it('reads ordinary POLYLINE vertices and rejects malformed sequences before pars
 });
 it('lists unsupported entities and blocks nonplanar geometry, duplicates, and binary data',()=>{
   const rectangle=poly([[0,0],[10,0],[10,10],[0,10]]);
-  const review=importDXF(dxf(rectangle+'0\nSPLINE\n0\nINSERT\n'+line(20,0,30,0)+'30\n1\n'),'mixed.dxf',options);
-  expect(review.document.parts).toHaveLength(1);expect(review.warnings.join(' ')).toContain('unsupported SPLINE');expect(review.warnings.join(' ')).toContain('unsupported INSERT');
+  const review=importDXF(dxf(rectangle+'0\nTEXT\n0\nINSERT\n'+line(20,0,30,0)+'30\n1\n'),'mixed.dxf',options);
+  expect(review.document.parts).toHaveLength(1);expect(review.warnings.join(' ')).toContain('unsupported TEXT');expect(review.issues?.join(' ')).toContain('block reference');
   expect(review.issues?.join(' ')).toContain('Nonzero elevation');
   expect(importDXF(dxf(rectangle+rectangle),'duplicate.dxf',options).issues?.join(' ')).toContain('duplicate');
   expect(()=>importDXF('AutoCAD Binary DXF\0','binary.dxf',options)).toThrow('Binary DXF');
+});
+
+const withBlocks=(entities:string,blocks:string)=>dxf(entities).replace('0\nSECTION\n2\nENTITIES',`0\nSECTION\n2\nBLOCKS\n${blocks}0\nENDSEC\n0\nSECTION\n2\nENTITIES`);
+const block=(name:string,entities:string,x=0,y=0)=>`0\nBLOCK\n2\n${name}\n10\n${x}\n20\n${y}\n${entities}0\nENDBLK\n`;
+const insert=(name:string,extra='')=>`0\nINSERT\n2\n${name}\n10\n0\n20\n0\n${extra}`;
+it('expands nested blocks, base points, arrays and nonuniform transforms',()=>{
+  const shape=poly([[5,6],[15,6],[15,11],[5,11]],'0');
+  const blocks=block('part',shape,5,6)+block('nested',insert('part','10\n2\n20\n3\n'),2,3);
+  const input=insert('nested','8\nCUT\n41\n2\n42\n3\n50\n90\n70\n2\n44\n40\n');
+  const result=importDXF(withBlocks(input,blocks),'blocks.dxf',options);
+  expect(result.issues).toEqual([]);expect(result.document.parts).toHaveLength(2);
+  for(const part of result.document.parts){const b=bounds(part.outer);expect(b[2]).toBeCloseTo(15);expect(b[3]).toBeCloseTo(20);}
+  expect(result.layers).toContain('CUT');
+});
+it('preserves explicit block-child layers and rejects cyclic block expansion',()=>{
+  const shapes=poly([[0,0],[10,0],[10,10],[0,10]],'0')+poly([[2,2],[4,2],[4,4],[2,4]],'holes');
+  const text=withBlocks(insert('part','8\nCUT\n'),block('part',shapes));
+  expect(importDXF(text,'layers.dxf',options).document.parts[0].holes).toHaveLength(1);
+  expect(importDXF(text,'layers.dxf',{...options,layers:['CUT']}).document.parts[0].holes).toHaveLength(0);
+  const cycle=importDXF(withBlocks(insert('cycle'),block('cycle',insert('cycle'))),'cycle.dxf',options);
+  expect(cycle.document.parts).toHaveLength(0);expect(cycle.issues?.join(' ')).toContain('cyclic');
+});
+it('imports complete ellipses and closed rational quadratic splines',()=>{
+  const ellipse='0\nELLIPSE\n10\n0\n20\n0\n11\n10\n21\n0\n40\n0.5\n41\n0\n42\n'+2*Math.PI+'\n';
+  const e=importDXF(dxf(ellipse),'ellipse.dxf',options);expect(e.issues).toEqual([]);
+  expect(Math.abs(area(e.document.parts[0].outer))).toBeCloseTo(50*Math.PI,0);
+  // Rational quadratic quarter circle closed by two lines, radius 10.
+  const spline='0\nSPLINE\n70\n4\n71\n2\n72\n6\n73\n3\n'+[0,0,0,1,1,1].map(k=>`40\n${k}\n`).join('')+
+    [1,Math.SQRT1_2,1].map(w=>`41\n${w}\n`).join('')+[[10,0],[10,10],[0,10]].map(([x,y])=>`10\n${x}\n20\n${y}\n`).join('');
+  const curve=importDXF(dxf(spline+line(0,10,0,0)+line(0,0,10,0)),'spline.dxf',options);
+  expect(curve.issues).toEqual([]);expect(Math.abs(area(curve.document.parts[0].outer))).toBeCloseTo(25*Math.PI,0);
+  for(const [x,y] of curve.document.parts[0].outer)if(x>0&&y>0)expect(Math.hypot(x,y)).toBeCloseTo(10,6);
+});
+
+it('bounds nested INSERT expansion before allocating large arrays',()=>{
+  const shape=poly([[0,0],[10,0],[10,10],[0,10]]);
+  const blocks=block('part',shape)+block('many',insert('part','70\n100\n44\n20\n'));
+  expect(()=>importDXF(withBlocks(insert('many','70\n101\n44\n3000\n'),blocks),'huge.dxf',options)).toThrow('10,000 expanded');
 });

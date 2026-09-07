@@ -54,5 +54,12 @@
     "file": "Apache-2.0.txt",
     "url": "https://www.apache.org/licenses/LICENSE-2.0.txt",
     "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  {
+    "package": "vecks",
+    "version": "3.9.2",
+    "file": "vecks-3.9.2-MIT.txt",
+    "url": "https://spdx.org/licenses/MIT.txt",
+    "sha256": "c3b1b78bc8bd3ea13aa4bc9778442d16560270afa235006d816e5e88cef24db4"
   }
 ]

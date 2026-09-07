@@ -2,7 +2,7 @@ import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
-test('quantity errors, immediate contour review, and mobile diagnostics are accessible',async({page},info)=>{
+test('quantity errors, independent SVG path review, and mobile diagnostics are accessible',async({page},info)=>{
   await page.goto('/');await workshop(page);
   const quantity=page.getByLabel('Quantity for Bracket');
   await quantity.fill('501');
@@ -16,8 +16,7 @@ test('quantity errors, immediate contour review, and mobile diagnostics are acce
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   const dialog=page.getByRole('dialog');
   await expect(dialog.getByLabel('Imported shapes')).toContainText('100 × 60 mm');
-  await expect(dialog).toContainText('1 part types · 1 copies · 1 holes');
-  await dialog.getByLabel('Enclosed contours').selectOption('parts');
+  await expect(dialog.getByLabel('Enclosed contours')).toHaveCount(0);
   await expect(dialog).toContainText('2 part types · 2 copies · 0 holes');
   await dialog.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(dialog).toHaveCount(0);

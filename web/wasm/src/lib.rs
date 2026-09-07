@@ -23,6 +23,8 @@ pub fn thread_count() -> usize {
     { 1 }
 }
 
+mod svg;
+
 #[cfg(test)]
 mod tests;
 
