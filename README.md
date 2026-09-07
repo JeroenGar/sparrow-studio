@@ -2,6 +2,8 @@
 
 An interactive browser demo of [sparrow](https://github.com/JeroenGar/sparrow), the irregular nesting algorithm. Files and nesting calculations stay on your device.
 
+**[Try 2D nesting with sparrow in your browser](https://sparrowstudio.app/)**
+
 ## Architecture
 
 sparrow-studio is a browser-only frontend for [sparrow](https://github.com/JeroenGar/sparrow). The Rust nesting solver is compiled to WebAssembly and runs locally in Web Workers, keeping the interface responsive during searches.

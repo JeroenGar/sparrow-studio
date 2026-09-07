@@ -1,2 +1,58 @@
 <!doctype html>
-<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" type="image/svg+xml" href="./favicon.svg"><script>document.documentElement.dataset.theme='system';try{const theme=localStorage.getItem('sparrow-theme');if(theme==='light'||theme==='dark'||theme==='system')document.documentElement.dataset.theme=theme;}catch{}</script><meta name="description" content="Free online 2D nesting for textile and garment cutting, CNC routing, and laser cutting. Import SVG or DXF and optimize layouts locally in your browser."><title>Sparrow Studio | Free online 2D nesting tool</title></head><body><div id="root"><p style="padding:24px">Loading the sparrow demo…</p></div><script type="module" src="/src/main.tsx"></script></body></html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Sparrow Studio | Free online 2D nesting tool</title>
+  <meta name="description" content="Free online 2D nesting for laser cutting, CNC routing, textiles and print-and-cut work. Arrange SVG and DXF parts to reduce material waste, locally in your browser.">
+  <link rel="canonical" href="https://sparrowstudio.app/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="sparrow/studio">
+  <meta property="og:title" content="Try 2D nesting with sparrow in your browser">
+  <meta property="og:description" content="Arrange irregular parts to use less material. Free browser-based nesting for cutting layouts, with local processing and no installation.">
+  <meta property="og:url" content="https://sparrowstudio.app/">
+  <meta property="og:image" content="https://sparrowstudio.app/sparrow-studio-preview.png">
+  <meta property="og:image:type" content="image/png">
+  <meta property="og:image:width" content="3680">
+  <meta property="og:image:height" content="2228">
+  <meta property="og:image:alt" content="Sparrow Studio arranging colored irregular parts into a compact, geometry-checked cutting layout.">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Try 2D nesting with sparrow in your browser">
+  <meta name="twitter:description" content="Free online nesting for laser cutting, CNC routing, textiles and print-and-cut work. Your drawings and calculations stay on your device.">
+  <meta name="twitter:image" content="https://sparrowstudio.app/sparrow-studio-preview.png">
+  <meta name="twitter:image:alt" content="Sparrow Studio arranging colored irregular parts into a compact, geometry-checked cutting layout.">
+  <link rel="icon" type="image/svg+xml" href="./favicon.svg">
+  <link rel="stylesheet" href="/src/styles.css">
+  <script>document.documentElement.dataset.theme='system';try{const theme=localStorage.getItem('sparrow-theme');if(theme==='light'||theme==='dark'||theme==='system')document.documentElement.dataset.theme=theme;}catch{}</script>
+</head>
+<body>
+  <div id="root"><p style="padding:24px">Loading the sparrow editor…</p><noscript>Enable JavaScript to use the nesting editor. Read about 2D nesting below.</noscript></div>
+  <details class="nesting-about" id="about-nesting">
+    <summary>About 2D nesting</summary>
+    <section aria-labelledby="nesting-heading">
+      <h1 id="nesting-heading">Free online 2D nesting with sparrow/studio</h1>
+      <p>2D nesting arranges parts on flat material to reduce unused space. Also called true-shape nesting or irregular strip packing, it uses the actual outlines of parts rather than just their bounding rectangles. Sparrow Studio brings the open-source <a href="https://github.com/JeroenGar/sparrow">sparrow nesting algorithm</a> to your browser, with no installation or account.</p>
+      <h2>What can you use 2D nesting for?</h2>
+      <ul>
+        <li><strong>Textiles and garments:</strong> explore fabric cutting layouts for clothing patterns, upholstery, canvas, and technical textiles.</li>
+        <li><strong>Woodworking and CNC routing:</strong> arrange furniture components, plywood profiles, MDF parts, templates, and decorative panels.</li>
+        <li><strong>Sheet metal and flat plastic:</strong> plan layouts for brackets, enclosures, plates, and other profiles intended for laser, plasma, or waterjet cutting.</li>
+        <li><strong>Printing and print-and-cut:</strong> arrange vector outlines for labels, stickers, decals, printed packaging, and large-format graphics to explore sheet or roll utilization. Prepare artwork, bleed, registration marks, and color settings in your design or printing software.</li>
+        <li><strong>Signs and packaging:</strong> nest acrylic lettering, vinyl shapes, cardboard blanks, paper pieces, and display components.</li>
+        <li><strong>Foam, rubber, leather, and composites:</strong> explore layouts for inserts, gaskets, accessories, and flat cut pieces within a rectangular material area.</li>
+        <li><strong>Research and prototyping:</strong> try benchmark instances, compare permitted rotations and clearances, and inspect how an irregular packing search improves a layout.</li>
+      </ul>
+      <h2>From part outlines to a cutting layout</h2>
+      <p>Import supported SVG or DXF contours, load sparrow instance JSON, draw simple shapes, or try a bundled example. Set quantities, material width, permitted rotations, and clearance. Watch the nesting search, inspect the best geometry-checked result, and download SVG or DXF layouts. Project ZIP downloads also include input for the native sparrow command-line solver.</p>
+      <p>The solver packs a strip of fixed width while reducing the length used. This suits roll material and exploring layouts for rectangular stock. It does not allocate parts across multiple fixed-size sheets or nest into irregular remnants. If you work with sheets, check the resulting length against your stock.</p>
+      <h2>What should you check before cutting?</h2>
+      <p>SVG and DXF import support selected contour types, not every CAD feature. Review the import preview and warnings. Curves are approximated; holes are preserved, but placing other parts inside holes is not supported. Use permitted rotations to restrict orientation, and check grain direction, fabric patterns, and material defects yourself.</p>
+      <p>Downloads contain part layouts, not G-code or machine toolpaths. Apply kerf compensation, lead-ins, tabs, cutting order, and other machine settings in your CAM software. A geometry-checked layout is not manufacturing certification, and the heuristic does not guarantee an optimal nest.</p>
+      <h2>Your files stay on your device</h2>
+      <p>Drawing import, geometry checks, and nesting calculations run locally in your browser. Project geometry is not uploaded. The public site uses traffic and performance analytics; project names and file contents are not sent to analytics.</p>
+      <p>Built by <a href="https://www.linkedin.com/in/jeroengardeyn/">Jeroen Gardeyn</a>. Explore the <a href="https://github.com/JeroenGar/sparrow">sparrow source code on GitHub</a> or read the <a href="https://arxiv.org/abs/2509.13329">2D nesting research paper</a>.</p>
+    </section>
+  </details>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+</html>

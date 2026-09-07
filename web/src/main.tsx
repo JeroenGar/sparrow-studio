@@ -1,7 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import {loadCatalog} from './datasets';
-import './styles.css';
 import { prepareIsolation } from './isolation';
 void prepareIsolation().then(async () => {
   if (import.meta.env.PROD && ['sparrowstudio.app', 'www.sparrowstudio.app'].includes(location.hostname)) {

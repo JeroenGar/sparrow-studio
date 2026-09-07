@@ -86,3 +86,11 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .workspace-svg:focus{outline:none}.workspace-svg:focus-visible{outline:1px solid var(--accent);outline-offset:-1px}
 .header{height:auto;flex-wrap:wrap;gap:12px;padding-block:8px}.header nav{flex-wrap:wrap}.project-menu>summary{font-size:14px;line-height:1.45;min-height:36px;padding:7px 12px}.header .theme-toggle{display:grid;place-items:center;padding:8px}
 .statusbar>.run-status{display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:8px;align-items:center}.status-symbol{grid-column:1;grid-row:1 / span 2;width:32px;height:32px}.run-state,.worker-status{grid-column:2}.run-status i.active{width:28px;height:28px;border-width:3px}
+
+/* Native disclosure stays in the initial HTML, outside the React editor. */
+#root:has(>noscript){min-height:calc(100dvh - 44px)}
+.nesting-about{position:relative;background:var(--panel);border-top:1px solid var(--border);color:var(--muted)}
+.nesting-about>summary{min-height:44px;padding:12px 24px;cursor:pointer;font-size:12px}
+.nesting-about>section{position:absolute;bottom:100%;left:0;right:0;z-index:3;max-height:70dvh;overflow:auto;overscroll-behavior:contain;padding:24px max(24px,calc((100% - 880px)/2));background:var(--panel);color:var(--ink);border-top:1px solid var(--border);box-shadow:0 -8px 24px #0002;line-height:1.65}
+.nesting-about h2{font-size:16px;margin-top:20px}.nesting-about p{margin-top:10px}.nesting-about ul{padding-left:22px}.nesting-about li+li{margin-top:8px}
+@media(min-width:700px){body:has(>.nesting-about) .app{height:calc(100dvh - 44px)}}

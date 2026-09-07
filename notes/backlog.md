@@ -7,13 +7,14 @@
 - Keep the initial download small and reuse existing caching. Verify slow-network and failed-example startup as well as ordinary loading.
 - The editor now mounts before example download and preparation; user-created, opened, or edited projects take precedence over late responses. In a local Chromium check with a two-second example-download delay, editor availability improved from 2,328 ms to 65 ms. See [measurements and validation](startup-loading.md).
 
-## Search and sharing metadata
+## Search and sharing metadata — implemented, publication and indexing pending
 
 - Target discovery for "2D nesting" and "free online 2D nesting". Add the production canonical URL, Open Graph and social-card metadata, and a sitemap. Verify indexing and rendered content through Google Search Console when account access is available.
 - Reuse the Studio screenshot embedded in the upstream sparrow README: https://github.com/user-attachments/assets/4d84bb67-ff98-4310-82de-5350baa02427. Prepare a locally hosted sharing image from it and verify preview cropping and legibility.
 - Add a direct live-demo link to the Studio README using "Try 2D nesting with sparrow in your browser" and use that wording in the upstream README's existing prominent demo callout. Keep its screenshot and placement.
 - Add a small "About 2D nesting" expandable section, collapsed by default, with useful explanatory content present in the initial HTML and accessible to visitors. Explain browser-based nesting, intended uses, supported inputs, and local processing. Keep the canvas prominent; do not add text hidden solely for search engines.
 - Metadata changes should not alter the workspace layout. Personal LinkedIn posting is not part of this work.
+- Implemented canonical and social tags, a locally hosted README screenshot, robots.txt, sitemap, and the native HTML disclosure covering textiles, wood, metal, printing, signage, packaging, foam, rubber, leather, composites, and research. Both local README callouts are updated. See [validation and remaining publication steps](search-discovery.md).
 
 ## Subtle contact invitation
 
