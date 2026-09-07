@@ -25,7 +25,7 @@ for(const engine of [chromium,firefox,webkit]) {
       await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled({timeout:30_000}).catch(async error=>{console.log(await page.locator('body').innerText());throw error;});
       const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
       let text='';for await(const chunk of await(await pending).createReadStream())text+=chunk;
-      const data=JSON.parse(text);expect(data.buildMode).toMatch(/^[2-3] solver threads, no SIMD$/);
+      const data=JSON.parse(text);expect(data.buildMode).toMatch(/^[2-3] solver threads, SIMD$/);
       expect(data.result.validation.status).toBe('passed');expect(data.result.placements).toHaveLength(12);
       runs.push({buildMode:data.buildMode,copies:data.result.placements.length,status:data.result.validation.status});
     }

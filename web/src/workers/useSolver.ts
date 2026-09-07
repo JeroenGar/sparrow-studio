@@ -123,7 +123,7 @@ export function useSolver() {
     solver.onmessage=({data}:MessageEvent<SolverMessage>)=>{
       if(run.current!==r || !r.solver || data.runId!==r.id || data.documentRevision!==r.revision) return;
       switch(data.type) {
-        case 'ready': startup.solverReadyMs=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, no SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
+        case 'ready': startup.solverReadyMs=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, SIMD${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
           setWorkers(previous=>previous?{...previous,actual:data.workers}:previous);
           if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);if(doc.settings.timeLimitSeconds!==null)r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}

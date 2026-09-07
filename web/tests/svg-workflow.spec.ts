@@ -50,7 +50,7 @@ for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit f
   await(await diagnosticDownload).saveAs(diagnosticPath);
   const diagnostic=JSON.parse(await readFile(diagnosticPath,'utf8'));
   expect(diagnostic.stopReason).toContain('No valid initial placement could be constructed for item 0');
-  expect(diagnostic.buildMode).toMatch(isolated?/^2 solver threads, no SIMD$/:/^1 solver thread, no SIMD; serial fallback:/);
+  expect(diagnostic.buildMode).toMatch(isolated?/^2 solver threads, SIMD$/:/^1 solver thread, SIMD; serial fallback:/);
   await page.getByLabel('Material width',{exact:false}).fill('62');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
