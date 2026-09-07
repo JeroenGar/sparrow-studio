@@ -9,7 +9,7 @@
 
 ## Search and sharing metadata — implemented, publication and indexing pending
 
-- Target discovery for "2D nesting" and "free online 2D nesting". Add the production canonical URL, Open Graph and social-card metadata, and a sitemap. Verify indexing and rendered content through Google Search Console when account access is available.
+- Target discovery for "2D nesting" and "open-source 2D nesting". Add the production canonical URL, Open Graph and social-card metadata, and a sitemap. Verify indexing and rendered content through Google Search Console when account access is available.
 - Reuse the Studio screenshot embedded in the upstream sparrow README: https://github.com/user-attachments/assets/4d84bb67-ff98-4310-82de-5350baa02427. Prepare a locally hosted sharing image from it and verify preview cropping and legibility.
 - Add a direct live-demo link to the Studio README using "Try 2D nesting with sparrow in your browser" and use that wording in the upstream README's existing prominent demo callout. Keep its screenshot and placement.
 - Add a small "About 2D nesting" expandable section inside the About dialog, collapsed by default, with useful explanatory content present in the initial HTML and accessible to visitors. Explain browser-based nesting, intended uses, supported inputs, and local processing. Keep the canvas prominent; do not add text hidden solely for search engines.
@@ -29,9 +29,10 @@
 - Apply a rotation rule to all selected parts only when the user explicitly chooses one.
 - Compare the actual angle sets after normalizing full turns, duplicates, and ordering. Cancelling custom-angle entry preserves "Mixed"; Undo restores each part's original rule. Type checking and the frontend build passed, plus nine browser checks across Chromium, Firefox, and WebKit.
 
-## Name exports after the project
+## Name exports after the project — implemented
 
 - Use the existing project-name sanitization for SVG, DXF, and ZIP downloads, replacing generic layout and project filenames.
+- SVG, DXF, ZIP, and saved project files now share the existing sanitized project name. Updated the contact invitation to "I’d like to hear how you’re using sparrow and what you’d like to do with it next." Type checking and frontend build passed. Filename, contact, and ZIP checks passed across Chromium, Firefox, and WebKit; the keyboard test now waits for an enabled checked-result button and passed in all three browsers on rerun.
 
 ## Remove vendoring through graceful initialization errors
 

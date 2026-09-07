@@ -20,12 +20,13 @@ test('keyboard import, validation errors, sizing, run, stop and export',async({p
   await page.getByRole('button',{name:'Undo',exact:true}).press('Enter');
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).press('Enter');
-  await page.getByRole('button',{name:'Best valid solution',exact:true}).press('Enter',{timeout:20_000});
+  const checked=page.getByRole('button',{name:'Best valid solution',exact:true});
+  await expect(checked).toBeEnabled({timeout:20_000});await checked.press('Enter');
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Stop',exact:true}).press('Enter');
   const download=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download SVG',exact:true}).press('Enter');
-  expect((await download).suggestedFilename()).toBe('sparrow-studio-layout.svg');
+  expect((await download).suggestedFilename()).toBe('swim.svg');
   await page.locator('nav').getByRole('button',{name:'Say hello 👋',exact:true}).press('Enter');
   await expect(page.getByRole('dialog')).toContainText('jeroen.gardeyn@gmail.com');
   await expect(page.getByRole('link',{name:'LinkedIn ↗'})).toHaveAttribute('href','https://www.linkedin.com/in/jeroengardeyn/');

@@ -11,9 +11,9 @@ After this placement change, type checking, the frontend build, and 18 browser c
 ## Screenshot provenance
 
 - Source: https://github.com/user-attachments/assets/4d84bb67-ff98-4310-82de-5350baa02427
-- Local copy: `web/public/sparrow-studio-preview.png`, unchanged PNG, 3680 by 2228 pixels, approximately 1.6 MB.
+- Local copy: `web/public/sparrow-studio-social.png`, PNG resized proportionally to 1200 by 726 pixels, 352,460 bytes. The original screenshot was 1,609,312 bytes, exceeding Signal Desktop's 1 MiB preview-download limit. A new asset URL avoids reusing the old image cache.
 - The screenshot shows Studio with irregular parts in a checked layout. Metadata includes the actual image dimensions and descriptive alternative text. Social platforms may crop their previews differently.
-- The editor does not request the sharing image. Browser tests check this so the image cannot silently add to startup downloads.
+- The thumbnail was generated with `sips -Z 1200` from the original README screenshot. The editor does not request the sharing image. Browser tests check this and enforce an image size below 1 MiB so the asset cannot silently add to startup downloads or exceed Signal's limit.
 
 ## Validation
 
@@ -38,3 +38,7 @@ These changes have not been deployed or submitted to Google Search Console. Once
 The Studio README now links directly to the live editor. The sibling sparrow checkout has only its existing demo-callout wording changed to "Try 2D nesting with sparrow in your browser"; its unrelated changes were preserved. That README change needs publication separately through the sparrow repository.
 
 References: [Google canonical guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls), [Open Graph protocol](https://ogp.me/), and [Google's policy distinguishing expandable content from hidden-text abuse](https://developers.google.com/search/docs/essentials/spam-policies#hidden-text-and-link-abuse).
+
+Signal limit verified against [its preview fetch implementation](https://github.com/signalapp/Signal-Desktop/blob/main/ts/linkPreviews/linkPreviewFetch.preload.ts). The old live PNG returned HTTP 200 with the correct image/png type; the missing thumbnail was consistent with its oversized response. Actual rendering in Signal remains a post-deployment check. Existing messages may retain their original preview.
+
+Product copy now emphasizes open-source software rather than "free": the browser title is "sparrow/studio | Open-source 2D nesting" and sharing titles are "sparrow/studio: Open-source 2D nesting in your browser". Descriptions and the introduction use the same positioning; "free rotation" retains its geometric meaning.
