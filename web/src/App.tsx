@@ -1,4 +1,5 @@
 import RotationControl from './components/RotationControl';
+import {readRecovery,saveRecovery} from './storage/recovery';
 import {useDismissibleMenu} from './components/useDismissibleMenu';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DEFAULT_SETTINGS, POLICY, rotationSummary, type Document, type Part, type Point, type Result, type RotationRule } from './model';
@@ -71,6 +72,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const result=solver.result?.documentRevision===revision?solver.result:undefined;
   const [saved,setSaved]=useState<{document:Document;result?:Result}>(()=>({document:doc}));
   const [loadingExample,setLoadingExample]=useState(loadDefaultExample);
+  const [recoveryReady,setRecoveryReady]=useState(false),[recoveryError,setRecoveryError]=useState('');
   useEffect(()=>{
     if(loadingExample)return;
     const worker=new Worker(new URL('./workers/solver-runtime.worker.ts',import.meta.url),{type:'module'});
@@ -88,6 +90,23 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     let disposed=false;
     void (async()=>{
       try {
+        try {
+          const saved=await readRecovery();
+          if(disposed)return;
+          if(defaultExampleCancelled.current){setRecoveryReady(true);return;}
+          if(saved) {
+            const reply=await geometryTask({type:'import',runId:0,documentRevision:0,files:[{name:'recovery.json',text:JSON.stringify(saved)}],scale:1});
+            if(disposed)return;
+            if(defaultExampleCancelled.current){setRecoveryReady(true);return;}
+            if(reply.type!=='import-review')throw Error('Could not restore the previous project.');
+            switchProject({...reply.review,saved:false});
+            setRecoveryReady(true);
+            return;
+          }
+          setRecoveryReady(true);
+        } catch {
+          if(!disposed)setRecoveryError('Automatic recovery is unavailable. Use Save project to keep a copy.');
+        }
         const imported=await loadExample('gardeyn2.json',AbortSignal.timeout(10000));
         if(disposed||defaultExampleCancelled.current)return;
         const prepared=await geometryTask({type:'prepare-layout',runId:0,documentRevision:0,document:imported.document,pinnedIds:[],compact:true});
@@ -111,6 +130,20 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const mixedRotations=chosen&&doc.parts.some(part=>selected.includes(part.id)&&rotationValue(part.rotations)!==rotationValue(chosen.rotations));
   const selectedBox=useMemo(()=>selectionBounds(canvasDocument,selected,selectedCopies),[canvasDocument,selected,selectedCopies]);
   const invalidSettings=!sizeValid||!Number.isFinite(doc.settings.materialWidthMm)||doc.settings.materialWidthMm<=0||doc.settings.materialWidthMm>100_000||!Number.isFinite(doc.settings.clearanceMm)||doc.settings.clearanceMm<0||doc.settings.clearanceMm>=doc.settings.materialWidthMm||doc.parts.some(p=>!validQuantity(p.quantity))||doc.parts.reduce((n,p)=>n+p.quantity,0)>500;
+  const recoveryResult=running?undefined:result;
+  useEffect(()=>{
+    if(!recoveryReady||loadingExample||invalidSettings||!doc.name.trim())return;
+    const project={...doc,...(recoveryResult?{placements:recoveryResult.placements,result:recoveryResult}:{}),schemaVersion:1 as const,revision};
+    let written=false;
+    const write=()=>{
+      if(written)return;written=true;
+      void saveRecovery(project).then(()=>setRecoveryError(''),()=>setRecoveryError('Automatic recovery could not be saved. Use Save project to keep a copy.'));
+    };
+    const timer=setTimeout(write,500);
+    const hidden=()=>{if(document.visibilityState==='hidden')write();};
+    window.addEventListener('pagehide',write);document.addEventListener('visibilitychange',hidden);
+    return ()=>{clearTimeout(timer);window.removeEventListener('pagehide',write);document.removeEventListener('visibilitychange',hidden);};
+  },[doc,recoveryResult,revision,loadingExample,recoveryReady,invalidSettings]);
   useEffect(()=>{
     if(running||!result) return;
     const next=withDocumentPlacements(doc,result.placements);
@@ -153,9 +186,10 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     if(entry.geometry) {setRevision(r=>r+1);solver.invalidate();}
   }
   useEffect(()=>{
-    const leave=(e:BeforeUnloadEvent)=>{if(dirty){e.preventDefault();e.returnValue='';}};
+    if(solver.state!=='Initializing'&&solver.state!=='Running')return;
+    const leave=(e:BeforeUnloadEvent)=>{e.preventDefault();e.returnValue='';};
     window.addEventListener('beforeunload',leave);return ()=>window.removeEventListener('beforeunload',leave);
-  },[dirty]);
+  },[solver.state]);
   useEffect(()=>{
     const key=(e:KeyboardEvent)=>{try {
       if(document.querySelector('dialog[open]'))return;
@@ -313,6 +347,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
       <input ref={projectInput} hidden type="file" accept=".zip,.sparrow-project.json,.json" onChange={e=>{if(e.target.files)void openFiles(e.target.files,'project');e.target.value='';}}/>
     </header>
     {(error||solver.error)&&<div className="error-banner" role="alert">{error||solver.error}</div>}
+    {recoveryError&&<div className="error-banner" role="alert">{recoveryError}</div>}
     <main className="main-workspace">
       <aside id="parts-settings" className={`sidebar ${panel?'open':''}`}>
         <div className="panel-title"><h2>Parts <span>{doc.parts.reduce((n,p)=>n+p.quantity,0)}</span></h2><button onClick={()=>setInfo('help')}>Format help</button><button aria-label="Remove unused parts" title="Remove parts with quantity 0" disabled={locked||!doc.parts.some(p=>p.quantity===0)} onClick={()=>commit({...doc,parts:doc.parts.filter(p=>p.quantity!==0)})}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7"/></svg></button></div>
