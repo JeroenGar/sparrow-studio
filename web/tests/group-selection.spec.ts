@@ -7,19 +7,19 @@ test('mixed rotations preserve individual rules until an explicit choice, and Un
   await parts.nth(0).click();await rotations.selectOption('[0]');
   await parts.nth(1).click({modifiers:['Shift']});
   await expect(rotations).toHaveValue('mixed');
-  page.once('dialog',dialog=>dialog.dismiss());await rotations.selectOption('custom');
-  await expect(rotations).toHaveValue('mixed');
+  await rotations.selectOption('custom');
+  await expect(page.getByLabel('Allowed degrees')).toBeVisible();
   await rotations.selectOption('free');await expect(rotations).toHaveValue('free');
   await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(rotations).toHaveValue('mixed');
   await parts.nth(0).click();await expect(rotations).toHaveValue('[0]');
   await parts.nth(1).click();await expect(rotations).toHaveValue('[0,180]');
-  page.once('dialog',dialog=>dialog.accept('360, -180, 0'));
   await rotations.selectOption('custom');
+  await page.getByLabel('Allowed degrees').fill('360, -180, 0');await page.getByLabel('Allowed degrees').press('Enter');
   await parts.nth(2).click({modifiers:['Shift']});
   await expect(rotations).not.toHaveValue('mixed');
   // Equal-size angle sets can still differ, even if both summaries say Half-turns.
   await parts.nth(1).click();
-  page.once('dialog',dialog=>dialog.accept('30, 210'));await rotations.selectOption('custom');
+  await rotations.selectOption('custom');await page.getByLabel('Allowed degrees').fill('30, 210');await page.getByLabel('Allowed degrees').press('Enter');
   await parts.nth(2).click({modifiers:['Shift']});await expect(rotations).toHaveValue('mixed');
 });
 

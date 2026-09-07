@@ -12,8 +12,8 @@ threads = ["dep:wasm-bindgen-rayon", "dep:rayon"]
 [dependencies]
 wasm-bindgen-rayon = { version = "=1.3.0", optional = true }
 rayon = { version = "1.11", optional = true }
-# Temporary pin to sparrow PR #159; replace with a merged upstream revision.
-sparrow = { git = "https://github.com/JeroenGar/sparrow.git", rev = "bd8fdb7560243a49d54c573a59b0146a86d72662" }
+# Pin the merged upstream initialization fixes.
+sparrow = { git = "https://github.com/JeroenGar/sparrow.git", rev = "9ef45676695ef94d045ac8bff0530822127f1437" }
 jagua-rs = { version = "=0.8.1", features = ["spp"] }
 rand = "0.10"
 serde_json = "1.0"

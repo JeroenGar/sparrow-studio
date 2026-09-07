@@ -1208,7 +1208,7 @@ Package VCS metadata: {"git": {"sha1": "aa22a8ff83108228b6d941b83fc91399267d72c9
 
 Rust sparrow 0.2.0
 Declared license: MIT (from the pinned repository LICENSE; Cargo omits this field)
-Source: git+https://github.com/JeroenGar/sparrow.git?rev=bd8fdb7560243a49d54c573a59b0146a86d72662#bd8fdb7560243a49d54c573a59b0146a86d72662
+Source: git+https://github.com/JeroenGar/sparrow.git?rev=9ef45676695ef94d045ac8bff0530822127f1437#9ef45676695ef94d045ac8bff0530822127f1437
 Repository: not declared
 Authors: not declared
   LICENSE

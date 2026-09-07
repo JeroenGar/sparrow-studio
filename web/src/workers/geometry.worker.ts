@@ -5,7 +5,7 @@ import { validate } from '../geometry/validate';
 import { importSparrow,localize } from '../import/sparrow';
 import { importSVG,initializeSVG } from '../import/svg';
 import { importDXF } from '../import/dxf';
-import { importProject,exportProject } from '../import/project';
+import { importProject } from '../import/project';
 import { liveGeometry } from '../geometry/live';
 import {libraryDocument} from '../import/library';
 import {editSelection} from '../geometry/manipulate';
@@ -68,7 +68,6 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         break;
       }
       case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result)}; break;
-      case 'save-project': reply={...ids,type:'project-file',text:exportProject(data.document,data.documentRevision,data.result)};break;
       case 'archive': reply={...ids,type:'archive-result',archive:exportProjectArchive(data.document,data.documentRevision,data.result)};break;
       case 'live-preview':reply={...ids,type:'live-frame',sequence:data.sequence,geometry:liveGeometry(data.document,data.result)};break;
     }

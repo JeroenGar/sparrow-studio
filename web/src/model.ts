@@ -17,7 +17,7 @@ export type Result = { documentRevision: number; solverRevision: string; seed: s
   elapsedSeconds: number; usedLengthMm: number; placements: Placement[]; validation: Validation };
 export type Project = Document & { schemaVersion: 1; revision: number; result?: Result };
 export const DEFAULT_SETTINGS: Settings = { materialWidthMm: 1000, clearanceMm: 0, timeLimitSeconds: null };
-export const SOLVER_REVISION = 'bd8fdb7560243a49d54c573a59b0146a86d72662';
+export const SOLVER_REVISION = '9ef45676695ef94d045ac8bff0530822127f1437';
 export const LIMITS = { copies: 500, verticesPerPart: 5000, verticesTotal: 100000, extent: 100000 };
 export const POLICY = { linearMm: 1e-6, overlapMm2: 1e-8, angleDeg: 1e-4 };
 // getRandomValues also works on HTTP LAN addresses, unlike randomUUID.

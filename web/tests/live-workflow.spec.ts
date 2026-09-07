@@ -1,3 +1,4 @@
+import {projectArchiveText} from '../src/zip';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
@@ -42,7 +43,7 @@ test('live search shows red overlaps and toggles to independently checked output
   await expect(page.locator('.live-dot')).toHaveCount(0);
   await expect(ghost).toHaveAttribute('aria-pressed','false');
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
-  const path=testInfo.outputPath('checked.sparrow-project.json');await(await pending).saveAs(path);
-  const saved=JSON.parse(await readFile(path,'utf8'));
+  const path=testInfo.outputPath('checked.zip');await(await pending).saveAs(path);
+  const saved=JSON.parse(projectArchiveText(await readFile(path)));
   expect(saved.result.validation.status).toBe('passed');expect(saved.result.placements).toHaveLength(12);
 });

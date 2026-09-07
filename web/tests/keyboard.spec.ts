@@ -26,7 +26,7 @@ test('keyboard import, validation errors, sizing, run, stop and export',async({p
   await page.getByRole('button',{name:'Stop',exact:true}).press('Enter');
   const download=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download SVG',exact:true}).press('Enter');
-  expect((await download).suggestedFilename()).toBe('swim.svg');
+  expect((await download).suggestedFilename()).toBe('sparrow_studio_swim.svg');
   await page.locator('nav').getByRole('button',{name:'Say hello 👋',exact:true}).press('Enter');
   await expect(page.getByRole('dialog')).toContainText('jeroen.gardeyn@gmail.com');
   await expect(page.getByRole('link',{name:'LinkedIn ↗'})).toHaveAttribute('href','https://www.linkedin.com/in/jeroengardeyn/');

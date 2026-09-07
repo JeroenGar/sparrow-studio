@@ -1,3 +1,4 @@
+import {projectArchiveText} from '../src/zip';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
@@ -22,8 +23,8 @@ test('top-bar examples include every benchmark and normalize scale while preserv
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   const pending=page.waitForEvent('download');
   await page.getByRole('button',{name:'Save project',exact:true}).click();
-  const path=testInfo.outputPath('benchmark.sparrow-project.json');await(await pending).saveAs(path);
-  const saved=JSON.parse(await readFile(path,'utf8'));
+  const path=testInfo.outputPath('benchmark.zip');await(await pending).saveAs(path);
+  const saved=JSON.parse(projectArchiveText(await readFile(path)));
   const source=importSparrow(await readFile('public/examples/gardeyn0_c.json','utf8'),'gardeyn0_c.json',1).document,original=normalizeSampleDocument(source);
   expect(saved.settings.materialWidthMm).toBeCloseTo(original.settings.materialWidthMm,8);
   expect(saved.settings.timeLimitSeconds).toBe(original.settings.timeLimitSeconds);

@@ -1,3 +1,4 @@
+import {projectArchiveText} from '../src/zip';
 import {newProject} from './project-helpers';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
@@ -25,8 +26,8 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
     await(await pending).saveAs(testInfo.outputPath(`${marker}.${format}`));
   }
   const projectDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
-  const project=testInfo.outputPath(`${marker}.sparrow-project.json`);await(await projectDownload).saveAs(project);
-  const saved=JSON.parse(await readFile(project,'utf8'));expect(saved.result.validation.status).toBe('passed');
+  const project=testInfo.outputPath(`${marker}.zip`);await(await projectDownload).saveAs(project);
+  const saved=JSON.parse(projectArchiveText(await readFile(project)));expect(saved.result.validation.status).toBe('passed');
   const diagnosticDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   const diagnostics=testInfo.outputPath('diagnostics.json');await(await diagnosticDownload).saveAs(diagnostics);
   expect(await readFile(diagnostics,'utf8')).toContain(marker);

@@ -3,7 +3,7 @@ import { DEFAULT_SETTINGS, newPart, SOLVER_REVISION, type Document, type Result 
 import { normalizeDocument } from '../src/geometry/normalize';
 import { validate } from '../src/geometry/validate';
 import { solverInput } from '../src/import/sparrow';
-import { exportProjectArchive, zip } from '../src/export/zip';
+import { exportProjectArchive, projectArchiveText, zip } from '../src/export/zip';
 
 const readU16 = (view: DataView, offset: number) => view.getUint16(offset, true);
 const readU32 = (view: DataView, offset: number) => view.getUint32(offset, true);
@@ -53,11 +53,11 @@ function fixture(): { document: Document; result: Result } {
 it('packages project, checked outputs, hole-preserving exports, and dense CLI input', () => {
   const { document, result } = fixture();
   const projectOnly = entries(exportProjectArchive(document, 7));
-  expect([...projectOnly.keys()]).toEqual(['project.sparrow-project.json', 'sparrow-instance.json', 'README.txt']);
+  expect([...projectOnly.keys()]).toEqual(['project.sparrow-project.json', 'cli.json', 'README.txt']);
   const complete = entries(exportProjectArchive(document, 7, result));
-  expect([...complete.keys()]).toEqual(['project.sparrow-project.json', 'sparrow-instance.json', 'README.txt', 'layout.svg', 'layout.dxf']);
+  expect([...complete.keys()]).toEqual(['project.sparrow-project.json', 'cli.json', 'README.txt', 'layout.svg', 'layout.dxf']);
   const project = JSON.parse(new TextDecoder().decode(complete.get('project.sparrow-project.json')));
-  const instance = JSON.parse(new TextDecoder().decode(complete.get('sparrow-instance.json')));
+  const instance = JSON.parse(new TextDecoder().decode(complete.get('cli.json')));
   expect(project.result.placements).toHaveLength(1);
   expect(instance.items).toMatchObject([{ id: 0, demand: 1, shape: { type: 'simple_polygon' } }]);
   expect(new TextDecoder().decode(complete.get('README.txt'))).toContain('ignores hole contours');
@@ -70,4 +70,19 @@ it('filters zero-demand shape types before assigning CLI IDs', () => {
   const zero = { ...document.parts[0], id: 'zero', quantity: 0 }, active = { ...document.parts[0], id: 'active', quantity: 2 };
   const input = JSON.parse(solverInput({ ...document, parts: [zero, active] }));
   expect(input.items.map((item: { id: number; demand: number }) => [item.id, item.demand])).toEqual([[0, 2]]);
+});
+
+it('reopens checked and empty projects, and rejects damaged or unrelated archives', () => {
+  const { document, result } = fixture();
+  expect(JSON.parse(projectArchiveText(exportProjectArchive(document, 7, result))).result.placements).toEqual(result.placements);
+  const empty = { ...document, parts: [], placements: [] };
+  const archive = exportProjectArchive(empty, 7);
+  expect(JSON.parse(projectArchiveText(archive)).parts).toEqual([]);
+  expect(entries(archive).has('cli.json')).toBe(false);
+  const damaged = archive.slice();
+  damaged[60] ^= 1;
+  expect(() => projectArchiveText(damaged)).toThrow('checksum');
+  expect(() => projectArchiveText(archive.slice(0, -10))).toThrow('Invalid');
+  expect(() => projectArchiveText(zip([{ name: 'other.txt', data: '' }]))).toThrow('does not contain');
+  expect(() => projectArchiveText(new Uint8Array())).toThrow('Invalid');
 });

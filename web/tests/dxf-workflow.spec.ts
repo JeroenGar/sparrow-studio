@@ -13,7 +13,7 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await page.getByLabel('Exclude the listed invalid contours').check();
   await expect(page.getByRole('button',{name:/^Add \d+ shapes? to project$/})).toBeEnabled();
   await page.getByLabel('CONSTRUCTION',{exact:true}).uncheck();
-  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await page.getByRole('button',{name:'Update preview',exact:true}).click();
   await expect(dialog).not.toContainText('ambiguous junctions');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
   await expect(page.getByText('100 × 60 mm',{exact:true})).toBeVisible();

@@ -1,3 +1,4 @@
+import {projectArchiveText} from '../src/zip';
 import {openExamples,workshop,finishSwitch,newProject} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
@@ -10,8 +11,8 @@ test('saves a real checked layout, confirms replacement, rechecks load and inval
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Save project',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
-  const path=testInfo.outputPath('work.sparrow-project.json');await(await pending).saveAs(path);
-  const data=JSON.parse(await readFile(path,'utf8'));expect(data.schemaVersion).toBe(1);expect(data.result.placements).toHaveLength(12);
+  const path=testInfo.outputPath('work.zip');await(await pending).saveAs(path);
+  const data=JSON.parse(projectArchiveText(await readFile(path)));expect(data.schemaVersion).toBe(1);expect(data.result.placements).toHaveLength(12);
   await page.getByLabel('Material width',{exact:false}).fill('120');
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeDisabled();
   await page.locator('input[type=file]').first().setInputFiles(path);
@@ -37,8 +38,8 @@ test('project lifecycle names downloads, guards replacement and reopens an empty
   await menu('Rename project');await page.getByLabel('Project name',{exact:true}).fill('My cutting job');await page.getByRole('button',{name:'Rename',exact:true}).click();
   await expect(page.locator('.project-status')).toHaveText('Unsaved changes');
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
-  const file=await download;expect(file.suggestedFilename()).toBe('My cutting job.sparrow-project.json');
-  const path=testInfo.outputPath('empty.json');await file.saveAs(path);
+  const file=await download;expect(file.suggestedFilename()).toBe('sparrow_studio_My cutting job.zip');
+  const path=testInfo.outputPath('empty.zip');await file.saveAs(path);
   await expect(page.locator('.project-status')).toHaveText('No unsaved changes');
   await workshop(page);
   await menu('New project');await page.getByLabel('Project name',{exact:true}).fill('Second job');await page.getByRole('button',{name:'Create project',exact:true}).click();
@@ -70,7 +71,7 @@ test('shape imports always append and preserve project settings, including after
   }
   await openExamples(page);await page.getByRole('button',{name:'Open example',exact:true}).click();
   const guard=page.getByRole('dialog',{name:'Unsaved project',exact:true});
-  const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Download project and continue',exact:true}).click();await saved;
+  const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Save project and continue',exact:true}).click();await saved;
   await expect(page.locator('.part-row')).toHaveCount(4);
   await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('353.55');
 });

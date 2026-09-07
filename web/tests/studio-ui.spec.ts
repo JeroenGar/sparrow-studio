@@ -17,7 +17,7 @@ test('selection inspector leaves material in place and header owns contact links
   expect((await material.boundingBox())!.y).toBe(before.y);
   expect(await page.locator('.workspace-svg').boundingBox()).toEqual(canvasBefore);
   expect((await inspector.boundingBox())!.x).toBeGreaterThan((await page.locator('.drawing-panel').boundingBox())!.x);
-  await part.click();await expect(inspector).toHaveCount(0);expect(await page.locator('[data-part]').evaluateAll(nodes=>nodes.every(n=>n.parentElement?.getAttribute('opacity')==='1'))).toBe(true);
+  await part.click({modifiers:['ControlOrMeta']});await expect(inspector).toHaveCount(0);expect(await page.locator('[data-part]').evaluateAll(nodes=>nodes.every(n=>n.parentElement?.getAttribute('opacity')==='1'))).toBe(true);
   await part.click();await page.getByRole('button',{name:'Clear selection'}).click();await expect(inspector).toHaveCount(0);
   const run=page.getByRole('button',{name:'Nest parts',exact:true});expect((await run.boundingBox())!.x).toBeLessThan(30);
   await part.click();await page.getByRole('spinbutton',{name:'Width, mm',exact:true}).fill('40');await page.getByRole('spinbutton',{name:'Width, mm',exact:true}).press('Enter');

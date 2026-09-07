@@ -1,3 +1,4 @@
+import {projectArchiveText} from '../src/zip';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect,type Page} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
@@ -5,7 +6,7 @@ import type {Project} from '../src/model';
 
 async function project(page:Page):Promise<Project> {
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
-  return JSON.parse(await readFile((await (await pending).path())!,'utf8'));
+  return JSON.parse(projectArchiveText(await readFile((await (await pending).path())!)));
 }
 
 test('inch display preserves checked millimetre geometry, converts edits, and persists',async({page})=>{

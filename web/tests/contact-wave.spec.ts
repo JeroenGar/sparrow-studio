@@ -1,7 +1,7 @@
 import {test,expect} from '@playwright/test';
 import {workshop} from './project-helpers';
 
-for(const first of ['svg','dxf','zip','project','reduced-motion'] as const) {
+for(const first of ['svg','dxf','project','reduced-motion'] as const) {
   test(`the hand waves once after a checked download: ${first}`,async({page})=>{
     await page.emulateMedia({reducedMotion:first==='reduced-motion'?'reduce':'no-preference'});
     await page.addInitScript(()=>{
@@ -27,7 +27,7 @@ for(const first of ['svg','dxf','zip','project','reduced-motion'] as const) {
     if(format!=='project')await page.getByLabel('Export format').selectOption(format);
     pending=page.waitForEvent('download');
     await page.getByRole('button',{name:format==='project'?'Save project':`Download ${format.toUpperCase()}`,exact:true}).click();
-    expect((await pending).suggestedFilename()).toBe(`My cutting - job- sample.${format==='project'?'sparrow-project.json':format}`);
+    expect((await pending).suggestedFilename()).toBe(`sparrow_studio_My cutting - job- sample.${format==='project'?'zip':format}`);
     await expect(hand).toHaveClass('hello-wave');
     if(first==='reduced-motion') {
       await expect(hand).toHaveCSS('animation-name','none');

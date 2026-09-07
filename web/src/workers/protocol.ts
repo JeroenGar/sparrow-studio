@@ -31,7 +31,6 @@ export type GeometryRequest = Identity & (
   | { type:'import'; files:{name:string;text:string}[]; scale:number; tolerance?:number; enclosed?:'holes'|'parts'; layers?:string[] }
   | { type:'validate'; sequence:number; document:Document; result:Result }
   | { type:'export'; document:Document; result:Result }
-  | { type:'save-project'; document:Document; result?:Result }
   | { type:'archive'; document:Document; result?:Result }
   | { type:'live-preview'; sequence:number; document:Document; result:Result }
 );
@@ -42,7 +41,6 @@ export type GeometryReply = Identity & (
   | { type:'import-review'; review:ImportReview }
   | { type:'validation-result'; sequence:number; validation:Validation; elapsedMs:number }
   | { type:'export-result'; bundle:ExportBundle }
-  | { type:'project-file'; text:string }
   | { type:'archive-result'; archive:Uint8Array }
   | { type:'live-frame'; sequence:number; geometry:LiveGeometry }
   | { type:'error'; message:string }

@@ -31,70 +31,75 @@
 
 ## Name exports after the project — implemented
 
-- Use the existing project-name sanitization for SVG, DXF, and ZIP downloads, replacing generic layout and project filenames.
+- Use the existing project-name sanitization for SVG, DXF, and ZIP downloads. All downloads use `sparrow_studio_{projectname}.svg/.dxf/.zip`.
 - SVG, DXF, ZIP, and saved project files now share the existing sanitized project name. Updated the contact invitation to "I’d like to hear how you’re using sparrow and what you’d like to do with it next." Type checking and frontend build passed. Filename, contact, and ZIP checks passed across Chromium, Firefox, and WebKit; the keyboard test now waits for an enabled checked-result button and passed in all three browsers on rerun.
 
-## Remove vendoring through graceful initialization errors — implemented with temporary PR pin
+## Remove vendoring through graceful initialization errors — implemented
 
-- Implemented the [plan](../2026-09-07-remove-vendoring-plan.md) with sparrow [PR #159](https://github.com/JeroenGar/sparrow/pull/159), temporarily pinned to `bd8fdb7560243a49d54c573a59b0146a86d72662`. Replace this pin with a merged upstream revision when available.
+- Implemented the [plan](../2026-09-07-remove-vendoring-plan.md) with sparrow [PR #159](https://github.com/JeroenGar/sparrow/pull/159). The PR is merged; Studio now pins upstream main revision `9ef45676695ef94d045ac8bff0530822127f1437`.
 - Removed both vendored libraries and the jagua-rs patch. jagua-rs now resolves to unmodified crates.io 0.8.1. Updated lockfile, solver revision, documentation and generated license notices.
 - Construction errors reach the existing Studio error state before `finished` is sent. Exact boundary contact is rejected; users can edit material settings and start a fresh solve.
 - Native checks, 111 frontend tests, both WASM builds, and serial/threaded SVG failure-to-edit-to-export checks in Chromium, Firefox and WebKit passed. Chromium pool restart and startup fallback checks passed. No separate jagua-rs quadtree failure appeared in these checks.
 - This supersedes the vendored approach recorded under "Exact material fit in the native solver" below.
 
-## Refine SVG and DXF import
+## Refine SVG and DXF import — DXF follow-ups deferred
 
-- DXF library slice implemented locally: replaced `dxf-parser` with pinned `dxf` 5.3.1 for parsing, spline evaluation and export verification. Added transformed/nested block arrays, ellipses, and degree 1–3 positive-weight splines while preserving units, holes, layer selection and bounded curve approximation. Native browser workflows cover import, nesting and export round trips. SVG now uses usvg 0.48.1 via WASM for styles, transforms, use/symbol references and shape conversion. Illustrator exports, CSS classes, hidden shapes and unclipped nested viewports are covered. Clipping/masks remain unsupported; garment DXF block separation remains open.
+- Further DXF changes are deferred at the user’s request.
+
+- DXF library slice implemented: replaced `dxf-parser` with pinned `dxf` 5.3.1 for parsing, spline evaluation and export verification. Added transformed/nested block arrays, ellipses, and degree 1–3 positive-weight splines while preserving units, holes, layer selection and bounded curve approximation. Native browser workflows cover import, nesting and export round trips. SVG now uses usvg 0.48.1 via WASM for styles, transforms, use/symbol references and shape conversion. Illustrator exports, CSS classes, hidden shapes and unclipped nested viewports are covered. Clipping/masks remain unsupported; garment DXF block separation remains open.
 
 - SVG and DXF import are not yet properly supported in practice. Review the current import flow and identify where real files fail, lose geometry, or produce confusing results.
 - Collect representative SVG and DXF files, reproduce the problems, and define the supported behavior before implementing targeted fixes.
 - Preserve geometry, dimensions, units, and holes within the supported scope. Explain unsupported content and partial imports clearly before changing the project.
 - Add regression coverage for the identified failures and verify the complete import-to-edit-to-solve workflow.
 
-## Consistent input focus and keyboard actions
+## Consistent input focus and keyboard actions — implemented
 
 - Select existing values on focus in fields normally replaced wholesale, such as shape dimensions, positions and names, so typing replaces the default instead of appending to it. Preserve normal caret editing after focus.
 - Make Enter submit applicable dialogs, including Draw shape; keep Escape cancellation consistent.
-- Project-name selection in New/Rename is already fixed locally and verified in Chromium, Firefox and WebKit. Apply the same attention to the remaining editing controls.
+- Text and numeric fields select on first focus/click, including Safari; subsequent clicks retain normal caret editing. Draw shape submits with Enter, and the rotation action uses the same form behavior. Browser checks also preserve full stored precision through focus/blur.
 
-## Consistent menu dismissal
+## Consistent menu dismissal — implemented
 
 - Close the project dropdown and Snap popup on Escape or outside click. Return focus to the trigger on Escape.
 - Ensure menus do not remain open underneath dialogs or reappear unexpectedly after a dialog closes.
 
-## Consistent selection modifiers
+## Consistent selection modifiers — implemented
 
 - Use Cmd/Ctrl-click to toggle individual selections and Shift-click to select a range in both the parts sidebar and shape library.
 - Preserve the distinction between selecting part types in a list and individual copies on the canvas.
 
-## Select and inspect unused parts
+## Select and inspect unused parts — implemented
 
 - Allow zero-quantity parts to be selected in the sidebar for inspecting properties, renaming and saving to the shape library.
 - Do not require adding a canvas copy before accessing those properties. Keep copy movement controls unavailable when there are no selected copies.
 
-## Consistent project navigation
+## Consistent project navigation — implemented
 
 - Group New, Open, Examples and Rename coherently in the project menu; retain a prominent Save project shortcut.
 - Opening the user's own project should be at least as discoverable as opening an example. Align labels and ordering across the header, menu and dialogs.
 - Coordinate this with the Save project archive change below rather than adding more parallel file actions.
 
-## Save project as one archive
+## Save project as one archive — implemented
 
 - Make Save project produce a project-named ZIP containing the editable Studio project and Sparrow CLI-compatible JSON, with a simple internal filename such as `cli.json`. Keep the existing checked SVG/DXF attachments when a valid result is available.
 - Remove the separate Download project ZIP menu entry and ZIP/CLI option from the result export selector. Keep result exports focused on SVG and DXF; the CLI file is available inside the saved project for users who want it.
 - Make Open project restore these saved ZIPs, while retaining support for existing standalone project JSON files. Saving and reopening an empty or unsolved editable project must remain possible.
 - Use Save project consistently in the toolbar and unsaved-change dialog; explain that it downloads an archive. Preserve unsaved-change tracking and use the same save flow before switching projects.
+- Implemented one Save project action, ZIP and legacy JSON reopening, empty/unsolved/checked round trips, and matching unsaved-change actions. Archives omit CLI input when no copies are active. Original Studio archives are supported; repacked/compressed archives can be extracted and their project JSON opened directly. ZIP reads validate bounds and checksums.
 - This supersedes the separate ZIP affordances described in the completed CLI-ready downloads item below.
 
-## Consistent import preview updates
+## Consistent import preview updates — implemented
 
 - Make units, curve tolerance, DXF layers and enclosed-contour changes follow one refresh rule.
 - Prefer an explicit Update preview action after settings change. Retain the previous preview visibly marked outdated, and prevent adding it until refreshed.
 
-## Inline custom rotation editing
+## Inline custom rotation editing — implemented
 
 - Replace the native browser prompt for Custom degrees with a small field beneath the rotation selector.
 - Show validation beside the field and use consistent Enter/blur commit behavior, including mixed selections and Undo.
+
+Validation for this interaction and project workflow slice: 121 unit tests, five native Rust checks, both WASM builds and type checking passed. The full 81-check Chromium suite passed across the initial run and corrected reruns. All 51 affected workflow checks passed across Chromium, Firefox and WebKit after correcting Safari first-click selection; the final 21-check focus/library/interaction run passed in all three engines.
 
 ## Hosted PR previews and staging
 

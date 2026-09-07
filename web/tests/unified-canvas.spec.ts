@@ -1,3 +1,4 @@
+import {projectArchiveText} from '../src/zip';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect,type Locator, type Page} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
@@ -88,8 +89,8 @@ test('saving and reopening preserves per-copy placement identities and transform
   await page.goto('/');await workshop(page);
   await expect.poll(async()=>copies(page).count()).toBe(12);
   const before=await copyState(page),pending=page.waitForEvent('download');await page.getByRole('button',{name:'Save project',exact:true}).click();
-  const download=await pending,path=testInfo.outputPath('unified.sparrow-project.json');await download.saveAs(path);
-  const saved=JSON.parse(await readFile(path,'utf8')) as {placements?:unknown};expect(Array.isArray(saved.placements)).toBe(true);expect(saved.placements).toHaveLength(12);
+  const download=await pending,path=testInfo.outputPath('unified.zip');await download.saveAs(path);
+  const saved=JSON.parse(projectArchiveText(await readFile(path))) as {placements?:unknown};expect(Array.isArray(saved.placements)).toBe(true);expect(saved.placements).toHaveLength(12);
   await openSavedProject(page,path);
   expect(await copyState(page)).toEqual(before);
 });
