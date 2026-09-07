@@ -33,6 +33,12 @@ for(const javaScriptEnabled of [true,false]) {
       if(javaScriptEnabled)await expect(page.locator('.project-menu>summary')).toContainText('gardeyn2');
       for(const width of [1440,390]) {
         await page.setViewportSize({width,height:900});
+        if(javaScriptEnabled) {
+          await expect(page.locator('body>.nesting-about')).toBeHidden();
+          if(width===1440)expect((await page.locator('.app').boundingBox())!.height).toBe(900);
+          await page.getByRole('button',{name:'About sparrow/studio',exact:true}).click();
+          await expect(page.getByRole('dialog').locator('.nesting-about')).toHaveCount(1);
+        }
         const summary=page.locator('.nesting-about>summary');
         await summary.scrollIntoViewIfNeeded();
         await expect(page.getByRole('heading',{name:'Free online 2D nesting with sparrow/studio'})).toBeHidden();
@@ -41,12 +47,13 @@ for(const javaScriptEnabled of [true,false]) {
         const section=page.locator('.nesting-about>section');
         await expect(section).toContainText('Printing and print-and-cut');
         const box=await section.boundingBox();
-        expect(box!.y).toBeGreaterThanOrEqual(0);
+        await section.scrollIntoViewIfNeeded();
         expect(box!.width).toBeLessThanOrEqual(width);
         expect(await page.evaluate(()=>document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
         await page.screenshot({path:testInfo.outputPath(`about-nesting-${width}.png`)});
         await summary.focus();await page.keyboard.press('Enter');
         await expect(section).toBeHidden();
+        if(javaScriptEnabled){await page.keyboard.press('Escape');await expect(page.locator('body>.nesting-about')).toBeHidden();}
       }
       expect(imageRequests).toEqual([]);
     });

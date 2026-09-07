@@ -1,8 +1,8 @@
-# sparrow-studio UI and repository separation — 2026-09-05
+# sparrow/studio UI and repository separation — 2026-09-05
 
 The app is now independently buildable under `web/` in the private `JeroenGar/sparrow-studio` repository. The original wrapper was not committed to or archived. The local development preview uses this checkout on port 4174. No website deployment or domain configuration was performed.
 
-Implemented adaptive linear coordinate rulers and a 1/2/5 grid, floating canvas tools and selection inspector, selection clearing, 50% opacity for unselected shapes, a bottom-left orange nesting action, consistent header links, email/LinkedIn contact links and sparrow-studio naming.
+Implemented adaptive linear coordinate rulers and a 1/2/5 grid, floating canvas tools and selection inspector, selection clearing, 50% opacity for unselected shapes, a bottom-left orange nesting action, consistent header links, email/LinkedIn contact links and sparrow/studio naming.
 
 Validation:
 

@@ -2,9 +2,11 @@
 
 Implemented on 2026-09-07. The production canonical URL is `https://sparrowstudio.app/`, consistently used in the HTML canonical tag, Open Graph URL, and sitemap. Open Graph and large-image social-card metadata use the existing Studio screenshot from the upstream README.
 
-The native "About 2D nesting" disclosure is present in the initial HTML outside the React root and collapsed by default. It describes textiles, garment cutting, woodworking, CNC routing, sheet metal, laser/plasma/waterjet layouts, printing and print-and-cut work, signs, packaging, foam, rubber, leather, composites, and research. It explains supported imports and exports, rectangular-strip packing, local processing, and the distinction between nesting outlines and preparing machine or print instructions.
+The native "About 2D nesting" disclosure is present in the initial HTML and opens as an expandable section inside the About dialog. It describes textiles, garment cutting, woodworking, CNC routing, sheet metal, laser/plasma/waterjet layouts, printing and print-and-cut work, signs, packaging, foam, rubber, leather, composites, and research. It explains supported imports and exports, rectangular-strip packing, local processing, and the distinction between nesting outlines and preparing machine or print instructions.
 
-The content is available to visitors without JavaScript and remains accessible after the editor mounts. Its closed summary uses 44 pixels at the bottom of the desktop editor. Opening it reveals a scrollable panel above the summary. No hidden SEO-only content, new rendering framework, or dependency was added.
+The content stays hidden outside the dialog while the editor is running, and the same HTML node moves into About when opened. Closing the dialog returns it to its hidden location and collapses it. With JavaScript disabled, a noscript style makes the disclosure accessible directly. There is no bottom bar and no reduction in canvas height. No duplicate copy, new rendering framework, or dependency was added.
+
+After this placement change, type checking, the frontend build, and 18 browser checks passed across Chromium, Firefox, and WebKit. Tests cover opening and closing About repeatedly, native expansion, full editor height, responsive layout, and the no-JavaScript fallback. Google permits content hidden for normal expandable interfaces, but identical ranking or snippet treatment is not guaranteed.
 
 ## Screenshot provenance
 

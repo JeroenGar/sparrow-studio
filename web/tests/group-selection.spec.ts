@@ -1,6 +1,28 @@
 import {test,expect} from '@playwright/test';
 import {workshop} from './project-helpers';
 
+test('mixed rotations preserve individual rules until an explicit choice, and Undo restores them',async({page})=>{
+  await page.goto('/');await workshop(page);
+  const parts=page.locator('.part-select'),rotations=page.getByLabel('Permitted rotations');
+  await parts.nth(0).click();await rotations.selectOption('[0]');
+  await parts.nth(1).click({modifiers:['Shift']});
+  await expect(rotations).toHaveValue('mixed');
+  page.once('dialog',dialog=>dialog.dismiss());await rotations.selectOption('custom');
+  await expect(rotations).toHaveValue('mixed');
+  await rotations.selectOption('free');await expect(rotations).toHaveValue('free');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(rotations).toHaveValue('mixed');
+  await parts.nth(0).click();await expect(rotations).toHaveValue('[0]');
+  await parts.nth(1).click();await expect(rotations).toHaveValue('[0,180]');
+  page.once('dialog',dialog=>dialog.accept('360, -180, 0'));
+  await rotations.selectOption('custom');
+  await parts.nth(2).click({modifiers:['Shift']});
+  await expect(rotations).not.toHaveValue('mixed');
+  // Equal-size angle sets can still differ, even if both summaries say Half-turns.
+  await parts.nth(1).click();
+  page.once('dialog',dialog=>dialog.accept('30, 210'));await rotations.selectOption('custom');
+  await parts.nth(2).click({modifiers:['Shift']});await expect(rotations).toHaveValue('mixed');
+});
+
 test('Shift-drag selects copies for an atomic move, clone and delete',async({page})=>{
   await page.goto('/');await workshop(page);
   const canvas=page.locator('.workspace-svg'),copies=canvas.locator('g[data-part][data-copy-index]');

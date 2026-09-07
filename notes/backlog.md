@@ -12,7 +12,7 @@
 - Target discovery for "2D nesting" and "free online 2D nesting". Add the production canonical URL, Open Graph and social-card metadata, and a sitemap. Verify indexing and rendered content through Google Search Console when account access is available.
 - Reuse the Studio screenshot embedded in the upstream sparrow README: https://github.com/user-attachments/assets/4d84bb67-ff98-4310-82de-5350baa02427. Prepare a locally hosted sharing image from it and verify preview cropping and legibility.
 - Add a direct live-demo link to the Studio README using "Try 2D nesting with sparrow in your browser" and use that wording in the upstream README's existing prominent demo callout. Keep its screenshot and placement.
-- Add a small "About 2D nesting" expandable section, collapsed by default, with useful explanatory content present in the initial HTML and accessible to visitors. Explain browser-based nesting, intended uses, supported inputs, and local processing. Keep the canvas prominent; do not add text hidden solely for search engines.
+- Add a small "About 2D nesting" expandable section inside the About dialog, collapsed by default, with useful explanatory content present in the initial HTML and accessible to visitors. Explain browser-based nesting, intended uses, supported inputs, and local processing. Keep the canvas prominent; do not add text hidden solely for search engines.
 - Metadata changes should not alter the workspace layout. Personal LinkedIn posting is not part of this work.
 - Implemented canonical and social tags, a locally hosted README screenshot, robots.txt, sitemap, and the native HTML disclosure covering textiles, wood, metal, printing, signage, packaging, foam, rubber, leather, composites, and research. Both local README callouts are updated. See [validation and remaining publication steps](search-discovery.md).
 
@@ -23,10 +23,11 @@
 - Keep the existing GitHub star link. Use search, GitHub, documentation, and organic sharing to attract visitors; LinkedIn is a contact destination, with no personal posting requirement.
 - The hand uses a 1.4-second CSS wrist rotation after the first checked SVG, DXF, ZIP, or project download per editor session. Unchecked project downloads and diagnostics do not trigger it. No timers or new dependencies. Type checking and the frontend build passed; 24 browser checks passed across Chromium, Firefox, and WebKit, covering export paths, no repeat animation, reduced motion, keyboard contact access, and responsive layout.
 
-## Show mixed rotation settings for multi-selection
+## Show mixed rotation settings for multi-selection — implemented
 
 - Show "Mixed" when selected parts have different permitted rotations, instead of displaying only the first part's setting.
 - Apply a rotation rule to all selected parts only when the user explicitly chooses one.
+- Compare the actual angle sets after normalizing full turns, duplicates, and ordering. Cancelling custom-angle entry preserves "Mixed"; Undo restores each part's original rule. Type checking and the frontend build passed, plus nine browser checks across Chromium, Firefox, and WebKit.
 
 ## Name exports after the project
 

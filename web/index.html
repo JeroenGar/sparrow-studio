@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Sparrow Studio | Free online 2D nesting tool</title>
+  <title>sparrow/studio | Free online 2D nesting tool</title>
   <meta name="description" content="Free online 2D nesting for laser cutting, CNC routing, textiles and print-and-cut work. Arrange SVG and DXF parts to reduce material waste, locally in your browser.">
   <link rel="canonical" href="https://sparrowstudio.app/">
   <meta property="og:type" content="website">
@@ -15,23 +15,24 @@
   <meta property="og:image:type" content="image/png">
   <meta property="og:image:width" content="3680">
   <meta property="og:image:height" content="2228">
-  <meta property="og:image:alt" content="Sparrow Studio arranging colored irregular parts into a compact, geometry-checked cutting layout.">
+  <meta property="og:image:alt" content="sparrow/studio arranging colored irregular parts into a compact, geometry-checked cutting layout.">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="Try 2D nesting with sparrow in your browser">
   <meta name="twitter:description" content="Free online nesting for laser cutting, CNC routing, textiles and print-and-cut work. Your drawings and calculations stay on your device.">
   <meta name="twitter:image" content="https://sparrowstudio.app/sparrow-studio-preview.png">
-  <meta name="twitter:image:alt" content="Sparrow Studio arranging colored irregular parts into a compact, geometry-checked cutting layout.">
+  <meta name="twitter:image:alt" content="sparrow/studio arranging colored irregular parts into a compact, geometry-checked cutting layout.">
   <link rel="icon" type="image/svg+xml" href="./favicon.svg">
   <link rel="stylesheet" href="/src/styles.css">
   <script>document.documentElement.dataset.theme='system';try{const theme=localStorage.getItem('sparrow-theme');if(theme==='light'||theme==='dark'||theme==='system')document.documentElement.dataset.theme=theme;}catch{}</script>
 </head>
 <body>
   <div id="root"><p style="padding:24px">Loading the sparrow editor…</p><noscript>Enable JavaScript to use the nesting editor. Read about 2D nesting below.</noscript></div>
-  <details class="nesting-about" id="about-nesting">
+  <noscript><style>#about-nesting[hidden]{display:block}</style></noscript>
+  <details class="nesting-about" id="about-nesting" hidden>
     <summary>About 2D nesting</summary>
     <section aria-labelledby="nesting-heading">
       <h1 id="nesting-heading">Free online 2D nesting with sparrow/studio</h1>
-      <p>2D nesting arranges parts on flat material to reduce unused space. Also called true-shape nesting or irregular strip packing, it uses the actual outlines of parts rather than just their bounding rectangles. Sparrow Studio brings the open-source <a href="https://github.com/JeroenGar/sparrow">sparrow nesting algorithm</a> to your browser, with no installation or account.</p>
+      <p>2D nesting arranges parts on flat material to reduce unused space. Also called true-shape nesting or irregular strip packing, it uses the actual outlines of parts rather than just their bounding rectangles. sparrow/studio brings the open-source <a href="https://github.com/JeroenGar/sparrow">sparrow nesting algorithm</a> to your browser, with no installation or account.</p>
       <h2>What can you use 2D nesting for?</h2>
       <ul>
         <li><strong>Textiles and garments:</strong> explore fabric cutting layouts for clothing patterns, upholstery, canvas, and technical textiles.</li>

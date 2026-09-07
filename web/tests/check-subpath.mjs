@@ -29,7 +29,7 @@ for(const engine of [chromium,firefox,webkit]) {
       expect(data.result.validation.status).toBe('passed');expect(data.result.placements).toHaveLength(12);
       runs.push({buildMode:data.buildMode,copies:data.result.placements.length,status:data.result.validation.status});
     }
-    await page.getByRole('button',{name:'About sparrow-studio',exact:true}).click();
+    await page.getByRole('button',{name:'About sparrow/studio',exact:true}).click();
     await expect(page.getByRole('link',{name:'Source code on GitHub ↗',exact:true})).toHaveAttribute('href','https://github.com/JeroenGar/sparrow-studio');
     const noticeReply=await page.evaluate(async href=>{const response=await fetch(href);return {url:response.url,status:response.status,text:await response.text()};},`${url}THIRD_PARTY_NOTICES.txt`);
     expect(noticeReply.status).toBe(200);expect(noticeReply.url).toBe(`${url}THIRD_PARTY_NOTICES.txt`);expect(noticeReply.text).toContain('jagua');

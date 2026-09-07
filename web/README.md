@@ -1,4 +1,4 @@
-# sparrow-studio
+# sparrow/studio
 
 An interactive browser demo of the sparrow nesting algorithm, developed from [the design plan](../notes/web-app-design.md). The app is independent of the original sparroWASM wrapper. The "Say hello" button opens Jeroen’s LinkedIn and email links. Its hand waves once after the first download containing a checked result, unless reduced motion is preferred.
 

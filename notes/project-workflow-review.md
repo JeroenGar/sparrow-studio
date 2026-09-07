@@ -1,4 +1,4 @@
-# A project workflow for sparrow-studio
+# A project workflow for sparrow/studio
 
 Reviewed the current checkout on 2026-09-05. This is a source-based review of `App.tsx`, the import worker, project serialization, personal storage, the example/library components, and their tests. No application changes or browser tests were made for this review.
 
