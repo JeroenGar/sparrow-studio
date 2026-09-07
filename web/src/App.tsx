@@ -4,6 +4,7 @@ import { bounds } from './geometry/normalize';
 import { netArea } from './geometry/validate';
 import { pathData } from './geometry/path';
 import { geometryTask } from './workers/geometryTask';
+import {loadExample} from './datasets';
 import { useSolver } from './workers/useSolver';
 import type { ImportReview } from './import/sparrow';
 import Workspace,{colors} from './components/Workspace';
@@ -23,7 +24,7 @@ function download(name:string,text:BlobPart,type='application/json') {
   const url=URL.createObjectURL(new Blob([text],{type})),link=document.createElement('a');
   link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
-export default function App({initialDocument=emptyProject(),initialError=''}:{initialDocument?:Document;initialError?:string}) {
+export default function App({initialDocument=emptyProject(),initialError='',loadDefaultExample=false}:{initialDocument?:Document;initialError?:string;loadDefaultExample?:boolean}) {
   const [doc,setDoc]=useState<Document>(()=>withDocumentPlacements(initialDocument)),[revision,setRevision]=useState(1),[selectedCopies,setSelectedCopies]=useState<CopyRef[]>([]);
   const [busy,setBusy]=useState(false),[error,setError]=useState(initialError);
   const [fitRequest,setFitRequest]=useState(0);
@@ -53,6 +54,27 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
   const running=['Initializing','Running','Checking'].includes(solver.state),locked=running||busy;
   const result=solver.result?.documentRevision===revision?solver.result:undefined;
   const [saved,setSaved]=useState<{document:Document;result?:Result}>(()=>({document:doc}));
+  const [loadingExample,setLoadingExample]=useState(loadDefaultExample);
+  const defaultExampleCancelled=useRef(false);
+  function cancelDefaultExample() {defaultExampleCancelled.current=true;setLoadingExample(false);}
+  useEffect(()=>{
+    if(!loadDefaultExample)return;
+    let disposed=false;
+    void (async()=>{
+      try {
+        const imported=await loadExample('gardeyn2.json',AbortSignal.timeout(10000));
+        if(disposed||defaultExampleCancelled.current)return;
+        const prepared=await geometryTask({type:'prepare-layout',runId:0,documentRevision:0,document:imported.document,pinnedIds:[],compact:true});
+        if(disposed||defaultExampleCancelled.current)return;
+        if(prepared.type!=='normalized')throw Error('Could not arrange gardeyn2.json.');
+        const document=withDocumentPlacements(prepared.document);
+        setDoc(document);setSaved({document});setFitRequest(n=>n+1);
+      } catch(error) {
+        if(!disposed&&!defaultExampleCancelled.current)setError(`The demo could not load. You can still create or open a project. ${String(error)}`);
+      } finally {if(!disposed)setLoadingExample(false);}
+    })();
+    return ()=>{disposed=true;};
+  },[loadDefaultExample]);
   const dirty=doc.name!==saved.document.name||doc.parts!==saved.document.parts||doc.placements!==saved.document.placements||Object.keys(doc.settings).some(key=>doc.settings[key as keyof typeof doc.settings]!==saved.document.settings[key as keyof typeof doc.settings])||result!==saved.result;
   const live=solver.live?.result.documentRevision===revision?solver.live:undefined;
   const showingLive=resultMode==='live'&&!!live;
@@ -75,7 +97,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
     try {canonical=withDocumentPlacements({...next,placements});} catch(error) {setError(String(error));return;}
     setSelectedCopies(previous=>previous.filter(copy=>canonical.parts.some(part=>part.id===copy.partId&&copy.copyIndex<part.quantity)));
     history.current=[...history.current.slice(-49),{doc,geometry,selection:selectedCopies}];future.current=[];
-    setDoc(canonical);setEngaged(true);setError('');
+    cancelDefaultExample();setDoc(canonical);setEngaged(true);setError('');
     if(geometry) {setRevision(r=>r+1);solver.invalidate();}
   }
   async function prepareDocument(next:Document,pinnedIds:string[]=[],compact=false) {
@@ -151,7 +173,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
     if(locked) return;
     const batch=Array.from(list);
     if(batch.some(f=>f.size>10*1024*1024)||batch.reduce((n,f)=>n+f.size,0)>25*1024*1024) {setError('Import limit: 10 MiB per file and 25 MiB per batch.');return;}
-    if(!batch.length)return;setBusy(true);setError('');
+    if(!batch.length)return;cancelDefaultExample();setBusy(true);setError('');
     try{const read=await Promise.all(batch.map(async f=>({name:f.name,text:await f.text()})));setFileIntent(intent);setReview(undefined);setScale(1);setLayers(undefined);setAvailableLayers([]);setExcludeIssues(false);setFiles(read);}
     catch(e){setError(String(e));}finally{setBusy(false);}
   }
@@ -161,6 +183,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
     catch(e){setError(String(e));}finally{setBusy(false);}
   }
   async function addParts(parts:Part[],warnings:string[]=[]) {
+    cancelDefaultExample();
     const reply=await geometryTask({type:'normalize',runId:++operation.current,documentRevision:revision,document:{...doc,parts:[...doc.parts,...parts]}});
     if(reply.type!=='normalized')throw Error('Could not add these shapes.');
     const next=await prepareDocument(reply.document,doc.parts.map(p=>p.id));
@@ -168,6 +191,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
     setSelectedCopies(copyRefsFor(next,parts.map(part=>part.id)));setImportWarnings(previous=>[...previous,...warnings]);
   }
   function switchProject(next:ProjectSwitch) {
+    cancelDefaultExample();
     const nextRevision=revision+1,checked=next.result?{...next.result,documentRevision:nextRevision}:undefined;
     const document=withDocumentPlacements(next.document,checked?.placements ?? next.document.placements);
     ++operation.current;solver.invalidate();setRevision(nextRevision);setDoc(document);
@@ -211,7 +235,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
     }catch(e){setError(String(e));}finally{setBusy(false);}
   }
   async function addShape(kind:'rectangle'|'circle'|'polygon') {
-    setBusy(true);setError('');
+    cancelDefaultExample();setBusy(true);setError('');
     try {
       const reply=await geometryTask({type:'shape',runId:++operation.current,documentRevision:revision,shape:kind,width:shapeWidth,height:shapeHeight,points:polygon});
       if(reply.type==='part') {
@@ -308,7 +332,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
         </section></aside>}
     </main>
     <footer className="statusbar"><div className="run-controls">{running?<button className="run-button" onClick={solver.stop}>Stop</button>:<button className="run-button" disabled={locked||invalidSettings||!doc.parts.some(part=>part.quantity>0)||!!polygon} onClick={()=>void run()}>{result?'Run again':'Nest parts'}</button>}</div>
-      <div className="run-status"><span className="status-symbol" aria-hidden="true"><i className={running||busy?'active':undefined}/></span><span role="status" className="run-state"><span>{busy?'Checking inputs':solver.state}{running&&` · ${solver.elapsed.toFixed(1)} s`}</span></span>{solver.workers&&<small className="worker-status" title={solver.workers.reason} data-worker-count={solver.workers.actual}>{`${solver.workers.actual} solver worker${solver.workers.actual===1?'':'s'}`}{solver.workers.requested?` / ${solver.workers.requested} requested`:' · automatic'}{solver.workers.reason&&' · fallback'}</small>}</div>
+      <div className="run-status"><span className="status-symbol" aria-hidden="true"><i className={running||busy?'active':undefined}/></span><span role="status" className="run-state"><span>{busy?'Checking inputs':loadingExample?'Loading example…':solver.state}{running&&` · ${solver.elapsed.toFixed(1)} s`}</span></span>{solver.workers&&<small className="worker-status" title={solver.workers.reason} data-worker-count={solver.workers.actual}>{`${solver.workers.actual} solver worker${solver.workers.actual===1?'':'s'}`}{solver.workers.requested?` / ${solver.workers.requested} requested`:' · automatic'}{solver.workers.reason&&' · fallback'}</small>}</div>
       <div className="metrics"><span>{showingLive?'Best checked length':'Used length'} <strong>{result?`${length(result.usedLengthMm)} ${unit}`:'—'}</strong></span><span>Material utilization <strong>{result?`${utilization.toFixed(1)}%`:'—'}</strong></span>{result&&first&&<span>Length improvement <strong>{((1-result.usedLengthMm/first.lengthMm)*100).toFixed(1)}%</strong></span>}</div>
       {!running&&<div className="export-actions"><select aria-label="Export format" value={exportFormat} onChange={e=>setExportFormat(e.target.value as 'svg'|'dxf'|'zip')}><option value="svg">SVG</option><option value="dxf">DXF</option><option value="zip">ZIP + CLI input</option></select><button disabled={locked||!result} className="primary" onClick={()=>void exportLayout()}>Download {exportFormat.toUpperCase()}</button></div>}<button className="diagnostics-button" onClick={diagnostics}>Diagnostics</button>
 
@@ -327,7 +351,7 @@ export default function App({initialDocument=emptyProject(),initialError=''}:{in
       {shape!=='polygon'&&<label>{`${shape==='circle'?'Diameter':'Width'}, ${unit}`}<input type="number" min={0.000001/factor} max={100000/factor} step="any" value={inputLength(shapeWidth)} onChange={e=>setShapeWidth(e.target.valueAsNumber*factor)} disabled={busy}/></label>}
       {shape==='rectangle'&&<label>Height, {unit}<input type="number" min={0.000001/factor} max={100000/factor} step="any" value={inputLength(shapeHeight)} onChange={e=>setShapeHeight(e.target.valueAsNumber*factor)} disabled={busy}/></label>}
       {shape==='polygon'&&<p>Click each vertex in the canvas. Enter closes the polygon; Escape cancels. The contour is checked before it is added.</p>}{error&&<p role="alert" className="field-error">{error}</p>}
-      <div className="modal-actions"><button disabled={busy} onClick={()=>setShape(undefined)}>Cancel</button><button disabled={busy} className="primary" onClick={()=>{if(shape==='polygon'){setShape(undefined);setPolygon([]);}else void addShape(shape);}}>{shape==='polygon'?'Start drawing':'Add shape'}</button></div>
+      <div className="modal-actions"><button disabled={busy} onClick={()=>setShape(undefined)}>Cancel</button><button disabled={busy} className="primary" onClick={()=>{if(shape==='polygon'){cancelDefaultExample();setShape(undefined);setPolygon([]);}else void addShape(shape);}}>{shape==='polygon'?'Start drawing':'Add shape'}</button></div>
     </Modal>}
     {examples&&<ExamplePicker onClose={()=>setExamples(false)} onChoose={async(next,nest)=>{const document=await prepareDocument(next,[],true);setExamples(false);requestProject({document,nest});}}/>}
     {library&&<ShapeLibrary unit={unit} selectedParts={doc.parts.filter(p=>selected.includes(p.id))} onClose={()=>setLibrary(false)} onAdd={async parts=>{setBusy(true);try{await addParts(parts);}finally{setBusy(false);}}}/>}

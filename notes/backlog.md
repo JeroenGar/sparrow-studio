@@ -1,5 +1,51 @@
 # Backlog
 
+## Optimize loading times — implemented
+
+- Measure cold and repeat startup, including example download, geometry preparation, and time until the interface is usable.
+- Render the interface before the default example finishes downloading and preparing. Show its loading state and preserve any project the user opens or creates while it loads.
+- Keep the initial download small and reuse existing caching. Verify slow-network and failed-example startup as well as ordinary loading.
+- The editor now mounts before example download and preparation; user-created, opened, or edited projects take precedence over late responses. In a local Chromium check with a two-second example-download delay, editor availability improved from 2,328 ms to 65 ms. See [measurements and validation](startup-loading.md).
+
+## Search and sharing metadata
+
+- Target discovery for "2D nesting" and "free online 2D nesting". Add the production canonical URL, Open Graph and social-card metadata, and a sitemap. Verify indexing and rendered content through Google Search Console when account access is available.
+- Reuse the Studio screenshot embedded in the upstream sparrow README: https://github.com/user-attachments/assets/4d84bb67-ff98-4310-82de-5350baa02427. Prepare a locally hosted sharing image from it and verify preview cropping and legibility.
+- Add a direct live-demo link to the Studio README using "Try 2D nesting with sparrow in your browser" and use that wording in the upstream README's existing prominent demo callout. Keep its screenshot and placement.
+- Add a small "About 2D nesting" expandable section, collapsed by default, with useful explanatory content present in the initial HTML and accessible to visitors. Explain browser-based nesting, intended uses, supported inputs, and local processing. Keep the canvas prominent; do not add text hidden solely for search engines.
+- Metadata changes should not alter the workspace layout. Personal LinkedIn posting is not part of this work.
+
+## Subtle contact invitation
+
+- Keep "Say hello" visible from startup and retain the existing contact dialog and LinkedIn destination.
+- Give the button one small wave after the first successful download of a checked nested result in a session. Respect reduced-motion preferences and do not open the dialog automatically.
+- Keep the existing GitHub star link. Use search, GitHub, documentation, and organic sharing to attract visitors; LinkedIn is a contact destination, with no personal posting requirement.
+
+## Show mixed rotation settings for multi-selection
+
+- Show "Mixed" when selected parts have different permitted rotations, instead of displaying only the first part's setting.
+- Apply a rotation rule to all selected parts only when the user explicitly chooses one.
+
+## Name exports after the project
+
+- Use the existing project-name sanitization for SVG, DXF, and ZIP downloads, replacing generic layout and project filenames.
+
+## Remove vendoring through graceful initialization errors
+
+- Follow the [implementation plan](../2026-09-07-remove-vendoring-plan.md).
+- Make upstream sparrow return a typed construction error when it cannot build an initial placement, with bounded retries and support for equal-coordinate sampling ranges.
+- Preserve jagua-rs's conservative collision semantics. Replace the vendored exact-boundary exemption with an explanatory Studio error and allow editing and a fresh solve after failure.
+- Propagate errors through native and WASM callers, then pin a published upstream revision, remove both vendored libraries, and update lockfiles, revision metadata, documentation, and license notices.
+- Verify ordinary construction, legitimate strip expansion, exact-fit failure, and recovery in serial and threaded WASM. Investigate any separate jagua-rs quadtree failure before completing the migration.
+- This supersedes the vendored approach recorded under "Exact material fit in the native solver" below.
+
+## Refine SVG and DXF import
+
+- SVG and DXF import are not yet properly supported in practice. Review the current import flow and identify where real files fail, lose geometry, or produce confusing results.
+- Collect representative SVG and DXF files, reproduce the problems, and define the supported behavior before implementing targeted fixes.
+- Preserve geometry, dimensions, units, and holes within the supported scope. Explain unsupported content and partial imports clearly before changing the project.
+- Add regression coverage for the identified failures and verify the complete import-to-edit-to-solve workflow.
+
 ## Ghost mode during live optimization — implemented
 
 - Default to ghost mode while showing Live optimization so collisions are easier to see.
@@ -77,3 +123,8 @@ The 34 static dataset files total 4,816,368 raw bytes (about 488 KB gzip versus 
 ## Nesting viewport — implemented
 
 - Put the origin 10% from the left at solve start and after viewport resizing, preserving zoom and vertical positioning. Subsequent candidates and manual panning do not recenter it.
+
+## Group field edits into one Undo step — low priority
+
+- Commit part-name and other applicable field edits on blur or Enter, following the existing position/size controls, rather than consuming history per keystroke.
+- Verify that one Undo restores the previous field value and earlier geometry edits remain available. Keep this behind the other refinements.
