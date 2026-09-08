@@ -20,7 +20,7 @@ test('JSON import, checked result, serialized export and invalidation',async({pa
   await page.screenshot({path:testInfo.outputPath('desktop.png'),fullPage:true});
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download SVG'}).click();
   await (await pending).saveAs(testInfo.outputPath('layout.svg'));
-  const diagnostics=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
+  const diagnostics=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   await (await diagnostics).saveAs(testInfo.outputPath('diagnostics.json'));
   await page.getByLabel('Material width',{exact:false}).fill('6000');
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();

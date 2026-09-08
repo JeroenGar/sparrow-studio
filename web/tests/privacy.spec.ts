@@ -28,7 +28,7 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   const projectDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();
   const project=testInfo.outputPath(`${marker}.zip`);await(await projectDownload).saveAs(project);
   const saved=JSON.parse(projectArchiveText(await readFile(project)));expect(saved.result.validation.status).toBe('passed');
-  const diagnosticDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
+  const diagnosticDownload=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   const diagnostics=testInfo.outputPath('diagnostics.json');await(await diagnosticDownload).saveAs(diagnostics);
   expect(await readFile(diagnostics,'utf8')).toContain(marker);
   await page.locator('input[type=file]').first().setInputFiles(testInfo.outputPath(`${marker}.dxf`));

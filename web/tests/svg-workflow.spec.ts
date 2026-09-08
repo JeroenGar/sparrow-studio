@@ -45,7 +45,7 @@ for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit f
   await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();
   await expect(page.getByRole('button',{name:'Stop',exact:true})).toHaveCount(0);
   const diagnosticDownload=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
+  await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   const diagnosticPath=testInfo.outputPath('construction-error.json');
   await(await diagnosticDownload).saveAs(diagnosticPath);
   const diagnostic=JSON.parse(await readFile(diagnosticPath,'utf8'));

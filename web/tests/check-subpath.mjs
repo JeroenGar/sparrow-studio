@@ -23,7 +23,7 @@ for(const engine of [chromium,firefox,webkit]) {
       await page.getByRole('button',{name:'Stop',exact:true}).click();
       if(cdp)await expect.poll(poolCount).toBe(0);
       await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled({timeout:30_000}).catch(async error=>{console.log(await page.locator('body').innerText());throw error;});
-      const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
+      const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
       let text='';for await(const chunk of await(await pending).createReadStream())text+=chunk;
       const data=JSON.parse(text);expect(data.buildMode).toMatch(/^[2-3] solver threads, SIMD$/);
       expect(data.result.validation.status).toBe('passed');expect(data.result.placements).toHaveLength(12);

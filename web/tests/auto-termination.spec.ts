@@ -30,7 +30,7 @@ for(const limit of ['auto','300','600','fast'])test(`native auto-termination ret
   await expect(page.getByRole('button',{name:'Stop',exact:true})).toHaveCount(0);
 
   const diagnosticsDownload=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
+  await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   const diagnosticsPath=testInfo.outputPath('diagnostics.json');
   await(await diagnosticsDownload).saveAs(diagnosticsPath);
   const diagnostics=JSON.parse(await readFile(diagnosticsPath,'utf8'));
