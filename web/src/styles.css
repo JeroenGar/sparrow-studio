@@ -87,10 +87,10 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .header{height:auto;flex-wrap:wrap;gap:12px;padding-block:8px}.header nav{flex-wrap:wrap}.project-menu>summary{font-size:14px;line-height:1.45;min-height:36px;padding:7px 12px}.header .theme-toggle{display:grid;place-items:center;padding:8px}
 .statusbar>.run-status{display:grid;grid-template-columns:32px minmax(0,1fr);column-gap:14px;align-items:center}.status-symbol{grid-column:1;grid-row:1 / span 2;width:32px;height:32px;transform:translateX(-4px)}.run-state,.worker-status{grid-column:2}.run-status i.active{width:28px;height:28px;border-width:3px}
 
-/* Native disclosure is moved into About while the dialog is open. */
-.nesting-about{border-top:1px solid var(--border);color:var(--ink)}
+/* Static, native disclosure remains accessible even if the editor cannot load. */
+.nesting-about{max-width:840px;margin:0 auto;padding:0 24px;border-top:1px solid var(--border);color:var(--ink)}
 .nesting-about>summary{min-height:44px;padding:12px 0;cursor:pointer;font-size:13px;color:var(--muted)}
-.nesting-about>section{line-height:1.65}
+.nesting-about>section{line-height:1.65;padding-bottom:24px}
 .nesting-about h2{font-size:16px;margin-top:20px}.nesting-about p{margin-top:10px}.nesting-about ul{padding-left:22px}.nesting-about li+li{margin-top:8px}
 
 .hello-wave{display:inline-block;transform-origin:70% 75%;animation:hello-wave 1.4s ease-in-out}
