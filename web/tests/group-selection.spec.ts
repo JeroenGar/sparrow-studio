@@ -1,6 +1,21 @@
 import {test,expect} from '@playwright/test';
 import {workshop} from './project-helpers';
 
+for(const modifier of ['Meta','Control'] as const)test(`${modifier}-click toggles a copy and dragging from it preserves selection and geometry`,async({page})=>{
+  await page.goto('/');await workshop(page);
+  const copies=page.locator('.workspace-svg g[data-part][data-copy-index]'),copy=copies.nth(8);
+  const point=await copy.locator('path').evaluate(node=>{const b=(node as SVGGraphicsElement).getBBox(),p=new DOMPoint(b.x+b.width/2,b.y+b.height/2).matrixTransform(node.getScreenCTM()!);return {x:p.x,y:p.y};});
+  const before=await copies.evaluateAll(nodes=>nodes.map(n=>n.getAttribute('transform')));
+  await page.keyboard.down(modifier);await page.mouse.click(point.x,point.y);
+  await expect(copy.locator('title')).toContainText('selected');
+  await page.mouse.click(point.x,point.y);await expect(copy.locator('title')).not.toContainText('selected');
+  await page.mouse.click(point.x,point.y);
+  await page.mouse.move(point.x,point.y);await page.mouse.down();await page.mouse.move(point.x+15,point.y+15,{steps:3});
+  await expect(page.locator('[data-selection-marquee]')).toBeVisible();await page.mouse.up();await page.keyboard.up(modifier);
+  await expect(copy.locator('title')).toContainText('selected');
+  expect(await copies.evaluateAll(nodes=>nodes.map(n=>n.getAttribute('transform')))).toEqual(before);
+});
+
 test('mixed rotations preserve individual rules until an explicit choice, and Undo restores them',async({page})=>{
   await page.goto('/');await workshop(page);
   const parts=page.locator('.part-select'),rotations=page.getByLabel('Permitted rotations');
@@ -23,7 +38,7 @@ test('mixed rotations preserve individual rules until an explicit choice, and Un
   await parts.nth(2).click({modifiers:['Shift']});await expect(rotations).toHaveValue('mixed');
 });
 
-test('Shift-drag selects copies for an atomic move, clone and delete',async({page})=>{
+test('Command-drag selects copies for an atomic move, clone and delete',async({page})=>{
   await page.goto('/');await workshop(page);
   const canvas=page.locator('.workspace-svg'),copies=canvas.locator('g[data-part][data-copy-index]');
   await expect(copies).toHaveCount(12);
@@ -32,8 +47,8 @@ test('Shift-drag selects copies for an atomic move, clone and delete',async({pag
     const rects=nodes.map(node=>node.getBoundingClientRect());
     return {left:Math.min(...rects.map(r=>r.left))-3,top:Math.min(...rects.map(r=>r.top))-3,right:Math.max(...rects.map(r=>r.right))+3,bottom:Math.max(...rects.map(r=>r.bottom))+3};
   });
-  await page.keyboard.down('Shift');await page.mouse.move(box.left,box.top);await page.mouse.down();await page.mouse.move(box.right,box.bottom,{steps:6});
-  await expect(page.locator('[data-selection-marquee]')).toBeVisible();await page.mouse.up();await page.keyboard.up('Shift');
+  await page.keyboard.down('Meta');await page.mouse.move(box.left,box.top);await page.mouse.down();await page.mouse.move(box.right,box.bottom,{steps:6});
+  await expect(page.locator('[data-selection-marquee]')).toBeVisible();await page.mouse.up();await page.keyboard.up('Meta');
   await expect(page.locator('.part-select[aria-pressed=true]')).toHaveCount(4);expect(await canvas.getAttribute('viewBox')).toBe(camera);
   const x=page.getByRole('spinbutton',{name:'X, mm',exact:true});await x.fill('50');await x.press('Enter');
   await expect(x).toHaveValue('50');

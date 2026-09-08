@@ -203,6 +203,10 @@ export default function App({initialDocument=emptyProject(),initialError='',load
         }catch(error){setError(String(error));}return;
       }
       if(e.metaKey||e.ctrlKey)return;
+      if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key)&&selectedCopies.length) {
+        e.preventDefault();const step=e.shiftKey?10:1;
+        commit(movePlacements(canvasDocument,selectedCopies,[e.key==='ArrowLeft'?-step:e.key==='ArrowRight'?step:0,e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0]),true,'nudge');return;
+      }
       const action=preparationShortcut(e.key);
       const refs=selectedCopies.length?selectedCopies:copyRefsFor(doc,selected);
       if(action==='rotate'&&selectedBox){e.preventDefault();const next=rotateToNextOrientation(canvasDocument,refs);if(!placementLayoutsEqual(canvasDocument,next))commit(next);return;}
@@ -223,7 +227,9 @@ export default function App({initialDocument=emptyProject(),initialError='',load
           .map(copy=>({...copy,copyIndex:Math.min(copy.copyIndex,next.parts.find(part=>part.id===copy.partId)!.quantity-1)})));
       }
     }catch(error){setError(String(error));}};
-    window.addEventListener('keydown',key);return ()=>window.removeEventListener('keydown',key);
+    const endNudge=()=>{if(fieldEdit.current?.key==='nudge')fieldEdit.current=undefined;};
+    window.addEventListener('keydown',key);window.addEventListener('keyup',endNudge);window.addEventListener('blur',endNudge);
+    return ()=>{window.removeEventListener('keydown',key);window.removeEventListener('keyup',endNudge);window.removeEventListener('blur',endNudge);};
   });
   async function run(document=doc,rev=revision) {
     const requestedAt=performance.now();

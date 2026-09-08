@@ -1,6 +1,22 @@
 import {workshop} from './project-helpers';
 import {test,expect} from '@playwright/test';
 
+test('arrow keys nudge selected copies without scrolling and held keys undo together',async({page})=>{
+  await page.goto('/');await workshop(page);
+  await page.locator('.part-select').first().click();
+  const x=page.getByRole('spinbutton',{name:'X, mm',exact:true}),y=page.getByRole('spinbutton',{name:'Y, mm',exact:true});
+  const startX=Number(await x.inputValue()),startY=Number(await y.inputValue());
+  const scroll=await page.evaluate(()=>window.scrollY);
+  await page.keyboard.down('ArrowRight');await expect(x).toHaveValue(String(startX+1));
+  await page.keyboard.down('ArrowRight');await expect(x).toHaveValue(String(startX+2));await page.keyboard.up('ArrowRight');
+  await page.getByRole('button',{name:'Undo',exact:true}).click();await expect(x).toHaveValue(String(startX));
+  await page.keyboard.press('Shift+ArrowUp');await expect(y).toHaveValue(String(startY+10));
+  await page.keyboard.press('ArrowDown');await expect(y).toHaveValue(String(startY+9));
+  await page.keyboard.press('ArrowLeft');await expect(x).toHaveValue(String(startX-1));
+  expect(await page.evaluate(()=>window.scrollY)).toBe(scroll);
+  await x.focus();await page.keyboard.press('ArrowRight');await expect(x).toHaveValue(String(startX-1));
+});
+
 test('a selected group of copies moves together and undoes as one edit',async({page})=>{
   await page.goto('/');await workshop(page);
   await page.locator('.part-select').nth(0).click();

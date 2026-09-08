@@ -42,7 +42,7 @@ export default function Workspace({ document: doc, result, live, selected, selec
   const [snapping, setSnapping] = useState(true), [grid, setGrid] = useState(1), [angleStep, setAngleStep] = useState(15);
   const [size, setSize] = useState({ width: 800, height: 500 });
   const [camera, setCamera] = useState<Camera>({ x: -20, y: -120, w: 220, h: 160 });
-  const [marquee,setMarquee]=useState<{pointer:number;start:Point;end:Point}>();
+  const [marquee,setMarquee]=useState<{pointer:number;start:Point;end:Point;screen:Point;ref?:CopyRef}>();
   const [drag, setDrag] = useState<Gesture>(), [pending, setPending] = useState<Gesture>();
   const displayedDrag = drag ?? pending;
   const selection = useMemo(()=>selectionBounds(doc, selected, selectedCopies),[doc,selected,selectedCopies]), unit = Math.max(camera.w / size.width, camera.h / size.height);
@@ -97,7 +97,7 @@ export default function Workspace({ document: doc, result, live, selected, selec
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { setDrag(undefined); setMarquee(undefined); touches.current.clear(); pinch.current = undefined; touchDraw.current = undefined; }
-      if (event.code === 'Space' && event.target === document.body) { space.current = true; event.preventDefault(); }
+      if (event.code === 'Space' && (event.target === document.body || event.target instanceof Node && !!svg.current?.contains(event.target))) { space.current = true; event.preventDefault(); }
     };
     const up = (event: KeyboardEvent) => { if (event.code === 'Space') space.current = false; };
     const blur = () => { space.current = false; setDrag(undefined); setMarquee(undefined); touches.current.clear(); pinch.current = undefined; touchDraw.current = undefined; };
@@ -167,7 +167,7 @@ export default function Workspace({ document: doc, result, live, selected, selec
         }
         if ((event.button !== 0 && event.button !== 1) || drag || pending) return;
         const handle = (event.target as Element).closest('[data-handle]')?.getAttribute('data-handle');
-        if (handle && selection && !disabled && event.button === 0 && !space.current) {
+        if (handle && selection && !disabled && event.button === 0 && !space.current && !event.metaKey && !event.ctrlKey) {
           event.preventDefault(); const [x0, y0, x1, y1] = selection;
           const pivot: Point = handle === 'rotate' ? [(x0 + x1) / 2, (y0 + y1) / 2] :
             [handle.includes('e') ? x0 : x1, handle.includes('n') ? y0 : y1];
@@ -181,11 +181,10 @@ export default function Workspace({ document: doc, result, live, selected, selec
         const partId = target?.getAttribute('data-part') ?? undefined, rawCopy = target?.getAttribute('data-copy-index');
         const copyIndex = rawCopy === null || rawCopy === undefined ? NaN : Number(rawCopy);
         const ref = partId && Number.isInteger(copyIndex) ? { partId, copyIndex } : undefined;
-        if(event.shiftKey&&!ref&&!polygon&&!disabled&&event.button===0) {
-          event.preventDefault();setMarquee({pointer:event.pointerId,start:cursor,end:cursor});event.currentTarget.setPointerCapture(event.pointerId);return;
+        if((event.metaKey||event.ctrlKey)&&!space.current&&!polygon&&!disabled&&event.button===0) {
+          event.preventDefault();setMarquee({pointer:event.pointerId,start:cursor,end:cursor,screen:[event.clientX,event.clientY],ref});event.currentTarget.setPointerCapture(event.pointerId);return;
         }
-        const outsideBin = !world || cursor[0] < 0 || cursor[0] > result!.usedLengthMm || cursor[1] > 0 || cursor[1] < -doc.settings.materialWidthMm;
-        const pan = space.current || event.button === 1 || (!ref && !polygon && outsideBin);
+        const pan = space.current || event.button === 1 || (!ref && !polygon);
         if (polygon && !pan) { const p = point(event.clientX, event.clientY); if (event.pointerType === 'touch') touchDraw.current = { pointer: event.pointerId, screen: [event.clientX, event.clientY], world: [p[0], -p[1]] }; else onDraw?.([p[0], -p[1]]); return; }
         if (!pan && event.shiftKey) { onSelect(ref, true); return; }
         if (!pan && (!ref || !selectedSet.has(placementKey(ref)))) onSelect(ref);
@@ -221,7 +220,8 @@ export default function Workspace({ document: doc, result, live, selected, selec
         if(marquee?.pointer===event.pointerId) {
           const x0=Math.min(marquee.start[0],marquee.end[0]),x1=Math.max(marquee.start[0],marquee.end[0]);
           const y0=-Math.max(marquee.start[1],marquee.end[1]),y1=-Math.min(marquee.start[1],marquee.end[1]);
-          onSelectCopies(drawings.filter(copy=>{const b=placementBounds(doc.parts[copy.index],copy);return b[0]>=x0&&b[1]>=y0&&b[2]<=x1&&b[3]<=y1;}).map(({partId,copyIndex})=>({partId,copyIndex})));
+          if(Math.hypot(event.clientX-marquee.screen[0],event.clientY-marquee.screen[1])<3){if(marquee.ref)onSelect(marquee.ref,true);}
+          else onSelectCopies([...selectedCopies,...drawings.filter(copy=>{const b=placementBounds(doc.parts[copy.index],copy);return !selectedSet.has(placementKey(copy))&&b[0]>=x0&&b[1]>=y0&&b[2]<=x1&&b[3]<=y1;}).map(({partId,copyIndex})=>({partId,copyIndex}))]);
           setMarquee(undefined);event.currentTarget.releasePointerCapture(event.pointerId);return;
         }
         touches.current.delete(event.pointerId);
@@ -256,6 +256,6 @@ export default function Workspace({ document: doc, result, live, selected, selec
       {polygon && <g transform="scale(1 -1)"><polyline points={polygon.map(p => p.join(',')).join(' ')} fill="none" stroke="#176b58" strokeWidth="2" vectorEffect="non-scaling-stroke" />{polygon.map((p, index) => <circle key={index} cx={p[0]} cy={p[1]} r={camera.w / 250} fill="#176b58" />)}</g>}
     </svg>
     <svg className="coordinate-rulers" viewBox={`0 0 ${size.width} ${size.height}`} preserveAspectRatio="none" aria-label={`Coordinate rulers, ${displayUnit}`} role="img"><rect x="0" y="0" width={size.width} height="20" /><rect x="0" y="0" width="20" height={size.height} /><path fill="none" d={[...coordinates.x.map(t => { const x = (t.mm - coordinates.left) / unit; return x < 22 ? '' : `M${x},${t.major ? 14 : 17}V20`; }), ...coordinates.y.map(t => { const y = (-t.mm - coordinates.top) / unit; return y < 22 ? '' : `M${t.major ? 14 : 17},${y}H20`; })].join(' ')} />{coordinates.x.filter(t => t.major).map(t => { const x = (t.mm - coordinates.left) / unit; return x < 22 ? null : <text key={t.value} x={x + 3} y="10" data-axis="x" data-value={t.value}>{t.value}</text>; })}{coordinates.y.filter(t => t.major).map(t => { const y = (-t.mm - coordinates.top) / unit; return y < 22 ? null : <text key={t.value} transform={`translate(10 ${y - 3}) rotate(-90)`} data-axis="y" data-value={t.value}>{t.value}</text>; })}<rect width="20" height="20" /><text x="10" y="12" textAnchor="middle">{displayUnit}</text></svg>
-    <p className="canvas-hint">{disabled ? (live ? 'Live search · overlapping areas shown in red.' : result ? 'Geometry checked.' : 'Preparing search…') : polygon ? 'Click vertices · Enter to finish · Escape to cancel' : result ? 'Geometry checked. Select a copy to adjust it.' : 'Select a copy to adjust it. Drag to arrange.'} {!disabled&&<span className="preparation-shortcuts"><kbd>R</kbd> next rotation · <kbd>+</kbd>/<kbd>−</kbd> copies</span>} <span>{!disabled&&'Shift-drag to select · '}drag background to pan · scroll or pinch to zoom</span></p>
+    <p className="canvas-hint">{disabled ? (live ? 'Live search · overlapping areas shown in red.' : result ? 'Geometry checked.' : 'Preparing search…') : polygon ? 'Click vertices · Enter to finish · Escape to cancel' : result ? 'Geometry checked. Select a copy to adjust it.' : 'Select a copy to adjust it. Drag to arrange.'} {!disabled&&<span className="preparation-shortcuts"><kbd>R</kbd> next rotation · <kbd>+</kbd>/<kbd>−</kbd> copies</span>} <span>{!disabled&&'⌘/Ctrl-click or drag to add selection · '}drag background to pan · scroll or pinch to zoom</span></p>
   </div>;
 }
