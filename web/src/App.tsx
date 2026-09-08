@@ -50,7 +50,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   const [layers,setLayers]=useState<string[]>(),[availableLayers,setAvailableLayers]=useState<string[]>([]),[excludeIssues,setExcludeIssues]=useState(false);
   const [previewStale,setPreviewStale]=useState(false);
   const [importWarnings,setImportWarnings]=useState<string[]>([]);
-  const [exportFormat,setExportFormat]=useState<'svg'|'dxf'>('svg');
+  const [exportFormat,setExportFormat]=useState<'svg'|'dxf'|'pdf'>('svg');
   const [materialWidthFocused,setMaterialWidthFocused]=useState(false);
   const [nameDialog,setNameDialog]=useState<'new'|'rename'>(),[projectName,setProjectName]=useState('');
   const [pendingProject,setPendingProject]=useState<ProjectSwitch>();
@@ -314,7 +314,10 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     setBusy(true);setError('');
     try {
       const reply=await geometryTask({type:'export',runId:++operation.current,documentRevision:revision,document:canvasDocument,result:!showingLive?result:undefined});
-      if(reply.type==='export-result'){download(`${exportName}.${exportFormat}`,reply.bundle[exportFormat],exportFormat==='svg'?'image/svg+xml':'application/dxf');setDownloadedResult(true);}
+      if(reply.type==='export-result'){
+        const content=exportFormat==='pdf'?await (await import('./export/pdf')).exportPDF(reply.bundle.svg):reply.bundle[exportFormat];
+        download(`${exportName}.${exportFormat}`,content,exportFormat==='pdf'?'application/pdf':exportFormat==='svg'?'image/svg+xml':'application/dxf');setDownloadedResult(true);
+      }
     } catch(e){setError(String(e));}finally{setBusy(false);}
   }
   function diagnostics() {download('sparrow-studio-diagnostics.json',JSON.stringify({document:doc,documentRevision:revision,policy:POLICY,importWarnings,...solver.diagnostics.current,result},null,2));}
@@ -403,7 +406,7 @@ export default function App({initialDocument=emptyProject(),initialError='',load
     <footer className="statusbar"><div className="run-controls">{running?<button className="run-button" onClick={solver.stop}>Stop</button>:<button className="run-button" disabled={locked||invalidSettings||!doc.parts.some(part=>part.quantity>0)||!!polygon} onClick={()=>void run()}>{result?'Run again':'Nest parts'}</button>}</div>
       <div className="run-status"><span className="status-symbol" aria-hidden="true"><i className={running||busy?'active':undefined}/></span><span role="status" className="run-state"><span>{busy?'Checking inputs':loadingExample?'Loading example…':solver.state}{running&&` · ${solver.elapsed.toFixed(1)} s`}</span></span>{solver.workers&&<small className="worker-status" title={solver.workers.reason} data-worker-count={solver.workers.actual}>{`${solver.workers.actual} solver worker${solver.workers.actual===1?'':'s'}`}{solver.workers.requested?` / ${solver.workers.requested} requested`:' · automatic'}{solver.workers.reason&&' · fallback'}</small>}</div>
       <div className="metrics"><span>{showingLive?'Best checked length':'Used length'} <strong>{result?`${length(result.usedLengthMm)} ${unit}`:'—'}</strong></span><span>Material utilization <strong>{result?`${utilization.toFixed(1)}%`:'—'}</strong></span>{result&&first&&<span>Length improvement <strong>{((1-result.usedLengthMm/first.lengthMm)*100).toFixed(1)}%</strong></span>}</div>
-      <div className="export-actions"><select aria-label="Export format" value={exportFormat} onChange={e=>setExportFormat(e.target.value as 'svg'|'dxf')}><option value="svg">SVG</option><option value="dxf">DXF</option></select><button disabled={busy||invalidSettings} className="primary" onClick={()=>void exportLayout()}>Download {exportFormat.toUpperCase()}</button></div><button className="diagnostics-button" onClick={diagnostics}>Diagnostics</button>
+      <div className="export-actions"><select aria-label="Export format" value={exportFormat} onChange={e=>setExportFormat(e.target.value as 'svg'|'dxf'|'pdf')}><option value="svg">SVG</option><option value="dxf">DXF</option><option value="pdf">PDF</option></select><button disabled={busy||invalidSettings} className="primary" onClick={()=>void exportLayout()}>Download {exportFormat.toUpperCase()}</button></div><button className="diagnostics-button" onClick={diagnostics}>Diagnostics</button>
 
     </footer>
     {files&&<Modal title="Review import" locked={busy} onClose={()=>{setFiles(undefined);setReview(undefined);setError('');}}><p>{files.map(f=>f.name).join(', ')}</p><p className="muted">{fileIntent==='project'?'Project files restore a complete job. Drawing files can be added as shapes.':'SVG, DXF and instance JSON add shapes. A saved project restores a complete job.'}</p>
