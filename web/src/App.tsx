@@ -18,7 +18,7 @@ import ExamplePicker from './components/ExamplePicker';
 import {displayLength,unitScale,type DisplayUnit} from './units';
 import {selectionBounds,type GeometryEdit} from './geometry/manipulate';
 import {isEditableTarget,preparationShortcut} from './geometry/gestures';
-import {copyRefsFor,documentPlacements,duplicateCopies,removeCopies,rotateToNextOrientation,movePlacements,placementLayoutsEqual,rotatePlacements,syncQuantity,updatePlacements,withDocumentPlacements,type CopyRef} from './geometry/placements';
+import {copyRefsFor,documentPlacements,duplicateCopies,removeCopies,rotateToNextOrientation,movePlacements,placementLayoutsEqual,syncQuantity,updatePlacements,withDocumentPlacements,type CopyRef} from './geometry/placements';
 
 const emptyProject=(name='Untitled project'):Document=>({name,parts:[],settings:{...DEFAULT_SETTINGS}});
 type ProjectSwitch={document:Document;result?:Result;warnings?:string[];saved?:boolean;nest?:boolean};
@@ -301,7 +301,6 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   async function transformSelection(edit:GeometryEdit,refs=selectedCopies.length?selectedCopies:copyRefsFor(doc,selected)) {
     if(locked||!selected.length)return;setBusy(true);setError('');
     try {
-      if(edit.kind==='rotate'){commit(rotatePlacements(canvasDocument,refs,edit.degrees,edit.pivot));return;}
       const reply=await geometryTask({type:'edit-selection',runId:++operation.current,documentRevision:revision,document:canvasDocument,ids:selected,edit,refs});
       if(reply.type==='normalized')commit(reply.document);
     }catch(e){setError(String(e));}finally{setBusy(false);}

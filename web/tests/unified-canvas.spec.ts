@@ -115,3 +115,26 @@ test('solver completion keeps the same canvas and a manual result edit keeps can
   await expect.poll(async()=>signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!)).toBe(moved);
   expect(await canvas.getAttribute('viewBox')).toBe(camera);
 });
+
+for(const control of ['field','handle'] as const)test(`rotation through ${control} changes the shape and survives nesting`,async({page})=>{
+  await page.goto('/');await workshop(page);
+  const target=copies(page).first();await clickCopy(page,target);
+  const partId=await target.getAttribute('data-part'),before=(await copyState(page)).find(copy=>copy.partId===partId)!;
+  if(control==='field'){
+    await page.getByRole('spinbutton',{name:'Rotate by, degrees'}).fill('37');
+    await page.getByRole('button',{name:'Rotate',exact:true}).click();
+  }else{
+    const handle=page.locator('[data-handle="rotate"]'),box=await handle.boundingBox();
+    expect(box).toBeTruthy();
+    await page.mouse.move(box!.x+box!.width/2,box!.y+box!.height/2);await page.mouse.down();
+    await page.mouse.move(box!.x+box!.width/2+35,box!.y+box!.height/2+15,{steps:8});await page.mouse.up();
+  }
+  await expect.poll(async()=>(await copyState(page)).find(copy=>copy.partId===partId)!.geometry).not.toBe(before.geometry);
+  const geometry=(await copyState(page)).find(copy=>copy.partId===partId)!.geometry;
+  expect((await copyState(page)).filter(copy=>copy.partId===partId).every(copy=>copy.geometry===geometry)).toBe(true);
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
+  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});
+  const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
+  expect((await copyState(page)).filter(copy=>copy.partId===partId).every(copy=>copy.geometry===geometry)).toBe(true);
+});
