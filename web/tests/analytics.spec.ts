@@ -1,6 +1,8 @@
 import {test,expect} from '@playwright/test';
 
 test.use({serviceWorkers:'block'});
+// Drain proxy handlers before the request fixture disposes their responses.
+test.afterEach(async({page})=>{await page.unrouteAll({behavior:'wait'});});
 test('analytics loads only on the public domain with the supplied token',async({page,request})=>{
   let beacons=0;
   await page.route('https://static.cloudflareinsights.com/beacon.min.js',async route=>{
