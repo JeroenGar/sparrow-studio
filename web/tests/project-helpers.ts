@@ -3,7 +3,7 @@ export async function openExamples(page:Page){await page.locator('.project-menu>
 export async function finishSwitch(page:Page){
   const guard=page.getByRole('dialog',{name:'Save a copy before switching?',exact:true});
   await expect.poll(async()=>await guard.isVisible()||await page.getByRole('dialog').count()===0).toBe(true);
-  if(await guard.isVisible())await guard.getByRole('button',{name:'Switch without downloading',exact:true}).click();
+  if(await guard.isVisible())await guard.getByRole('button',{name:'Discard & Switch',exact:true}).click();
   await expect(page.getByRole('dialog')).toHaveCount(0);
 }
 export async function workshop(page:Page){await openExamples(page);await page.getByRole('button',{name:'Open example',exact:true}).click();await finishSwitch(page);}

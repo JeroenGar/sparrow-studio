@@ -71,7 +71,7 @@ test('shape imports always append and preserve project settings, including after
   }
   await openExamples(page);await page.getByRole('button',{name:'Open example',exact:true}).click();
   const guard=page.getByRole('dialog',{name:'Save a copy before switching?',exact:true});
-  const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Download & switch',exact:true}).click();await saved;
+  const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Download & Switch',exact:true}).click();await saved;
   await expect(page.locator('.part-row')).toHaveCount(4);
   await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('353.55');
 });

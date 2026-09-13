@@ -120,3 +120,5 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .compression-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:16px;right:16px;z-index:10;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--ink);box-shadow:0 4px 16px #0002;font-size:12px;line-height:1.45}
 .compression-tooltip strong{display:block;margin-bottom:4px}
 .run-controls:has(.skip-compression:hover) .compression-tooltip,.run-controls:has(.skip-compression:focus-visible) .compression-tooltip,.compression-tooltip:hover{display:block}
+
+.project-switch-actions .discard-project{background:#b93838;border-color:#b93838;color:#fff;font-weight:550}.project-switch-actions .discard-project:hover:enabled{background:#a52e2e;border-color:#a52e2e}
