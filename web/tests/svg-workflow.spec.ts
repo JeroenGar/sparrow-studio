@@ -55,7 +55,7 @@ for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit f
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
-  await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Run again',exact:true})).toBeEnabled({timeout:20_000});
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download SVG'}).click();
   const path=testInfo.outputPath('plate.svg');await(await pending).saveAs(path);

@@ -21,7 +21,7 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
-  await page.getByRole('button',{name:'Stop',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Run again',exact:true})).toBeEnabled({timeout:20_000});
   await page.getByLabel('Export format').selectOption('dxf');
   await expect(page.getByRole('button',{name:'Download DXF'})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download DXF'}).click();
