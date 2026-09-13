@@ -51,11 +51,12 @@ for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit f
   const diagnostic=JSON.parse(await readFile(diagnosticPath,'utf8'));
   expect(diagnostic.stopReason).toContain('No valid initial placement could be constructed for item 0');
   expect(diagnostic.buildMode).toMatch(isolated?/^2 solver threads, SIMD$/:/^1 solver thread, SIMD; serial fallback:/);
+  await page.getByRole('spinbutton',{name:/^Quantity for/}).fill('2');
   await page.getByLabel('Material width',{exact:false}).fill('62');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
-  await expect(page.getByRole('button',{name:'Run again',exact:true})).toBeEnabled({timeout:20_000});
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download SVG'}).click();
   const path=testInfo.outputPath('plate.svg');await(await pending).saveAs(path);
@@ -64,16 +65,17 @@ for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit f
   const viewport=preview.viewportSize()!,frame=await preview.locator('svg').boundingBox();
   expect(frame!.width).toBeLessThanOrEqual(viewport.width);
   expect(frame!.height).toBeLessThanOrEqual(viewport.height);
-  await expect(preview.locator('#parts path')).toHaveAttribute('fill','#fb923c');
+  await expect(preview.locator('#parts path')).toHaveCount(2);
+  for(const path of await preview.locator('#parts path').all())await expect(path).toHaveAttribute('fill','#fb923c');
   await preview.screenshot({path:testInfo.outputPath('export-preview.png')});
   await preview.close();
   const exported=await readFile(path,'utf8');
-  expect(exported.match(/Z/g)).toHaveLength(2);
+  expect(exported.match(/Z/g)).toHaveLength(4);
   await page.locator('input[type=file]').first().setInputFiles(path);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('1 holes');
   await page.getByRole('button',{name:/^Add \d+ shapes? to project$/}).click();
-  await expect(page.getByText('100 × 60 mm',{exact:true})).toHaveCount(2);
+  await expect(page.getByText('100 × 60 mm',{exact:true})).toHaveCount(3);
   await context.close();
 });
 

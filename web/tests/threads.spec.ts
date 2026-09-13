@@ -126,11 +126,13 @@ for (const threads of [1,2]) test(`SIMD unavailable: SVG import and ${threads} s
     await page.getByRole('button',{name:'Preview import',exact:true}).click();
     await page.getByRole('button',{name:/^Add 1 shape to project$/}).click();
     await expect(page.getByText('10 × 15 mm',{exact:true})).toBeVisible();
+    await page.getByRole('spinbutton',{name:/^Quantity for/}).fill('2');
+    await page.getByLabel('Material width',{exact:false}).fill('16');
     await page.locator('.solver-options>summary').click();
     await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption(String(threads));
     await page.getByRole('button',{name:'Nest parts',exact:true}).click();
     await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:20_000});
-    await expect(page.getByRole('button',{name:'Run again',exact:true})).toBeEnabled({timeout:20_000});
+    await page.getByRole('button',{name:'Stop',exact:true}).click();
     const pending=page.waitForEvent('download');
     await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
     const path=testInfo.outputPath('nosimd.json');await(await pending).saveAs(path);
