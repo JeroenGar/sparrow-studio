@@ -106,9 +106,9 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .statusbar .run-controls{display:flex;gap:0}
 .run-controls .run-button{width:auto;flex:1;min-width:0}
 .run-controls:has(.skip-compression) .run-button{padding-inline:0}
-.run-controls:has(.skip-compression) .run-button:first-of-type{flex:2;border-radius:8px 0 0 8px}
-.run-controls .skip-compression{border-radius:0 8px 8px 0;background:#a5d6bd;color:#173d2e;border-color:#a5d6bd;display:flex;align-items:center;justify-content:center}
-.run-controls .skip-compression:hover:enabled{background:#bce4cf;border-color:#bce4cf}
+.run-controls:has(.skip-compression) .run-button:first-of-type{flex:4;border-radius:8px 0 0 8px}
+.run-controls .skip-compression{border-radius:0 8px 8px 0;background:#f6c995;color:#23170c;border-color:#f6c995;display:flex;align-items:center;justify-content:center}
+.run-controls .skip-compression:hover:enabled{background:#f9d9b2;border-color:#f9d9b2}
 .statusbar>.run-status{width:180px;min-width:180px;column-gap:10px}
 .run-state{gap:6px;flex-wrap:wrap;min-width:0;white-space:normal;line-height:1.4}
 .run-elapsed{white-space:nowrap;color:var(--muted)}

@@ -23,7 +23,7 @@ for(const action of ['wait','new','edit','open','failure'] as const) {
           schemaVersion:1,revision:1,name:'My saved project',parts:[],settings:{materialWidthMm:432,clearanceMm:0,timeLimitSeconds:null},
         }))});
         await page.getByRole('button',{name:'Preview import',exact:true}).click();
-        await page.getByRole('button',{name:'Import project',exact:true}).click();
+        await page.getByRole('button',{name:'Open project',exact:true}).click();
       }
       release();
       if(action==='wait') {

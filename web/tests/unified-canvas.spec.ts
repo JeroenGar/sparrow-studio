@@ -42,9 +42,9 @@ async function clickCopy(page:Page,locator:Locator) {
 }
 async function openSavedProject(page:Page,path:string) {
   const chooser=page.waitForEvent('filechooser');
-  await page.locator('.project-menu>summary').click();await page.getByRole('button',{name:'Import project',exact:true}).click();
+  await page.locator('.project-menu>summary').click();await page.getByRole('button',{name:'Open project',exact:true}).click();
   await (await chooser).setFiles(path);await page.getByRole('button',{name:'Preview import',exact:true}).click();
-  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
 }
 
 test('one unified canvas renders every demanded copy without preparation labels or view tabs',async({page})=>{

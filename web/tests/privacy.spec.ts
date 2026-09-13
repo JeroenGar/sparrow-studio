@@ -39,7 +39,7 @@ test('SVG, DXF and project round trips keep file contents and diagnostics off th
   await page.locator('input[type=file]').first().setInputFiles(project);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('Saved result rechecked successfully');
-  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button',{name:'Download DXF',exact:true})).toBeEnabled();
   expect(sockets).toEqual([]);
   expect(requests.length).toBeGreaterThan(0);

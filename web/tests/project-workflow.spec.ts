@@ -18,7 +18,7 @@ test('saves a real checked layout, confirms replacement, rechecks load and inval
   await page.locator('input[type=file]').first().setInputFiles(path);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('Saved result rechecked successfully');
-  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('353.55');
   await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeDisabled();
@@ -26,7 +26,7 @@ test('saves a real checked layout, confirms replacement, rechecks load and inval
   await page.locator('input[type=file]').first().setInputFiles({name:'bad.sparrow-project.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(data))});
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
   await expect(page.getByRole('dialog')).toContainText('Saved result was discarded');
-  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
   await expect(page.getByRole('button',{name:'Download SVG'})).toBeEnabled();
   await expect(page.getByRole('button',{name:'Nest parts',exact:true})).toBeEnabled();
 });
@@ -48,7 +48,7 @@ test('project lifecycle names downloads, guards replacement and reopens an empty
   await menu('New project');await page.getByRole('button',{name:'Create project',exact:true}).click();await finishSwitch(page);
   await expect(page.locator('.part-row')).toHaveCount(0);await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeDisabled();
   await page.locator('input[type=file]').nth(1).setInputFiles(path);await page.getByRole('button',{name:'Preview import',exact:true}).click();
-  await page.getByRole('button',{name:'Import project',exact:true}).click();await finishSwitch(page);
+  await page.getByRole('button',{name:'Open project',exact:true}).click();await finishSwitch(page);
   await expect(page.locator('.project-menu>summary')).toContainText('My cutting job');await expect(page.locator('.part-row')).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('empty-project-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await page.locator('.project-menu>summary').click();

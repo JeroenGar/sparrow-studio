@@ -23,7 +23,7 @@ for(const limit of ['auto','300','600','fast'])test(`native auto-termination ret
   const started=Date.now();
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   // Automatic stopping must finish normally without a JavaScript time cap.
-  await expect(page.getByRole('status')).toHaveText('Complete',{timeout:45_000});
+  await expect(page.getByRole('status')).toHaveText(/^Complete\s*\d+\.\d s$/,{timeout:45_000});
   expect(Date.now()-started).toBeLessThan(60_000);
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
   await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
@@ -50,6 +50,6 @@ for(const limit of ['auto','300','600','fast'])test(`native auto-termination ret
   await(await svgDownload).saveAs(svgPath);
   const svg=await readFile(svgPath,'utf8');
   expect(await page.evaluate(text=>new DOMParser().parseFromString(text,'image/svg+xml').querySelectorAll('path').length,svg)).toBe(1);
-  await expect(page.getByRole('status')).toHaveText('Complete');
+  await expect(page.getByRole('status')).toHaveText(/^Complete\s*\d+\.\d s$/);
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
 });

@@ -17,7 +17,7 @@ for(const isolated of [true,false])test(`skip exploration and retain checked out
   await expect(page.getByRole('status')).toContainText('Compression',{timeout:20000});
   await expect(skip).toHaveCount(0);
   await expect(page.getByRole('button',{name:'Stop',exact:true})).toBeEnabled();
-  await expect(page.getByRole('status')).toHaveText('Complete',{timeout:10000});
+  await expect(page.getByRole('status')).toHaveText(/^Complete\s*\d+\.\d s$/,{timeout:10000});
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   const path=testInfo.outputPath('phases.json');await(await pending).saveAs(path);
@@ -43,7 +43,7 @@ for(const action of ['natural','stop'] as const)test(`${action} phase transition
   await expect(page.getByRole('status')).toContainText('Compression',{timeout:20000});
   await expect(skip).toHaveCount(0);
   if(action==='stop')await page.getByRole('button',{name:'Stop',exact:true}).click();
-  await expect(page.getByRole('status')).toHaveText(action==='stop'?'Stopped':'Complete',{timeout:10000});
+  await expect(page.getByRole('status')).toHaveText(action==='stop'?/^Stopped\s*\d+\.\d s$/:/^Complete\s*\d+\.\d s$/,{timeout:10000});
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   const path=testInfo.outputPath('phases.json');await(await pending).saveAs(path);
