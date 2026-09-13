@@ -28,7 +28,7 @@ self.onmessage = async ({ data }: MessageEvent<Start | {type:'preload';threads:n
     wasm.run(input, data.type==='bridge'?data.seconds:doc!.settings.timeLimitSeconds??undefined, data.seed, doc?.settings.clearanceMm ?? 0, doc?.settings.solverPreset??'standard', (json: string) => {
       const message = JSON.parse(json) as SolverMessage;
       send(message);
-    });
+    }, data.compressionStart?JSON.stringify(data.compressionStart):undefined);
   } catch (error) {
     send({ type: 'error', message: String(error) });
     if(data.type==='preload')self.close();

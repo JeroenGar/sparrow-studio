@@ -43,7 +43,7 @@ test('project lifecycle names downloads, guards replacement and reopens an empty
   await expect(page.locator('.project-status')).toContainText('Saved in browser');
   await workshop(page);
   await menu('New project');await page.getByLabel('Project name',{exact:true}).fill('Second job');await page.getByRole('button',{name:'Create project',exact:true}).click();
-  await page.getByRole('dialog',{name:'Replace current project?',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
+  await page.getByRole('dialog',{name:'Save a copy before switching?',exact:true}).getByRole('button',{name:'Cancel',exact:true}).click();
   await expect(page.locator('.part-row')).toHaveCount(4);
   await menu('New project');await page.getByRole('button',{name:'Create project',exact:true}).click();await finishSwitch(page);
   await expect(page.locator('.part-row')).toHaveCount(0);await expect(page.getByRole('button',{name:'Undo',exact:true})).toBeDisabled();
@@ -70,8 +70,8 @@ test('shape imports always append and preserve project settings, including after
     await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('125');
   }
   await openExamples(page);await page.getByRole('button',{name:'Open example',exact:true}).click();
-  const guard=page.getByRole('dialog',{name:'Replace current project?',exact:true});
-  const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Export project and continue',exact:true}).click();await saved;
+  const guard=page.getByRole('dialog',{name:'Save a copy before switching?',exact:true});
+  const saved=page.waitForEvent('download');await guard.getByRole('button',{name:'Download & switch',exact:true}).click();await saved;
   await expect(page.locator('.part-row')).toHaveCount(4);
   await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('353.55');
 });

@@ -7,7 +7,7 @@ import type {GeometryEdit} from '../geometry/manipulate';
 import type {CopyRef} from '../geometry/placements';
 import type {LabelPoint} from '../geometry/preparation';
 export type Identity = { runId: number; documentRevision: number };
-export type Start = Identity & { seed: string; threads?: number } & (
+export type Start = Identity & { seed: string; threads?: number; compressionStart?: Candidate['solution'] } & (
   | { type: 'start'; document: Document }
   | { type: 'bridge'; input: string; seconds: 10 }
 );

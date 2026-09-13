@@ -1,12 +1,14 @@
-import type { Start, SolverMessage } from './protocol';
+import type { Start, SolverMessage, Candidate } from './protocol';
 
 type PoolInit = { type: 'pool-init'; threads: number; init: { module_or_path: WebAssembly.Module; memory: WebAssembly.Memory }; receiver: number };
 let dispose = () => {};
+let skip = () => {};
 
 // Keep this coordinator idle: it owns every runtime and pool worker, and can
 // terminate them even while the solver is blocked in synchronous WASM.
-self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' }>) => {
+self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' } | { type: 'skip' }>) => {
   if (data.type === 'stop') { dispose(); self.close(); return; }
+  if (data.type === 'skip') { skip(); return; }
   const requested = data.threads ?? Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 2) - 1));
   const threads = self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined' ? requested : 1;
   if (!Number.isInteger(requested) || requested < 1 || requested > 3) {
@@ -14,10 +16,17 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' }>) => {
     return;
   }
   const start = data;
+  let phase='', best:Candidate|undefined, sequence=0, elapsedOffset=0;
+  let startedAt:number|undefined;
   function launch(count: number, fallbackReason?: string) {
     const runtime = new Worker(new URL('./solver-runtime.worker.ts', import.meta.url), { type: 'module' });
     const pool: Worker[] = [];
     let ready = false, closed = false;
+    skip=()=>{
+      if(closed||phase!=='Exploration'||!best)return;
+      start.compressionStart=best.solution;phase='Compression';elapsedOffset=performance.now()-(startedAt??performance.now());
+      dispose();launch(count,fallbackReason);
+    };
     dispose = () => { closed = true; clearTimeout(timer); runtime.terminate(); pool.forEach(worker => worker.terminate()); };
     const fail = (message: string) => {
       if (closed) return;
@@ -48,6 +57,11 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' }>) => {
       }
       if (message.type === 'error') { fail(message.message); return; }
       if (message.type === 'ready') { ready = true; clearTimeout(timer); }
+      if(message.type==='phase'){phase=message.phase;startedAt??=performance.now();}
+      if(message.type==='candidate'||message.type==='live'){
+        message.sequence=++sequence;message.elapsedMs+=elapsedOffset;
+        if(message.type==='candidate'&&(!best||message.solution.strip_width<best.solution.strip_width))best=message;
+      }
       self.postMessage(message.type === 'ready' ? { ...message, fallbackReason } : message);
     };
     runtime.onerror = event => { event.preventDefault(); fail(event.message || 'The solver runtime failed.'); };

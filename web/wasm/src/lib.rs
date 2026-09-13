@@ -1,12 +1,12 @@
 use jagua_rs::Instant;
 use jagua_rs::io::import::Importer;
-use jagua_rs::probs::spp::entities::{SPInstance, SPSolution};
-use jagua_rs::probs::spp::io::{export, ext_repr::ExtSPInstance, import_instance};
+use jagua_rs::probs::spp::entities::{SPInstance, SPProblem, SPSolution};
+use jagua_rs::probs::spp::io::{export, ext_repr::{ExtSPInstance, ExtSPSolution}, import_instance, import_solution};
 use rand::{SeedableRng, rngs::Xoshiro256PlusPlus};
 use serde_json::json;
 use sparrow::config::{DEFAULT_SPARROW_CONFIG, ShrinkDecayStrategy, SparrowConfig};
 use sparrow::consts::{DEFAULT_FAIL_DECAY_RATIO_CMPR, DEFAULT_MAX_CONSEQ_FAILS_EXPL};
-use sparrow::optimizer::optimize;
+use sparrow::optimizer::{optimize, compress::compression_phase, separator::Separator};
 use sparrow::util::listener::{OptimizationPhase, ReportType, SolutionListener};
 use sparrow::util::terminator::{BasicTerminator, Terminator};
 use std::time::Duration;
@@ -68,7 +68,7 @@ impl SolutionListener for Listener {
 
 /// The worker validates normalized geometry before crossing the WASM boundary.
 #[wasm_bindgen]
-pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset: &str, callback: js_sys::Function) -> Result<(), JsValue> {
+pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset: &str, callback: js_sys::Function, compression_start: Option<String>) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     let initialized_at = Instant::now();
     if !matches!(seconds, None | Some(10 | 30 | 60 | 120 | 300 | 600)) || input.len() > 10 * 1024 * 1024 || !clearance.is_finite() || clearance < 0.0 {
@@ -90,9 +90,24 @@ pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset
     let mut listener = Listener { callback, initialized_at, solve_started_at: None, sequence: 0,
         exploration_workers: config.expl_cfg.separator_config.n_workers,
         compression_workers: config.cmpr_cfg.separator_config.n_workers };
-    optimize(instance, Xoshiro256PlusPlus::seed_from_u64(seed), &mut listener,
-        &mut WebTerminator { timed: seconds.is_some(), inner: BasicTerminator::new() }, &config.expl_cfg, &config.cmpr_cfg, None)
+    let mut terminator = WebTerminator { timed: seconds.is_some(), inner: BasicTerminator::new() };
+    if let Some(snapshot) = compression_start {
+        let external_solution: ExtSPSolution = serde_json::from_str(&snapshot)
+            .map_err(|error| JsValue::from_str(&error.to_string()))?;
+        validate_compression_start(&external, &external_solution).map_err(JsValue::from_str)?;
+        let solution = import_solution(&instance, &external_solution);
+        let mut problem = SPProblem::new(instance.clone());
+        problem.restore(&solution);
+        listener.report_phase(OptimizationPhase::Compression);
+        terminator.new_timeout(config.cmpr_cfg.time_limit);
+        let mut separator = Separator::new(instance.clone(), problem, Xoshiro256PlusPlus::seed_from_u64(seed), config.cmpr_cfg.separator_config);
+        let compressed = compression_phase(&instance, &mut separator, &solution, &mut listener, &terminator, &config.cmpr_cfg);
+        listener.report(ReportType::Final, &compressed, &instance);
+    } else {
+        optimize(instance, Xoshiro256PlusPlus::seed_from_u64(seed), &mut listener,
+            &mut terminator, &config.expl_cfg, &config.cmpr_cfg, None)
         .map_err(|error| JsValue::from_str(&format!("No valid initial placement could be constructed for item {}. Review the part size, allowed rotations, material width, and clearance.", error.item_id)))?;
+    }
     listener.send(json!({"type": "finished"}));
     Ok(())
 }
@@ -141,4 +156,25 @@ impl Terminator for WebTerminator {
         if self.timed { self.inner.new_timeout(timeout); }
     }
     fn timeout_at(&self) -> Option<Instant> { self.inner.timeout_at() }
+}
+
+// Only native feasible snapshots are supplied by the coordinator. Check their
+// dimensions and placements before importing into jagua's infallible API.
+fn validate_compression_start(instance: &ExtSPInstance, solution: &ExtSPSolution) -> Result<(), &'static str> {
+    if !solution.strip_width.is_finite() || solution.strip_width <= 0.0 {
+        return Err("Invalid compression width");
+    }
+    let mut counts = vec![0_u64; instance.items.len()];
+    for placement in &solution.layout.placed_items {
+        let Some(count) = counts.get_mut(placement.item_id as usize) else { return Err("Invalid compression item"); };
+        let transform = &placement.transformation;
+        if !transform.rotation.is_finite() || !transform.translation.0.is_finite() || !transform.translation.1.is_finite() {
+            return Err("Invalid compression placement");
+        }
+        *count += 1;
+    }
+    if counts.iter().zip(&instance.items).any(|(count, item)| *count != item.demand) {
+        return Err("Invalid compression quantities");
+    }
+    Ok(())
 }

@@ -8,7 +8,7 @@ export type RunState='Ready'|'Initializing'|'Running'|'Checking'|'Complete'|'Sto
 export type Timing={sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
 // Cumulative milliseconds since Nest was requested, including preparation and worker loading.
 type StartupTiming={preparedMs:number;solverReadyMs?:number;firstCandidateMs?:number;firstValidMs?:number;firstPreviewMs?:number;firstResultRenderedMs?:number};
-export type Diagnostics={solverRevision:string;seed:string;buildMode:string;solverBinary?:SolverBinary;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
+export type Diagnostics={phases?:{phase:string;elapsedMs:number}[];compressionRequestedMs?:number;solverRevision:string;seed:string;buildMode:string;solverBinary?:SolverBinary;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
 export type LiveFrame=LiveGeometry & {sequence:number;result:Result;report:string};
 type Run={id:number;revision:number;doc:Document;seed:string;requestedAt:number;solver?:Worker;checker:Worker;preview:Worker;active?:{candidate:Candidate;result:Result};
   latest?:Candidate;previewActive?:{candidate:Candidate;result:Result};frame?:LiveFrame;previewSequence:number;previewError?:string;
@@ -26,6 +26,7 @@ export function candidateResult(doc:Document,candidate:Candidate,seed:string):Re
 }
 export function useSolver() {
   const [state,setState]=useState<RunState>('Ready'),[result,setResult]=useState<Result>(),[elapsed,setElapsed]=useState(0),[error,setError]=useState('');
+  const [phase,setPhase]=useState<string>(),[skipping,setSkipping]=useState(false);
   const [live,setLive]=useState<LiveFrame>(),[liveError,setLiveError]=useState('');
   const [workers,setWorkers]=useState<{actual:number;requested?:number;reason?:string}>();
   const run=useRef<Run|undefined>(undefined),serial=useRef(0);
@@ -39,7 +40,7 @@ export function useSolver() {
   function clear() {
     const r=run.current;
     if(r) {r.solver?.postMessage({type:'stop'});r.checker.terminate();r.preview.terminate();clearTimeout(r.watchdog);clearTimeout(r.validationWatchdog);}
-    run.current=undefined;
+    run.current=undefined;setPhase(undefined);setSkipping(false);
   }
   useEffect(()=>{
     const timer=setInterval(()=>{
@@ -124,8 +125,10 @@ export function useSolver() {
     solver.onmessage=({data}:MessageEvent<SolverMessage>)=>{
       if(run.current!==r || !r.solver || data.runId!==r.id || data.documentRevision!==r.revision) return;
       switch(data.type) {
-        case 'ready': startup.solverReadyMs=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.solverBinary=data.solverBinary;r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, ${data.simd?'SIMD':'no SIMD'}${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
+        case 'ready': startup.solverReadyMs??=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.solverBinary=data.solverBinary;r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, ${data.simd?'SIMD':'no SIMD'}${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
+          setPhase(data.phase);setSkipping(false);
+          (r.diagnostics.phases??=[]).push({phase:data.phase,elapsedMs:r.startedAt?performance.now()-r.startedAt:0});
           setWorkers(previous=>previous?{...previous,actual:data.workers}:previous);
           if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);if(doc.settings.timeLimitSeconds!==null)r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}
           setState('Running');break;
@@ -147,5 +150,11 @@ export function useSolver() {
     clear();setWorkers(undefined);setLive(undefined);setLiveError('');setResult(checked);setElapsed(checked.elapsedSeconds);setState('Complete');setError('');
     diagnostics.current={solverRevision:checked.solverRevision,seed:checked.seed,buildMode:'Loaded project; result rechecked locally',stopReason:'Loaded project',history:[],liveErrors:[]};
   }
-  return {state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
+  function skipToCompression() {
+    const r=run.current;
+    if(!r?.solver||r.ended||phase!=='Exploration'||skipping||!r.best)return;
+    setSkipping(true);r.diagnostics.compressionRequestedMs=r.startedAt?performance.now()-r.startedAt:0;
+    r.solver.postMessage({type:'skip'});
+  }
+  return {phase,skipping,skipToCompression,state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
 }

@@ -102,3 +102,21 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .remove-part{flex:none;display:grid;place-items:center;width:28px;min-height:32px;padding:4px;border:0;background:transparent;color:var(--muted)}.clear-unused{margin:8px 16px;text-align:left}
 
 .project-status{display:flex;align-items:center;gap:5px;min-width:100px}.project-status>span{flex:none;font-size:14px}.project-status[data-save-state=saved]{color:var(--accent)}.project-status[data-save-state=saving],.project-status[data-save-state=unsaved],.project-status[data-save-state=error]{color:light-dark(#a34b00,#ffb366)}
+
+.statusbar .run-controls{display:flex;gap:0}
+.run-controls .run-button{width:auto;flex:1;min-width:0}
+.run-controls:has(.skip-compression) .run-button{padding-inline:0}
+.run-controls:has(.skip-compression) .run-button:first-of-type{flex:2;border-radius:8px 0 0 8px}
+.run-controls .skip-compression{border-radius:0 8px 8px 0;background:#a5d6bd;color:#173d2e;border-color:#a5d6bd;display:flex;align-items:center;justify-content:center}
+.run-controls .skip-compression:hover:enabled{background:#bce4cf;border-color:#bce4cf}
+.statusbar>.run-status{width:180px;min-width:180px;column-gap:10px}
+.run-state{gap:6px;flex-wrap:wrap;min-width:0;white-space:normal;line-height:1.4}
+.run-elapsed{white-space:nowrap;color:var(--muted)}
+@media(max-width:699px){.statusbar>.run-status{width:160px;min-width:0}.run-state{font-size:11px}.statusbar .run-controls{min-width:0}}
+
+.project-switch-actions{display:grid;gap:8px}.project-switch-actions button{width:100%;min-height:44px}
+
+.run-controls{position:relative}
+.compression-tooltip{display:none;position:absolute;bottom:calc(100% + 8px);left:16px;right:16px;z-index:10;padding:10px 12px;border:1px solid var(--border);border-radius:8px;background:var(--panel);color:var(--ink);box-shadow:0 4px 16px #0002;font-size:12px;line-height:1.45}
+.compression-tooltip strong{display:block;margin-bottom:4px}
+.run-controls:has(.skip-compression:hover) .compression-tooltip,.run-controls:has(.skip-compression:focus-visible) .compression-tooltip,.compression-tooltip:hover{display:block}

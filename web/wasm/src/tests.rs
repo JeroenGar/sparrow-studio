@@ -39,6 +39,13 @@ fn clearance_is_a_full_gap_and_a_full_edge_allowance() {
     )
     .construct().unwrap();
     let solution = export(&instance, &builder.prob.save(), epoch);
+    assert!(validate_compression_start(&input, &solution).is_ok());
+    let mut invalid = solution.clone();
+    invalid.layout.placed_items.pop();
+    assert!(validate_compression_start(&input, &invalid).is_err());
+    invalid = solution.clone();
+    invalid.layout.placed_items[0].item_id = 100;
+    assert!(validate_compression_start(&input, &invalid).is_err());
     let mut positions: Vec<_> = solution
         .layout
         .placed_items
@@ -77,6 +84,7 @@ fn fast_preset_matches_imported_search_config_and_respects_worker_limit() {
     assert_eq!(serial.expl_cfg.separator_config.n_workers, 1);
     assert_eq!(serial.cmpr_cfg.separator_config.n_workers, 1);
     assert_eq!(serial.expl_cfg.time_limit, Duration::from_secs(240));
+    assert_eq!(serial.cmpr_cfg.time_limit, Duration::from_secs(60));
     let standard = solver_config("standard", 3, None).unwrap();
     assert_eq!(
         standard.expl_cfg.shrink_step,
