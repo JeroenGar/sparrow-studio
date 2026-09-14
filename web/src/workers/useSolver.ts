@@ -5,7 +5,7 @@ import type { Candidate, GeometryReply, SolverMessage } from './protocol';
 import type {LiveGeometry} from '../geometry/live';
 
 export type RunState='Ready'|'Initializing'|'Running'|'Checking'|'Complete'|'Stopped'|'Error';
-export type Timing={sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
+export type Timing={phase?:string;sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
 // Cumulative milliseconds since Nest was requested, including preparation and worker loading.
 type StartupTiming={preparedMs:number;solverReadyMs?:number;firstCandidateMs?:number;firstValidMs?:number;firstPreviewMs?:number;firstResultRenderedMs?:number};
 export type Diagnostics={phases?:{phase:string;elapsedMs:number}[];compressionRequestedMs?:number;solverRevision:string;seed:string;buildMode:string;solverBinary?:SolverBinary;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
@@ -23,6 +23,14 @@ export function candidateResult(doc:Document,candidate:Candidate,seed:string):Re
       const copyIndex=copies.get(partId) ?? 0; copies.set(partId,copyIndex+1);
       return {partId,copyIndex,xMm:p.transformation.translation[0],yMm:p.transformation.translation[1],angleDeg:p.transformation.rotation};
     }), validation:{status:'pending',overlapAreaMm2:0,maxBoundaryViolationMm:0,minClearanceMm:null,errors:[]}};
+}
+export function phaseImprovements(history:Timing[],lengthMm:number) {
+  const valid=history.filter(entry=>entry.validation==='passed'),first=valid[0];
+  if(!first)return undefined;
+  const exploration=valid.filter(entry=>entry.phase!=='Compression');
+  if(!exploration.length)return undefined;
+  const explored=Math.min(...exploration.map(entry=>entry.lengthMm));
+  return {explore:(1-explored/first.lengthMm)*100,compress:Math.max(0,(1-lengthMm/explored)*100)};
 }
 export function useSolver() {
   const [state,setState]=useState<RunState>('Ready'),[result,setResult]=useState<Result>(),[elapsed,setElapsed]=useState(0),[error,setError]=useState('');
@@ -136,7 +144,7 @@ export function useSolver() {
         case 'candidate':
           startup.firstCandidateMs??=performance.now()-requestedAt;
           r.latest=data;r.diagnostics.liveSnapshots!++;
-          r.diagnostics.history.push({sequence:data.sequence,elapsedMs:data.elapsedMs,lengthMm:data.solution.strip_width});
+          r.diagnostics.history.push({phase:r.diagnostics.phases?.at(-1)?.phase,sequence:data.sequence,elapsedMs:data.elapsedMs,lengthMm:data.solution.strip_width});
           check(r,data);break;
         case 'finished': end('Complete');break;
         case 'error': end('Error',data.message);break;
