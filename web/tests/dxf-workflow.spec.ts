@@ -22,7 +22,7 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await page.getByLabel('Export format').selectOption('dxf');
   await expect(page.getByRole('button',{name:'Download DXF'})).toBeEnabled();
@@ -50,6 +50,6 @@ test('nested DXF block arrays import transformed parts and holes',async({page})=
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled();
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
 });

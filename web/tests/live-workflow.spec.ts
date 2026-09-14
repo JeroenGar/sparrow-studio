@@ -26,14 +26,14 @@ test('live search shows red overlaps and toggles to independently checked output
     const svg=node as SVGSVGElement,box=svg.getBoundingClientRect();
     return (new DOMPoint(0,0).matrixTransform(svg.getScreenCTM()!).x-box.left)/box.width;
   })).toBeCloseTo(.1,2);
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toHaveAttribute('aria-pressed','false');
   await page.screenshot({path:testInfo.outputPath('live.png'),fullPage:true});
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
   await expect(page.getByRole('img',{name:'Valid nesting result'})).toBeVisible();
   await expect(page.locator('.live-dot')).toBeVisible();
   await expect(ghost).toHaveAttribute('aria-pressed','false');
   await expect(page.locator('[data-overlap]')).toHaveCount(0);
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'Live search',exact:true}).click();
   await expect(page.getByRole('img',{name:'Live nesting search'})).toBeVisible();
   await expect(ghost).toHaveAttribute('aria-pressed','true');

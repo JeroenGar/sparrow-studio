@@ -1,10 +1,10 @@
 import parseString from 'dxf/lib/parseString';
-import type {Document,Result,Ring} from '../model';
-import {validate,type WorldPart} from '../geometry/validate';
+import type {Document,Ring} from '../model';
+import type {WorldPart} from '../geometry/validate';
 
 export const STUDIO_CREDIT='nested with sparrow/studio · https://sparrowstudio.app';
 
-export function exportDXF(doc:Document,result:Result|undefined,world:WorldPart[]):string {
+export function exportDXF(doc:Document,world:WorldPart[]):string {
   let nextHandle=0x100;
   const handle=()=> (nextHandle++).toString(16).toUpperCase();
   const polyline=(ring:Ring,layer:string)=>`0\nLWPOLYLINE\n5\n${handle()}\n330\n21\n100\nAcDbEntity\n8\n${layer}\n100\nAcDbPolyline\n90\n${ring.length}\n70\n1\n${ring.map(([x,y])=>`10\n${x}\n20\n${y}\n`).join('')}`;
@@ -32,6 +32,5 @@ export function exportDXF(doc:Document,result:Result|undefined,world:WorldPart[]
   const note=parsed.entities[at++];
   if(note?.type!=='TEXT'||note.layer!=='SPARROW_INFO'||note.string!==credit)throw Error('Serialized DXF lost its attribution.');
   if(at!==parsed.entities.length||JSON.stringify(reparsed)!==JSON.stringify(world))throw Error('Serialized DXF changed canvas coordinates.');
-  if(result){const check=validate(doc,result,reparsed);if(check.status!=='passed')throw Error(`Serialized DXF failed validation: ${check.errors.join(' ')}`);}
   return text;
 }

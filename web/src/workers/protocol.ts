@@ -1,5 +1,5 @@
 import type { SolverBinary } from '../wasm';
-import type { Document, Part, Point, Result, Validation } from '../model';
+import type { Document, Part, Point, Result } from '../model';
 import type { ImportReview } from '../import/sparrow';
 import type { ExportBundle } from '../export/svg';
 import type { LiveGeometry } from '../geometry/live';
@@ -7,18 +7,18 @@ import type {GeometryEdit} from '../geometry/manipulate';
 import type {CopyRef} from '../geometry/placements';
 import type {LabelPoint} from '../geometry/preparation';
 export type Identity = { runId: number; documentRevision: number };
-export type Start = Identity & { seed: string; threads?: number; compressionStart?: Candidate['solution'] } & (
+export type Start = Identity & { seed: string; threads?: number; control?: SharedArrayBuffer } & (
   | { type: 'start'; document: Document }
   | { type: 'bridge'; input: string; seconds: 10 }
 );
 export type Placement = { item_id: number; transformation: { rotation: number; translation: [number, number] } };
 export type SolverMessage = Identity & (
-  | { type: 'ready'; threads: number; solverBinary: SolverBinary; simd: boolean; fallbackReason?: string }
+  | { type: 'ready'; threads: number; solverBinary: SolverBinary; simd: boolean; canSkip: boolean; fallbackReason?: string }
   | { type: 'phase'; phase: string; workers: number; initializationMs: number }
   | (({ type:'candidate' }|{ type:'live' }) & { sequence:number; report:string; elapsedMs:number;
       solution: { strip_width: number; layout: { placed_items: Placement[] } } })
   | { type: 'solver-log'; line:string; timestamp:number }
-  | { type:'run-input'; input:string; seed:string; seconds:number|null; clearance:number; preset:string; threads:number; solverBinary:SolverBinary; compressionStart?:{strip_width:number;layout:{placed_items:Placement[]}} }
+  | { type:'run-input'; input:string; seed:string; seconds:number|null; clearance:number; preset:string; threads:number; solverBinary:SolverBinary }
   | { type:'configuration'; configuration:string }
   | { type: 'finished' }
   | { type: 'error'; message: string }
@@ -33,7 +33,6 @@ export type GeometryRequest = Identity & (
   | { type:'edit-selection'; document:Document; ids:string[]; edit:GeometryEdit; refs?:CopyRef[] }
   | { type:'library'; text:string; fileName:string }
   | { type:'import'; files:{name:string;text:string}[]; scale:number; tolerance?:number; enclosed?:'holes'|'parts'; layers?:string[] }
-  | { type:'validate'; sequence:number; document:Document; result:Result }
   | { type:'export'; document:Document; result?:Result }
   | { type:'archive'; document:Document; result?:Result }
   | { type:'live-preview'; sequence:number; document:Document; result:Result }
@@ -43,7 +42,6 @@ export type GeometryReply = Identity & (
   | { type:'normalized'; document:Document }
   | { type:'label-points'; points:LabelPoint[] }
   | { type:'import-review'; review:ImportReview }
-  | { type:'validation-result'; sequence:number; validation:Validation; elapsedMs:number }
   | { type:'export-result'; bundle:ExportBundle }
   | { type:'archive-result'; archive:Uint8Array }
   | { type:'live-frame'; sequence:number; geometry:LiveGeometry }

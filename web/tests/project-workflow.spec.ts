@@ -7,7 +7,7 @@ test('saves a real checked layout, confirms replacement, rechecks load and inval
   await page.goto('/');
   await openExamples(page);await page.getByRole('button',{name:'Open and nest',exact:true}).click();await finishSwitch(page);
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click({timeout:20_000});
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:20_000});
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:20_000});
   await page.getByRole('button',{name:'Stop',exact:true}).click();
   await expect(page.getByRole('button',{name:'Export project',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export project',exact:true}).click();

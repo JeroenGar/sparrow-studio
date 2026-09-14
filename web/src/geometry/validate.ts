@@ -30,7 +30,7 @@ function distance(a: Ring,b: Ring): number {
   return min;
 }
 export function validate(doc: Document, result: Result, serialized?: WorldPart[]): Validation {
-  const v: Validation = { status:'failed', overlapAreaMm2:0, maxBoundaryViolationMm:0, minClearanceMm:null, errors:[] };
+  const v: Validation & {overlapAreaMm2:number;maxBoundaryViolationMm:number} = { status:'failed', overlapAreaMm2:0, maxBoundaryViolationMm:0, minClearanceMm:null, errors:[] };
   try {
     doc=normalizeDocument(doc);
     if(!Number.isFinite(result.usedLengthMm) || result.usedLengthMm<=0 || result.usedLengthMm>LIMITS.extent) throw Error('Used length must be finite, positive, and at most 100,000 mm.');

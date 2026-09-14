@@ -11,9 +11,9 @@ original file or exact source URL. Declared dual-license choices are preserved.
 Rust standard-library notices are distributed alongside this file. See the
 toolchain section below. Dataset provenance and license: examples/NOTICE.txt.
 
-jagua-rs 0.8.1 is MPL-2.0. Its upstream source is available at:
-https://github.com/JeroenGar/jagua-rs/tree/824ab31cf8a58eecf5d87527260c92510626661b/jagua-rs
-https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
+jagua-rs 0.8.2 is MPL-2.0. Its upstream source is available at:
+https://github.com/JeroenGar/jagua-rs/tree/d03e82190c40a21afbc1fabed19876401d0572bc/jagua-rs
+https://crates.io/api/v1/crates/jagua-rs/0.8.2/download
 Studio uses the unmodified published jagua-rs crate. The MPL text is included below.
 The solver sparrow is MIT at its pinned revision;
 it is distinct from the original sparroWASM wrapper repository's MPL license.
@@ -915,13 +915,13 @@ Package VCS metadata: {"git": {"sha1": "af77385d0daf4d0e949e81f2588be2e44f69f086
   LICENSE-MIT
   Text SHA-256: 23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3
 
-Rust jagua-rs 0.8.1
+Rust jagua-rs 0.8.2
 Declared license: MPL-2.0
-Source: https://crates.io/api/v1/crates/jagua-rs/0.8.1/download
+Source: https://crates.io/api/v1/crates/jagua-rs/0.8.2/download
 Repository: https://github.com/JeroenGar/jagua-rs
 Authors: Jeroen Gardeyn
-Package VCS metadata: {"git": {"sha1": "824ab31cf8a58eecf5d87527260c92510626661b"}, "path_in_vcs": "jagua-rs"}
-  https://raw.githubusercontent.com/JeroenGar/jagua-rs/824ab31cf8a58eecf5d87527260c92510626661b/LICENSE
+Package VCS metadata: {"git": {"sha1": "d03e82190c40a21afbc1fabed19876401d0572bc"}, "path_in_vcs": "jagua-rs"}
+  https://raw.githubusercontent.com/JeroenGar/jagua-rs/d03e82190c40a21afbc1fabed19876401d0572bc/LICENSE
   Text SHA-256: 1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5
 
 Rust jiff 0.2.35

@@ -1,4 +1,4 @@
-import type { Start, SolverMessage, Candidate } from './protocol';
+import type { Start, SolverMessage } from './protocol';
 
 type PoolInit = { type: 'pool-init'; threads: number; init: { module_or_path: WebAssembly.Module; memory: WebAssembly.Memory }; receiver: number };
 let dispose = () => {};
@@ -16,16 +16,14 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' } | { type: 'ski
     return;
   }
   const start = data;
-  let phase='', best:Candidate|undefined, sequence=0, elapsedOffset=0;
-  let startedAt:number|undefined;
+  let phase='';
+  const control = self.crossOriginIsolated && typeof SharedArrayBuffer !== 'undefined' ? new Int32Array(new SharedArrayBuffer(4)) : undefined;
   function launch(count: number, fallbackReason?: string) {
     const runtime = new Worker(new URL('./solver-runtime.worker.ts', import.meta.url), { type: 'module' });
     const pool: Worker[] = [];
     let ready = false, closed = false;
     skip=()=>{
-      if(closed||phase!=='Exploration'||!best)return;
-      start.compressionStart=best.solution;phase='Compression';elapsedOffset=performance.now()-(startedAt??performance.now());
-      dispose();launch(count,fallbackReason);
+      if(!closed && phase==='Exploration' && control) Atomics.compareExchange(control,0,0,1);
     };
     dispose = () => { closed = true; clearTimeout(timer); runtime.terminate(); pool.forEach(worker => worker.terminate()); };
     const fail = (message: string) => {
@@ -59,15 +57,11 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' } | { type: 'ski
       if (message.type === 'solver-log') { self.postMessage({...message,runId:start.runId,documentRevision:start.documentRevision});return; }
       if (message.type === 'error') { fail(message.message); return; }
       if (message.type === 'ready') { ready = true; clearTimeout(timer); }
-      if(message.type==='phase'){phase=message.phase;startedAt??=performance.now();}
-      if(message.type==='candidate'||message.type==='live'){
-        message.sequence=++sequence;message.elapsedMs+=elapsedOffset;
-        if(message.type==='candidate'&&(!best||message.solution.strip_width<best.solution.strip_width))best=message;
-      }
+      if(message.type==='phase')phase=message.phase;
       self.postMessage(message.type === 'ready' ? { ...message, fallbackReason } : message);
     };
     runtime.onerror = event => { event.preventDefault(); fail(event.message || 'The solver runtime failed.'); };
-    runtime.postMessage({ ...start, threads: count });
+    runtime.postMessage({ ...start, threads: count, control: control?.buffer });
   }
   dispose();
   launch(threads,threads<requested?'Shared memory is unavailable in this browser session.':undefined);

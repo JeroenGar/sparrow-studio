@@ -11,8 +11,8 @@ export type Settings = { solverPreset?: 'standard' | 'fast'; materialWidthMm: nu
 export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: number; angleDeg: number };
 /** A document keeps the editable position of every demanded copy. */
 export type Document = { name: string; parts: Part[]; settings: Settings; placements?: Placement[] };
-export type Validation = { status: 'pending' | 'passed' | 'failed'; overlapAreaMm2: number;
-  maxBoundaryViolationMm: number; minClearanceMm: number | null; errors: string[] };
+export type Validation = { status: 'pending' | 'passed' | 'failed'; source?: 'solver'; overlapAreaMm2: number | null;
+  maxBoundaryViolationMm: number | null; minClearanceMm: number | null; errors: string[] };
 export type Result = { documentRevision: number; solverRevision: string; seed: string;
   elapsedSeconds: number; usedLengthMm: number; placements: Placement[]; validation: Validation };
 export type Project = Document & { schemaVersion: 1; revision: number; result?: Result };

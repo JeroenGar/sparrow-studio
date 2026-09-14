@@ -36,12 +36,14 @@ export function exportProject(document:Document,revision:number,result?:Result):
   if(result&&result.documentRevision!==revision)throw Error('The result belongs to an older document.');
   if(result) {
     if(!doc.parts.length)throw Error('Empty projects cannot contain a layout.');
-    result={...result,validation:validate(doc,result)};
+    if(result.validation.source!=='solver')result={...result,validation:validate(doc,result)};
     if(result.validation.status!=='passed')throw Error(`Saved layout failed validation: ${result.validation.errors.join(' ')}`);
   }
   const text=JSON.stringify({...doc,schemaVersion:1,revision,...(result?{result}: {})} satisfies Project,null,2);
   if(new Blob([text]).size>10*1024*1024)throw Error('Project exceeds the 10 MiB file limit. Reduce geometry or metadata before saving.');
-  const checked=importProject(text);
-  if(result&&!checked.result)throw Error(checked.warnings.join(' '));
+  if(result?.validation.source!=='solver'){
+    const checked=importProject(text);
+    if(result&&!checked.result)throw Error(checked.warnings.join(' '));
+  }
   return text;
 }

@@ -29,11 +29,13 @@ test('issue reporting stays in About and follows either diagnostics download',as
   }
 });
 
-for(const isolated of [true,false])test(`Info logs survive Stop and phase skip (${isolated?'threaded':'serial'})`,async({browser},testInfo)=>{
-  const context=await browser.newContext({serviceWorkers:isolated?'allow':'block'});
+for(const threads of [1,3])test(`Info logs survive Stop and phase skip (${threads} workers)`,async({browser},testInfo)=>{
+  const context=await browser.newContext({serviceWorkers:'allow'});
   try{
     const page=await context.newPage();await page.goto('/');
     await expect(page.locator('.part-row')).toHaveCount(50);
+    await page.locator('.solver-options>summary').click();
+    await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption(String(threads));
     await page.getByRole('button',{name:'Nest parts',exact:true}).click();
     const skip=page.getByRole('button',{name:'Skip to compression',exact:true});await expect(skip).toBeEnabled();
     await skip.click();await expect(page.getByRole('status')).toContainText('Compression');
@@ -45,9 +47,9 @@ for(const isolated of [true,false])test(`Info logs survive Stop and phase skip (
     const request=JSON.parse(archiveEntry(bytes,'reproduction/attempt-1/request.json'));
     const details=await readDiagnostics(path);
     expect(input.items).toHaveLength(50);expect(request.seed).toBe(details.seed);
-    expect(request.threads).toBe(isolated?3:1);
+    expect(request.threads).toBe(threads);
     expect(archiveEntry(bytes,'reproduction/attempt-1/effective-config.txt')).toContain('SparrowConfig');
-    expect(JSON.parse(archiveEntry(bytes,'reproduction/attempt-2/compression-start.json')).layout.placed_items).toHaveLength(50);
+    expect(details.attempts).toHaveLength(1);
     expect(details.runDocument.parts).toHaveLength(50);
     expect(logs).toContain('INFO');expect(logs).not.toMatch(/(?:DEBUG|TRACE) \[/);
     expect(logs).toContain('[EXPL]');expect(logs).toContain('[CMPR]');

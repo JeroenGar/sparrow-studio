@@ -529,9 +529,9 @@ checksum = "8f42a60cbdf9a97f5d2305f08a87dc4e09308d1276d28c869c684d7777685682"
 
 [[package]]
 name = "jagua-rs"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d7caee14697389b200dcae02809a50e301ccc3316dbd7b732e77d50923d46c4"
+checksum = "2828f3bf739e14f20e55e372c47a111ab56c14f9244c48b42fa0227941526f89"
 dependencies = [
  "anyhow",
  "document-features",

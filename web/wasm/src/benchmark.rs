@@ -9,7 +9,7 @@ pub fn benchmark(input: &str, seed: u32, separations_per_phase: u32) -> String {
     let start = Instant::now();
     let external: ExtSPInstance = serde_json::from_str(input).unwrap();
     let config = solver_config("standard", 1, None).unwrap();
-    let importer = Importer::new(config.cde_config, None, None, None);
+    let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
     let instance = import_instance(&importer, &external).unwrap();
     let imported_ms = start.elapsed().as_secs_f64() * 1000.0;
     let completed = Cell::new(0);

@@ -22,15 +22,18 @@ self.onmessage = async ({ data }: MessageEvent<Start | {type:'preload';threads:n
     // Download and compile off the UI thread; actual runs still own fresh workers.
     if(data.type==='preload'){self.postMessage({type:'preloaded'});self.close();return;}
     const solverBinary: SolverBinary = `${data.threads && data.threads > 1 ? 'threaded' : 'serial'}-${supportsSIMD ? 'simd' : 'nosimd'}`;
-    send({ type: 'ready', threads: wasm.thread_count(), solverBinary, simd: supportsSIMD });
+    send({ type: 'ready', threads: wasm.thread_count(), solverBinary, simd: supportsSIMD, canSkip: !!data.control });
     const doc=data.type==='start'?normalizeDocument(data.document):null;
     const input=doc?solverInput(doc):(data as Extract<Start,{type:'bridge'}>).input;
     const seconds=data.type==='bridge'?data.seconds:doc!.settings.timeLimitSeconds,clearance=doc?.settings.clearanceMm??0,preset=doc?.settings.solverPreset??'standard';
-    send({type:'run-input',input,seed:data.seed,seconds,clearance,preset,threads:wasm.thread_count(),solverBinary,compressionStart:data.compressionStart});
+    send({type:'run-input',input,seed:data.seed,seconds,clearance,preset,threads:wasm.thread_count(),solverBinary});
+    const control=data.control?new Int32Array(data.control):undefined;
     wasm.run(input, seconds??undefined, data.seed, clearance, preset, (json: string) => {
       const message = JSON.parse(json) as SolverMessage;
+      // Close the Skip gate synchronously, before the coordinator receives the phase change.
+      if(control&&message.type==='phase'&&message.phase==='Compression')Atomics.store(control,0,-1);
       send(message);
-    }, data.compressionStart?JSON.stringify(data.compressionStart):undefined);
+    }, control?(reset:boolean)=>{if(reset)Atomics.compareExchange(control,0,1,0);return Atomics.load(control,0)===1;}:undefined);
   } catch (error) {
     send({ type: 'error', message: String(error) });
     if(data.type==='preload')self.close();

@@ -1,12 +1,12 @@
 use jagua_rs::Instant;
 use jagua_rs::io::import::Importer;
-use jagua_rs::probs::spp::entities::{SPInstance, SPProblem, SPSolution};
-use jagua_rs::probs::spp::io::{export, ext_repr::{ExtSPInstance, ExtSPSolution}, import_instance, import_solution};
+use jagua_rs::probs::spp::entities::{SPInstance, SPSolution};
+use jagua_rs::probs::spp::io::{export, ext_repr::ExtSPInstance, import_instance};
 use rand::{SeedableRng, rngs::Xoshiro256PlusPlus};
 use serde_json::json;
 use sparrow::config::{DEFAULT_SPARROW_CONFIG, ShrinkDecayStrategy, SparrowConfig};
 use sparrow::consts::{DEFAULT_FAIL_DECAY_RATIO_CMPR, DEFAULT_MAX_CONSEQ_FAILS_EXPL};
-use sparrow::optimizer::{optimize, compress::compression_phase, separator::Separator};
+use sparrow::optimizer::optimize;
 use sparrow::util::listener::{OptimizationPhase, ReportType, SolutionListener};
 use sparrow::util::terminator::{BasicTerminator, Terminator};
 use std::time::Duration;
@@ -37,6 +37,7 @@ struct Listener {
     initialized_at: Instant,
     solve_started_at: Option<Instant>,
     sequence: u32,
+    last_snapshot: Option<Instant>,
     exploration_workers: usize,
     compression_workers: usize,
 }
@@ -59,6 +60,12 @@ impl SolutionListener for Listener {
 
     fn report(&mut self, report: ReportType, solution: &SPSolution, instance: &SPInstance) {
         let feasible = matches!(report, ReportType::ExplFeas | ReportType::CmprFeas | ReportType::Final);
+        let now = Instant::now();
+        // Throttle live serialization at the source; always deliver feasible results.
+        if !feasible && self.last_snapshot.is_some_and(|last| now.duration_since(last) < Duration::from_millis(100)) {
+            return;
+        }
+        self.last_snapshot = Some(now);
         self.sequence += 1;
         self.send(json!({"type": if feasible { "candidate" } else { "live" }, "sequence": self.sequence,
             "report": format!("{report:?}"),
@@ -69,7 +76,7 @@ impl SolutionListener for Listener {
 
 /// The worker validates normalized geometry before crossing the WASM boundary.
 #[wasm_bindgen]
-pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset: &str, callback: js_sys::Function, compression_start: Option<String>) -> Result<(), JsValue> {
+pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset: &str, callback: js_sys::Function, interrupt: Option<js_sys::Function>) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
     logging::init();
     let initialized_at = Instant::now();
@@ -86,8 +93,6 @@ pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset
         return Err(JsValue::from_str("Invalid strip dimensions or demand"));
     }
     let mut config = solver_config(preset, thread_count(), seconds).map_err(JsValue::from_str)?;
-    config.poly_simpl_tolerance = None;
-    config.narrow_concavity_cutoff_ratio = None;
     config.min_item_separation = (clearance > 0.0).then_some(clearance);
     callback.call1(&JsValue::NULL, &JsValue::from_str(&json!({
         "type": "configuration", "configuration": format!("{config:#?}")
@@ -95,33 +100,19 @@ pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset
     let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
     let instance = import_instance(&importer, &external)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
-    let mut listener = Listener { callback, initialized_at, solve_started_at: None, sequence: 0,
+    let mut listener = Listener { callback, initialized_at, solve_started_at: None, sequence: 0, last_snapshot: None,
         exploration_workers: config.expl_cfg.separator_config.n_workers,
         compression_workers: config.cmpr_cfg.separator_config.n_workers };
-    let mut terminator = WebTerminator { timed: seconds.is_some(), inner: BasicTerminator::new() };
-    if let Some(snapshot) = compression_start {
-        let external_solution: ExtSPSolution = serde_json::from_str(&snapshot)
-            .map_err(|error| JsValue::from_str(&error.to_string()))?;
-        validate_compression_start(&external, &external_solution).map_err(JsValue::from_str)?;
-        let solution = import_solution(&instance, &external_solution);
-        let mut problem = SPProblem::new(instance.clone());
-        problem.restore(&solution);
-        listener.report_phase(OptimizationPhase::Compression);
-        terminator.new_timeout(config.cmpr_cfg.time_limit);
-        let mut separator = Separator::new(instance.clone(), problem, Xoshiro256PlusPlus::seed_from_u64(seed), config.cmpr_cfg.separator_config);
-        let compressed = compression_phase(&instance, &mut separator, &solution, &mut listener, &terminator, &config.cmpr_cfg);
-        listener.report(ReportType::Final, &compressed, &instance);
-    } else {
-        optimize(instance, Xoshiro256PlusPlus::seed_from_u64(seed), &mut listener,
-            &mut terminator, &config.expl_cfg, &config.cmpr_cfg, None)
-        .map_err(|error| JsValue::from_str(&format!("No valid initial placement could be constructed for item {}. Review the part size, allowed rotations, material width, and clearance.", error.item_id)))?;
-    }
+    let mut terminator = WebTerminator { timed: seconds.is_some(), inner: BasicTerminator::new(), interrupt };
+    optimize(instance, Xoshiro256PlusPlus::seed_from_u64(seed), &mut listener,
+        &mut terminator, &config.expl_cfg, &config.cmpr_cfg, None)
+    .map_err(|error| JsValue::from_str(&format!("No valid initial placement could be constructed for item {}. Review the part size, allowed rotations, material width, and clearance.", error.item_id)))?;
     listener.send(json!({"type": "finished"}));
     Ok(())
 }
 
 // Fast search values imported from sparrow_extended/src/config.rs (FAST_SPARROW_CONFIG).
-// Keep Studio's exact geometry import, user clearance and stop-condition controls.
+// Keep sparrow's geometry optimizations, user clearance and stop-condition controls.
 fn solver_config(preset: &str, workers: usize, seconds: Option<u32>) -> Result<SparrowConfig, &'static str> {
     let mut config = DEFAULT_SPARROW_CONFIG;
     config.expl_cfg.max_conseq_failed_attempts = Some(DEFAULT_MAX_CONSEQ_FAILS_EXPL);
@@ -156,33 +147,20 @@ fn solver_config(preset: &str, workers: usize, seconds: Option<u32>) -> Result<S
 struct WebTerminator {
     timed: bool,
     inner: BasicTerminator,
+    interrupt: Option<js_sys::Function>,
 }
 
 impl Terminator for WebTerminator {
-    fn kill(&self) -> bool { self.inner.kill() }
+    fn kill(&self) -> bool {
+        self.inner.kill() || self.interrupt.as_ref().is_some_and(|signal|
+            signal.call1(&JsValue::NULL, &JsValue::FALSE)
+                .expect("worker must read the phase interrupt").as_bool().unwrap_or(false))
+    }
     fn new_timeout(&mut self, timeout: Duration) {
+        if let Some(signal) = &self.interrupt {
+            signal.call1(&JsValue::NULL, &JsValue::TRUE).expect("worker must reset the phase interrupt");
+        }
         if self.timed { self.inner.new_timeout(timeout); }
     }
     fn timeout_at(&self) -> Option<Instant> { self.inner.timeout_at() }
-}
-
-// Only native feasible snapshots are supplied by the coordinator. Check their
-// dimensions and placements before importing into jagua's infallible API.
-fn validate_compression_start(instance: &ExtSPInstance, solution: &ExtSPSolution) -> Result<(), &'static str> {
-    if !solution.strip_width.is_finite() || solution.strip_width <= 0.0 {
-        return Err("Invalid compression width");
-    }
-    let mut counts = vec![0_u64; instance.items.len()];
-    for placement in &solution.layout.placed_items {
-        let Some(count) = counts.get_mut(placement.item_id as usize) else { return Err("Invalid compression item"); };
-        let transform = &placement.transformation;
-        if !transform.rotation.is_finite() || !transform.translation.0.is_finite() || !transform.translation.1.is_finite() {
-            return Err("Invalid compression placement");
-        }
-        *count += 1;
-    }
-    if counts.iter().zip(&instance.items).any(|(count, item)| *count != item.demand) {
-        return Err("Invalid compression quantities");
-    }
-    Ok(())
 }

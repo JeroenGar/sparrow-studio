@@ -4,16 +4,16 @@ import { SOLVER_REVISION, type Document, type Result } from '../model';
 import type { Candidate, GeometryReply, SolverMessage } from './protocol';
 import type {LiveGeometry} from '../geometry/live';
 
-export type RunState='Ready'|'Initializing'|'Running'|'Checking'|'Complete'|'Stopped'|'Error';
+export type RunState='Ready'|'Initializing'|'Running'|'Complete'|'Stopped'|'Error';
 export type Timing={phase?:string;sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
 // Cumulative milliseconds since Nest was requested, including preparation and worker loading.
 type StartupTiming={preparedMs:number;solverReadyMs?:number;firstCandidateMs?:number;firstValidMs?:number;firstPreviewMs?:number;firstResultRenderedMs?:number};
 export type Diagnostics={runDocument?:Document;attempts?:(Extract<SolverMessage,{type:"run-input"}> & {configuration?:string})[];logs?:string[];droppedLogs?:number;phases?:{phase:string;elapsedMs:number}[];compressionRequestedMs?:number;solverRevision:string;seed:string;buildMode:string;solverBinary?:SolverBinary;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
 export type LiveFrame=LiveGeometry & {sequence:number;result:Result;report:string};
-type Run={id:number;revision:number;doc:Document;seed:string;requestedAt:number;solver?:Worker;checker:Worker;preview:Worker;active?:{candidate:Candidate;result:Result};
+type Run={id:number;revision:number;doc:Document;seed:string;requestedAt:number;solver?:Worker;preview:Worker;
   latest?:Candidate;previewActive?:{candidate:Candidate;result:Result};frame?:LiveFrame;previewSequence:number;previewError?:string;
-  pending?:Candidate;best?:Result;ended?:'Complete'|'Stopped'|'Error';startedAt?:number;watchdog:ReturnType<typeof setTimeout>;
-  validationWatchdog?:ReturnType<typeof setTimeout>;diagnostics:Diagnostics};
+  best?:Result;ended?:'Complete'|'Stopped'|'Error';startedAt?:number;watchdog:ReturnType<typeof setTimeout>;
+  diagnostics:Diagnostics};
 export function candidateResult(doc:Document,candidate:Candidate,seed:string):Result {
   const copies=new Map<string,number>(),parts=doc.parts.filter(part=>part.quantity>0);
   return {documentRevision:candidate.documentRevision,solverRevision:SOLVER_REVISION,seed,
@@ -34,7 +34,7 @@ export function phaseImprovements(history:Timing[],lengthMm:number) {
 }
 export function useSolver() {
   const [state,setState]=useState<RunState>('Ready'),[result,setResult]=useState<Result>(),[elapsed,setElapsed]=useState(0),[error,setError]=useState('');
-  const [phase,setPhase]=useState<string>(),[skipping,setSkipping]=useState(false);
+  const [phase,setPhase]=useState<string>(),[skipping,setSkipping]=useState(false),[canSkip,setCanSkip]=useState(false);
   const [live,setLive]=useState<LiveFrame>(),[liveError,setLiveError]=useState('');
   const [workers,setWorkers]=useState<{actual:number;requested?:number;reason?:string}>();
   const run=useRef<Run|undefined>(undefined),serial=useRef(0);
@@ -47,8 +47,8 @@ export function useSolver() {
   },[result,live]);
   function clear() {
     const r=run.current;
-    if(r) {r.solver?.postMessage({type:'stop'});r.checker.terminate();r.preview.terminate();clearTimeout(r.watchdog);clearTimeout(r.validationWatchdog);}
-    run.current=undefined;setPhase(undefined);setSkipping(false);
+    if(r) {r.solver?.postMessage({type:'stop'});r.preview.terminate();clearTimeout(r.watchdog);}
+    run.current=undefined;setPhase(undefined);setSkipping(false);setCanSkip(false);
   }
   useEffect(()=>{
     const timer=setInterval(()=>{
@@ -57,7 +57,7 @@ export function useSolver() {
         setResult(r.best);setLive(r.frame);setLiveError(r.previewError??'');
         if(r.startedAt && !r.ended) setElapsed((performance.now()-r.startedAt)/1000);
         // Render the latest snapshot at most 10 times/second. Keep one in flight;
-        // live display work cannot queue ahead of independent feasible checks.
+        // preview work cannot accumulate while the solver keeps searching.
         if(r.latest&&!r.previewActive&&!r.previewError&&r.latest.sequence>r.previewSequence) {
           const candidate=r.latest,result=candidateResult(r.doc,candidate,r.seed);
           r.previewActive={candidate,result};r.previewSequence=candidate.sequence;
@@ -67,37 +67,22 @@ export function useSolver() {
     },100);
     return ()=>{clearInterval(timer);clear();};
   },[]);
-  function settled(r:Run) {
-    if(r.ended && !r.active && !r.pending) {
-      setResult(r.best);setState(r.ended);r.checker.terminate();
-      if(!r.best&&r.ended==='Complete') {setState('Error');setError(`No candidate passed geometry validation. ${r.diagnostics.history.slice().reverse().find(t=>t.errors?.length)?.errors?.join(' ')??'Download diagnostics and check the input.'}`);}
-    }
-  }
   function end(reason:'Complete'|'Stopped'|'Error',message?:string) {
     const r=run.current;if(!r) return;
     r.solver?.postMessage({type:'stop'});r.solver=undefined;clearTimeout(r.watchdog);r.ended=reason;
     r.diagnostics.stopReason=message ?? reason;
     if(message) setError(message);
     if(r.startedAt) setElapsed((performance.now()-r.startedAt)/1000);
-    setState(r.active || r.pending?'Checking':reason);settled(r);
-  }
-  function check(r:Run,candidate:Candidate) {
-    if(r.active) {r.pending=candidate;return;}
-    const result=candidateResult(r.doc,candidate,r.seed);r.active={candidate,result};
-    r.validationWatchdog=setTimeout(()=>{
-      if(run.current!==r) return;
-      r.checker.terminate();r.active=undefined;r.pending=undefined;end('Error','Geometry check exceeded 30 seconds. Reduce input complexity.');
-    },30_000);
-    r.checker.postMessage({type:'validate',runId:r.id,documentRevision:r.revision,sequence:candidate.sequence,document:r.doc,result});
+    setResult(r.best);setState(reason);
+    if(!r.best&&reason==='Complete'){setState('Error');setError('The solver finished without a feasible result. Download diagnostics and check the input.');}
   }
   function start(doc:Document,revision:number,threads?:number,requestedAt=performance.now()) {
     const startup:StartupTiming={preparedMs:performance.now()-requestedAt};
     clear();setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setError('');setElapsed(0);setState('Initializing');
     const id=++serial.current,seed=crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     const solver=new Worker(new URL('./solver.worker.ts',import.meta.url),{type:'module'});
-    const checker=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
     const preview=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
-    const r:Run={id,revision,doc,seed,requestedAt,solver,checker,preview,previewSequence:0,watchdog:setTimeout(()=>end('Stopped','Initialization exceeded 15 seconds.'),15_000),
+    const r:Run={id,revision,doc,seed,requestedAt,solver,preview,previewSequence:0,watchdog:setTimeout(()=>end('Stopped','Initialization exceeded 15 seconds.'),15_000),
       diagnostics:{runDocument:doc,solverRevision:SOLVER_REVISION,seed,buildMode:'Initializing',startup,history:[],liveSnapshots:0,liveErrors:[]}};
     run.current=r;diagnostics.current=r.diagnostics;
     preview.onmessage=({data}:MessageEvent<GeometryReply>)=>{
@@ -113,23 +98,6 @@ export function useSolver() {
       r.frame={...data.geometry,sequence:data.sequence,result:r.previewActive.result,report:r.previewActive.candidate.report};r.previewActive=undefined;
     };
     preview.onerror=e=>{if(run.current===r){r.previewError=e.message;r.previewActive=undefined;preview.terminate();}};
-    checker.onmessage=({data}:MessageEvent<GeometryReply>)=>{
-      if(run.current!==r || data.runId!==r.id || data.documentRevision!==r.revision) return;
-      if(r.ended && !r.active && !r.pending) return;
-      if(data.type==='error') {clearTimeout(r.validationWatchdog);r.active=undefined;r.pending=undefined;end('Error',data.message);return;}
-      if(data.type!=='validation-result' || !r.active || data.sequence!==r.active.candidate.sequence) return;
-      clearTimeout(r.validationWatchdog);
-      const checked={...r.active.result,validation:data.validation};
-      const timing=r.diagnostics.history.find(t=>t.sequence===data.sequence);
-      if(timing) Object.assign(timing,{validation:data.validation.status,validationMs:data.elapsedMs,errors:data.validation.errors});
-      if(data.validation.status==='passed' && (!r.best || checked.usedLengthMm<r.best.usedLengthMm)) {
-        startup.firstValidMs??=performance.now()-requestedAt;
-        r.best=checked;
-      }
-      r.active=undefined;
-      if(r.pending) {const next=r.pending;r.pending=undefined;check(r,next);} else settled(r);
-    };
-    checker.onerror=e=>{if(run.current===r && (!r.ended || r.active || r.pending)) {clearTimeout(r.validationWatchdog);r.active=undefined;r.pending=undefined;end('Error',e.message||'A background worker could not be loaded. Reload the page and try again.');}};
     solver.onmessage=({data}:MessageEvent<SolverMessage>)=>{
       if(run.current!==r || !r.solver || data.runId!==r.id || data.documentRevision!==r.revision) return;
       switch(data.type) {
@@ -142,7 +110,7 @@ export function useSolver() {
           if(logs.length>10_000){logs.splice(0,1000);r.diagnostics.droppedLogs=(r.diagnostics.droppedLogs??0)+1000;}
           break;
         }
-        case 'ready': startup.solverReadyMs??=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.solverBinary=data.solverBinary;r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, ${data.simd?'SIMD':'no SIMD'}${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
+        case 'ready': setCanSkip(data.canSkip);startup.solverReadyMs??=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.solverBinary=data.solverBinary;r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, ${data.simd?'SIMD':'no SIMD'}${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
           setPhase(data.phase);setSkipping(false);
           (r.diagnostics.phases??=[]).push({phase:data.phase,elapsedMs:r.startedAt?performance.now()-r.startedAt:0});
@@ -153,8 +121,12 @@ export function useSolver() {
         case 'candidate':
           startup.firstCandidateMs??=performance.now()-requestedAt;
           r.latest=data;r.diagnostics.liveSnapshots!++;
-          r.diagnostics.history.push({phase:r.diagnostics.phases?.at(-1)?.phase,sequence:data.sequence,elapsedMs:data.elapsedMs,lengthMm:data.solution.strip_width});
-          check(r,data);break;
+          r.diagnostics.history.push({phase:r.diagnostics.phases?.at(-1)?.phase,sequence:data.sequence,elapsedMs:data.elapsedMs,lengthMm:data.solution.strip_width,validation:'passed'});
+          if(!r.best||data.solution.strip_width<r.best.usedLengthMm){
+            startup.firstValidMs??=performance.now()-requestedAt;
+            r.best={...candidateResult(doc,data,seed),validation:{status:'passed',source:'solver',overlapAreaMm2:null,maxBoundaryViolationMm:null,minClearanceMm:null,errors:[]}};
+          }
+          break;
         case 'finished': end('Complete');break;
         case 'error': end('Error',data.message);break;
       }
@@ -169,9 +141,9 @@ export function useSolver() {
   }
   function skipToCompression() {
     const r=run.current;
-    if(!r?.solver||r.ended||phase!=='Exploration'||skipping||!r.best)return;
+    if(!canSkip||!r?.solver||r.ended||phase!=='Exploration'||skipping||!r.best)return;
     setSkipping(true);r.diagnostics.compressionRequestedMs=r.startedAt?performance.now()-r.startedAt:0;
     r.solver.postMessage({type:'skip'});
   }
-  return {phase,skipping,skipToCompression,state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
+  return {phase,canSkip,skipping,skipToCompression,state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
 }

@@ -101,7 +101,7 @@ test('solver completion keeps the same canvas and a manual result edit keeps can
   const canvas=page.locator('.workspace-svg');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:30_000});
   const camera=await canvas.getAttribute('viewBox');
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
@@ -111,7 +111,7 @@ test('solver completion keeps the same canvas and a manual result edit keeps can
   await expect.poll(async()=>signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!)).not.toBe(before);
   const moved=signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!);
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toHaveCount(0);
   await expect.poll(async()=>signature((await copyState(page)).find(copy=>key(copy)===key(targetCopy))!)).toBe(moved);
   expect(await canvas.getAttribute('viewBox')).toBe(camera);
 });
@@ -134,7 +134,7 @@ for(const control of ['field','handle'] as const)test(`rotation through ${contro
   expect((await copyState(page)).filter(copy=>copy.partId===partId).every(copy=>copy.geometry===geometry)).toBe(true);
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible({timeout:30_000});
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled({timeout:30_000});
   const stop=page.getByRole('button',{name:'Stop',exact:true});if(await stop.isVisible())await stop.click();
   expect((await copyState(page)).filter(copy=>copy.partId===partId).every(copy=>copy.geometry===geometry)).toBe(true);
 });

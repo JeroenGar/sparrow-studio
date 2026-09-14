@@ -1,7 +1,6 @@
 import { bounds, normalizeDocument, normalizePart,scalePart } from '../geometry/normalize';
 import { ellipse } from '../geometry/flatten';
 import { newPart,type Ring } from '../model';
-import { validate } from '../geometry/validate';
 import { importSparrow,localize } from '../import/sparrow';
 import { importSVG,initializeSVG } from '../import/svg';
 import { importDXF } from '../import/dxf';
@@ -59,12 +58,6 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         const combined={...reviews[0].document,parts:reviews.flatMap(r=>r.document.parts)};
         const document=combined.parts.length?normalizeDocument(combined):combined;
         reply={...ids,type:'import-review',review:{document,warnings:reviews.flatMap(r=>r.warnings),issues:reviews.flatMap(r=>r.issues??[]),layers:[...new Set(reviews.flatMap(r=>r.layers??[]))].sort(),replace:false}};
-        break;
-      }
-      case 'validate': {
-        const start=performance.now();
-        const validation=validate(data.document,data.result);
-        reply={...ids,type:'validation-result',sequence:data.sequence,validation,elapsedMs:performance.now()-start};
         break;
       }
       case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result)}; break;

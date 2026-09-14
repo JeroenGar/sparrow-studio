@@ -1,13 +1,13 @@
 import {readDiagnostics} from './diagnostics-helpers';
 import {test,expect} from '@playwright/test';
 
-for(const isolated of [true,false])test(`skip exploration and retain checked output (${isolated?'threaded':'serial'})`,async({browser},testInfo)=>{
-  const context=await browser.newContext({serviceWorkers:isolated?'allow':'block'});
+for(const threads of [1,2])test(`skip exploration in the existing runtime (${threads} workers)`,async({browser},testInfo)=>{
+  const context=await browser.newContext({serviceWorkers:'allow'});
   const page=await context.newPage();
   await page.goto('/');
   await expect(page.locator('.part-row')).toHaveCount(50);
   await page.locator('.solver-options>summary').click();
-  await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption('2');
+  await page.getByRole('combobox',{name:'Solver threads',exact:true}).selectOption(String(threads));
   await page.getByLabel('Stop condition').selectOption('10');
   await page.getByRole('button',{name:'Nest parts',exact:true}).click();
   const skip=page.getByRole('button',{name:'Skip to compression',exact:true});
@@ -24,7 +24,8 @@ for(const isolated of [true,false])test(`skip exploration and retain checked out
   const diagnostics=await readDiagnostics(path);
   expect(diagnostics.phases.map((p:{phase:string})=>p.phase)).toEqual(['Exploration','Compression']);
   expect(diagnostics.compressionRequestedMs).toBeGreaterThanOrEqual(0);
-  expect(diagnostics.result.validation.status).toBe('passed');
+  expect(diagnostics.result.validation).toMatchObject({status:'passed',source:'solver'});
+  expect(diagnostics.attempts).toHaveLength(1);
   const history=diagnostics.history as {sequence:number;elapsedMs:number}[];
   for(let i=1;i<history.length;i++){
     expect(history[i].sequence).toBeGreaterThan(history[i-1].sequence);
@@ -50,4 +51,17 @@ for(const action of ['natural','stop'] as const)test(`${action} phase transition
   const diagnostics=await readDiagnostics(path);
   expect(diagnostics.phases.map((p:{phase:string})=>p.phase)).toEqual(['Exploration','Compression']);
   if(action==='natural')expect(diagnostics.compressionRequestedMs).toBeUndefined();
+});
+
+test('without shared memory the run transitions naturally and Skip is unavailable',async({browser})=>{
+  const context=await browser.newContext({serviceWorkers:'block'});
+  try {
+    const page=await context.newPage();await page.goto('/');
+    await expect(page.locator('.part-row')).toHaveCount(50);
+    await page.getByLabel('Stop condition').selectOption('10');
+    await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+    await expect(page.getByRole('status')).toContainText('Exploration',{timeout:20000});
+    await expect(page.getByRole('button',{name:'Skip to compression',exact:true})).toHaveCount(0);
+    await expect(page.getByRole('status')).toHaveText(/^Complete\s*\d+\.\d s$/,{timeout:20000});
+  } finally {await context.close();}
 });

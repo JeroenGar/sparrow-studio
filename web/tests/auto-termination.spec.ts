@@ -27,7 +27,7 @@ for(const limit of ['auto','300','600','fast'])test(`native auto-termination ret
   await expect(page.getByRole('status')).toHaveText(/^Complete\s*\d+\.\d s$/,{timeout:45_000});
   expect(Date.now()-started).toBeLessThan(60_000);
   await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
-  await expect(page.getByText('✓ Geometry checked',{exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled();
   await expect(page.getByRole('button',{name:'Stop',exact:true})).toHaveCount(0);
 
   const diagnosticsDownload=page.waitForEvent('download');

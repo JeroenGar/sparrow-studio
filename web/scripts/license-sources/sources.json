@@ -29,9 +29,9 @@
   },
   {
     "package": "jagua-rs",
-    "version": "0.8.1",
-    "file": "jagua-rs-0.8.1-LICENSE.txt",
-    "url": "https://raw.githubusercontent.com/JeroenGar/jagua-rs/824ab31cf8a58eecf5d87527260c92510626661b/LICENSE",
+    "version": "0.8.2",
+    "file": "jagua-rs-0.8.2-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/JeroenGar/jagua-rs/d03e82190c40a21afbc1fabed19876401d0572bc/LICENSE",
     "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
   },
   {
