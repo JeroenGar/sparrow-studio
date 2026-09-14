@@ -122,3 +122,9 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 .run-controls:has(.skip-compression:hover) .compression-tooltip,.run-controls:has(.skip-compression:focus-visible) .compression-tooltip,.compression-tooltip:hover{display:block}
 
 .project-switch-actions .discard-project{background:#b93838;border-color:#b93838;color:#fff;font-weight:550}.project-switch-actions .discard-project:hover:enabled{background:#a52e2e;border-color:#a52e2e}
+
+.header{position:relative}
+.background-hint{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);white-space:nowrap;flex-shrink:0;padding:2px 6px;border:0;border-radius:4px;background:#b93838;color:#fff;font-size:11px;font-weight:600;line-height:1.4}
+
+
+@media(max-width:1700px){.header:has(.background-hint){height:auto;padding-bottom:32px;padding-top:8px}.header>.background-hint{top:auto;bottom:8px;transform:translateX(-50%)}}
