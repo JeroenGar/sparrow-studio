@@ -327,9 +327,11 @@ export default function App({initialDocument=emptyProject(),initialError='',load
   }
   async function diagnostics() {
     const {zip}=await import('./zip');
+    const {reproductionFiles}=await import('./export/diagnostics');
     const {logs=[],droppedLogs=0,...details}=solver.diagnostics.current??{};
     download('sparrow-studio-diagnostics.zip',zip([
       {name:'diagnostics.json',data:JSON.stringify({document:doc,documentRevision:revision,policy:POLICY,importWarnings,...details,droppedLogs,result},null,2)},
+      ...reproductionFiles(solver.diagnostics.current),
       {name:'solver.log',data:(droppedLogs?`[${droppedLogs} earlier messages omitted]\n`:'')+logs.join('\n')+'\n'},
     ]),'application/zip');setInfo('diagnostics');
   }

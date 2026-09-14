@@ -18,6 +18,8 @@ export type SolverMessage = Identity & (
   | (({ type:'candidate' }|{ type:'live' }) & { sequence:number; report:string; elapsedMs:number;
       solution: { strip_width: number; layout: { placed_items: Placement[] } } })
   | { type: 'solver-log'; line:string; timestamp:number }
+  | { type:'run-input'; input:string; seed:string; seconds:number|null; clearance:number; preset:string; threads:number; solverBinary:SolverBinary; compressionStart?:{strip_width:number;layout:{placed_items:Placement[]}} }
+  | { type:'configuration'; configuration:string }
   | { type: 'finished' }
   | { type: 'error'; message: string }
 );

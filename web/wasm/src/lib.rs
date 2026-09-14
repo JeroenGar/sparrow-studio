@@ -85,8 +85,14 @@ pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset
         || external.items.iter().map(|item| item.demand).sum::<u64>() > 500 {
         return Err(JsValue::from_str("Invalid strip dimensions or demand"));
     }
-    let config = solver_config(preset, thread_count(), seconds).map_err(JsValue::from_str)?;
-    let importer = Importer::new(config.cde_config, None, (clearance > 0.0).then_some(clearance), None);
+    let mut config = solver_config(preset, thread_count(), seconds).map_err(JsValue::from_str)?;
+    config.poly_simpl_tolerance = None;
+    config.narrow_concavity_cutoff_ratio = None;
+    config.min_item_separation = (clearance > 0.0).then_some(clearance);
+    callback.call1(&JsValue::NULL, &JsValue::from_str(&json!({
+        "type": "configuration", "configuration": format!("{config:#?}")
+    }).to_string())).expect("worker callback must accept solver messages");
+    let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
     let instance = import_instance(&importer, &external)
         .map_err(|e| JsValue::from_str(&e.to_string()))?;
     let mut listener = Listener { callback, initialized_at, solve_started_at: None, sequence: 0,

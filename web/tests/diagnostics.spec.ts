@@ -40,7 +40,15 @@ for(const isolated of [true,false])test(`Info logs survive Stop and phase skip (
     await page.getByRole('button',{name:'Stop',exact:true}).click();
     const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
     const path=testInfo.outputPath('diagnostics.zip');await(await pending).saveAs(path);
-    const logs=archiveEntry(await readFile(path),'solver.log');
+    const bytes=await readFile(path),logs=archiveEntry(bytes,'solver.log');
+    const input=JSON.parse(archiveEntry(bytes,'reproduction/attempt-1/input.json'));
+    const request=JSON.parse(archiveEntry(bytes,'reproduction/attempt-1/request.json'));
+    const details=await readDiagnostics(path);
+    expect(input.items).toHaveLength(50);expect(request.seed).toBe(details.seed);
+    expect(request.threads).toBe(isolated?3:1);
+    expect(archiveEntry(bytes,'reproduction/attempt-1/effective-config.txt')).toContain('SparrowConfig');
+    expect(JSON.parse(archiveEntry(bytes,'reproduction/attempt-2/compression-start.json')).layout.placed_items).toHaveLength(50);
+    expect(details.runDocument.parts).toHaveLength(50);
     expect(logs).toContain('INFO');expect(logs).not.toMatch(/(?:DEBUG|TRACE) \[/);
     expect(logs).toContain('[EXPL]');expect(logs).toContain('[CMPR]');
     expect((await readDiagnostics(path)).phases.map((p:{phase:string})=>p.phase)).toEqual(['Exploration','Compression']);
