@@ -24,6 +24,7 @@ pub fn thread_count() -> usize {
 }
 
 mod svg;
+mod logging;
 
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
@@ -70,6 +71,7 @@ impl SolutionListener for Listener {
 #[wasm_bindgen]
 pub fn run(input: &str, seconds: Option<u32>, seed: &str, clearance: f32, preset: &str, callback: js_sys::Function, compression_start: Option<String>) -> Result<(), JsValue> {
     console_error_panic_hook::set_once();
+    logging::init();
     let initialized_at = Instant::now();
     if !matches!(seconds, None | Some(10 | 30 | 60 | 120 | 300 | 600)) || input.len() > 10 * 1024 * 1024 || !clearance.is_finite() || clearance < 0.0 {
         return Err(JsValue::from_str("Invalid duration or oversized input"));

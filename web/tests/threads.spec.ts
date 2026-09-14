@@ -1,3 +1,4 @@
+import {readDiagnostics} from './diagnostics-helpers';
 import {openExamples,workshop,finishSwitch,newProject} from './project-helpers';
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
@@ -46,7 +47,7 @@ for (const isolated of [true, false]) test(`solver threads: ${isolated ? 'parall
     await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
     const path = testInfo.outputPath(`threads-${attempt}.json`);
     await (await pending).saveAs(path);
-    const diagnostic = JSON.parse(await readFile(path, 'utf8'));
+    const diagnostic = await readDiagnostics(path);
     expect(diagnostic.solverBinary).toBe(isolated ? 'threaded-simd' : 'serial-simd');
     expect(diagnostic.buildMode).toMatch(isolated ? /^2 solver threads, SIMD$/ : /^1 solver thread, SIMD; serial fallback:/);
     await expect(page.locator('[data-worker-count]')).toHaveAttribute('data-worker-count',isolated?'2':'1');
@@ -91,7 +92,7 @@ test('failed pool initialization disposes the pool and retries serially', async 
   await page.getByRole('button', { name: 'Diagnostics', exact: true }).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   const path = testInfo.outputPath('fallback.json');
   await (await pending).saveAs(path);
-  const diagnostic = JSON.parse(await readFile(path, 'utf8'));
+  const diagnostic = await readDiagnostics(path);
   await expect(page.locator('[data-worker-count]')).toContainText('1 solver worker / 2 requested · fallback');
   expect(diagnostic.solverBinary).toBe('serial-simd');
   expect(diagnostic.buildMode).toContain('1 solver thread, SIMD; serial fallback:');
@@ -136,7 +137,7 @@ for (const threads of [1,2]) test(`SIMD unavailable: SVG import and ${threads} s
     const pending=page.waitForEvent('download');
     await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
     const path=testInfo.outputPath('nosimd.json');await(await pending).saveAs(path);
-    const diagnostic=JSON.parse(await readFile(path,'utf8'));
+    const diagnostic=await readDiagnostics(path);
     expect(diagnostic.solverBinary).toBe(threads===1?'serial-nosimd':'threaded-nosimd');
     expect(diagnostic.buildMode).toBe(`${threads} solver thread${threads===1?'':'s'}, no SIMD`);
     expect(diagnostic.result.validation.status).toBe('passed');

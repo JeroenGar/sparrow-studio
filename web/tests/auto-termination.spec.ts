@@ -1,3 +1,4 @@
+import {readDiagnostics} from './diagnostics-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
 
@@ -33,7 +34,7 @@ for(const limit of ['auto','300','600','fast'])test(`native auto-termination ret
   await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   const diagnosticsPath=testInfo.outputPath('diagnostics.json');
   await(await diagnosticsDownload).saveAs(diagnosticsPath);
-  const diagnostics=JSON.parse(await readFile(diagnosticsPath,'utf8'));
+  const diagnostics=await readDiagnostics(diagnosticsPath);
   await expect(page.locator('[data-worker-count]')).toHaveAttribute('data-worker-count',diagnostics.buildMode.match(/^(\d+)/)[1]);
   expect(diagnostics.stopReason).toBe('Complete');
   expect(diagnostics.document.settings.timeLimitSeconds).toBe(limit==='auto'||limit==='fast'?null:Number(limit));

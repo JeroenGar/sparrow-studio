@@ -1,3 +1,4 @@
+import {readDiagnostics} from './diagnostics-helpers';
 import {newProject} from './project-helpers';
 import {test,expect} from '@playwright/test';
 import {readFile} from 'node:fs/promises';
@@ -48,7 +49,7 @@ for (const isolated of [true, false]) test(`100 mm SVG recovers from exact-fit f
   await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();
   const diagnosticPath=testInfo.outputPath('construction-error.json');
   await(await diagnosticDownload).saveAs(diagnosticPath);
-  const diagnostic=JSON.parse(await readFile(diagnosticPath,'utf8'));
+  const diagnostic=await readDiagnostics(diagnosticPath);
   expect(diagnostic.stopReason).toContain('No valid initial placement could be constructed for item 0');
   expect(diagnostic.buildMode).toMatch(isolated?/^2 solver threads, SIMD$/:/^1 solver thread, SIMD; serial fallback:/);
   await page.getByRole('spinbutton',{name:/^Quantity for/}).fill('2');

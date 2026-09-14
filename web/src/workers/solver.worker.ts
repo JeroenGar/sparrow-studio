@@ -46,7 +46,8 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' } | { type: 'ski
           pool.push(worker);
           worker.onmessage = ({ data }) => {
             if (closed) return;
-            if (data.type === 'error') fail(data.message);
+            if (data.type === 'solver-log') self.postMessage({...data,runId:start.runId,documentRevision:start.documentRevision});
+            else if (data.type === 'error') fail(data.message);
             else if (data.type === 'ready' && ++initialized === count) runtime.postMessage({ type: 'pool-ready' });
           };
           worker.onerror = event => { event.preventDefault(); fail(event.message || 'A solver thread failed.'); };
@@ -55,6 +56,7 @@ self.onmessage = ({ data }: MessageEvent<Start | { type: 'stop' } | { type: 'ski
         } catch (error) { fail(String(error)); }
         return;
       }
+      if (message.type === 'solver-log') { self.postMessage({...message,runId:start.runId,documentRevision:start.documentRevision});return; }
       if (message.type === 'error') { fail(message.message); return; }
       if (message.type === 'ready') { ready = true; clearTimeout(timer); }
       if(message.type==='phase'){phase=message.phase;startedAt??=performance.now();}

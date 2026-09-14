@@ -1,3 +1,4 @@
+import {archiveEntry} from './diagnostics-helpers.ts';
 // Run against a production preview: node tests/measure-preparation.mjs http://127.0.0.1:4176/
 import {chromium} from 'playwright';
 import {writeFile} from 'node:fs/promises';
@@ -43,7 +44,7 @@ try {
     await page.waitForFunction(()=>!/Initializing|Running|Checking/.test(document.querySelector('[role=status]')?.textContent??''),{},{timeout:35_000});
     const stopLatencyMs=stopStarted===undefined?undefined:Date.now()-stopStarted;
     await mark('end');
-    const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();let diagnosticText='';for await(const chunk of await(await pending).createReadStream())diagnosticText+=chunk;const diagnostics=JSON.parse(diagnosticText);
+    const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();await page.getByRole('dialog',{name:'Encountering issues?',exact:true}).getByRole('button',{name:'Close',exact:true}).click();const chunks=[];for await(const chunk of await(await pending).createReadStream())chunks.push(chunk);const diagnostics=JSON.parse(archiveEntry(Buffer.concat(chunks),'diagnostics.json'));
     const solve={stopLatencyMs,state:await page.getByRole('status').innerText(),buildMode:diagnostics.buildMode,stopReason:diagnostics.stopReason,candidates:diagnostics.history.length,checkedCandidates:diagnostics.history.filter(h=>h.validation).length,bestStatus:diagnostics.result?.validation.status,initializationMs:diagnostics.initializationMs};
     const data=await page.evaluate(()=>window.preparationMeasure);
     reports.push({types,vertices,demandedVertices:types*vertices,browser:browser.version(),solve,phases:data.marks.slice(0,-1).map((mark,i)=>{

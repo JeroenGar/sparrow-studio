@@ -1070,6 +1070,7 @@ dependencies = [
  "console_error_panic_hook",
  "jagua-rs",
  "js-sys",
+ "log",
  "rand",
  "rayon",
  "serde_json",

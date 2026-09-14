@@ -1,5 +1,5 @@
+import {readDiagnostics} from './diagnostics-helpers';
 import {test,expect} from '@playwright/test';
-import {readFile} from 'node:fs/promises';
 
 for(const isolated of [true,false])test(`skip exploration and retain checked output (${isolated?'threaded':'serial'})`,async({browser},testInfo)=>{
   const context=await browser.newContext({serviceWorkers:isolated?'allow':'block'});
@@ -21,7 +21,7 @@ for(const isolated of [true,false])test(`skip exploration and retain checked out
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   const path=testInfo.outputPath('phases.json');await(await pending).saveAs(path);
-  const diagnostics=JSON.parse(await readFile(path,'utf8'));
+  const diagnostics=await readDiagnostics(path);
   expect(diagnostics.phases.map((p:{phase:string})=>p.phase)).toEqual(['Exploration','Compression']);
   expect(diagnostics.compressionRequestedMs).toBeGreaterThanOrEqual(0);
   expect(diagnostics.result.validation.status).toBe('passed');
@@ -47,7 +47,7 @@ for(const action of ['natural','stop'] as const)test(`${action} phase transition
   await expect(page.getByRole('button',{name:'Download SVG',exact:true})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Diagnostics',exact:true}).click();
   const path=testInfo.outputPath('phases.json');await(await pending).saveAs(path);
-  const diagnostics=JSON.parse(await readFile(path,'utf8'));
+  const diagnostics=await readDiagnostics(path);
   expect(diagnostics.phases.map((p:{phase:string})=>p.phase)).toEqual(['Exploration','Compression']);
   if(action==='natural')expect(diagnostics.compressionRequestedMs).toBeUndefined();
 });

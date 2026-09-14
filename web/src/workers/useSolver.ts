@@ -8,7 +8,7 @@ export type RunState='Ready'|'Initializing'|'Running'|'Checking'|'Complete'|'Sto
 export type Timing={phase?:string;sequence:number;elapsedMs:number;lengthMm:number;validation?:string;validationMs?:number;errors?:string[]};
 // Cumulative milliseconds since Nest was requested, including preparation and worker loading.
 type StartupTiming={preparedMs:number;solverReadyMs?:number;firstCandidateMs?:number;firstValidMs?:number;firstPreviewMs?:number;firstResultRenderedMs?:number};
-export type Diagnostics={phases?:{phase:string;elapsedMs:number}[];compressionRequestedMs?:number;solverRevision:string;seed:string;buildMode:string;solverBinary?:SolverBinary;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
+export type Diagnostics={logs?:string[];droppedLogs?:number;phases?:{phase:string;elapsedMs:number}[];compressionRequestedMs?:number;solverRevision:string;seed:string;buildMode:string;solverBinary?:SolverBinary;initializationMs?:number;startup?:StartupTiming;stopReason?:string;history:Timing[];liveSnapshots?:number;liveErrors:{sequence:number;message:string}[]};
 export type LiveFrame=LiveGeometry & {sequence:number;result:Result;report:string};
 type Run={id:number;revision:number;doc:Document;seed:string;requestedAt:number;solver?:Worker;checker:Worker;preview:Worker;active?:{candidate:Candidate;result:Result};
   latest?:Candidate;previewActive?:{candidate:Candidate;result:Result};frame?:LiveFrame;previewSequence:number;previewError?:string;
@@ -133,6 +133,13 @@ export function useSolver() {
     solver.onmessage=({data}:MessageEvent<SolverMessage>)=>{
       if(run.current!==r || !r.solver || data.runId!==r.id || data.documentRevision!==r.revision) return;
       switch(data.type) {
+        case 'solver-log': {
+          const logs=r.diagnostics.logs??=[];
+          logs.push(`${((data.timestamp-performance.timeOrigin-r.requestedAt)/1000).toFixed(3)}s ${data.line}`);
+          // Keep the latest 10,000 messages during arbitrarily long runs.
+          if(logs.length>10_000){logs.splice(0,1000);r.diagnostics.droppedLogs=(r.diagnostics.droppedLogs??0)+1000;}
+          break;
+        }
         case 'ready': startup.solverReadyMs??=performance.now()-requestedAt;setWorkers({actual:data.threads,requested:threads,reason:data.fallbackReason});r.diagnostics.solverBinary=data.solverBinary;r.diagnostics.buildMode=`${data.threads} solver thread${data.threads===1?'':'s'}, ${data.simd?'SIMD':'no SIMD'}${data.fallbackReason?`; serial fallback: ${data.fallbackReason}`:''}`; break;
         case 'phase':
           setPhase(data.phase);setSkipping(false);

@@ -1,6 +1,6 @@
+import {readDiagnostics} from './diagnostics-helpers';
 import {openExamples,workshop,finishSwitch} from './project-helpers';
 import {test,expect} from '@playwright/test';
-import {readFile} from 'node:fs/promises';
 
 test('quantity errors, independent SVG path review, and mobile diagnostics are accessible',async({page},info)=>{
   await page.goto('/');await workshop(page);
@@ -26,7 +26,7 @@ test('quantity errors, independent SVG path review, and mobile diagnostics are a
   const pending=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download diagnostics',exact:true}).click();
   const path=info.outputPath('diagnostics.json');await(await pending).saveAs(path);
-  const diagnostics=JSON.parse(await readFile(path,'utf8'));
+  const diagnostics=await readDiagnostics(path);
   expect(diagnostics.importWarnings).toBeInstanceOf(Array);
   expect(diagnostics.importWarnings.length).toBeGreaterThan(0);
   expect(diagnostics.document.parts).toHaveLength(6);
