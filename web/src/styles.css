@@ -128,3 +128,5 @@ label{display:flex;flex-wrap:wrap;gap:6px;color:var(--muted);font-size:12px}labe
 
 
 @media(max-width:1700px){.header:has(.background-hint){height:auto;padding-bottom:32px;padding-top:8px}.header>.background-hint{top:auto;bottom:8px;transform:translateX(-50%)}}
+
+.download-control{position:relative}.download-control .compression-tooltip{left:auto;right:0;width:240px;max-width:calc(100vw - 32px)}.download-control:hover .compression-tooltip,.download-control:focus-visible .compression-tooltip{display:block}

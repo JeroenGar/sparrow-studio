@@ -5,6 +5,9 @@ import {inflateSync} from 'node:zlib';
 test('PDF download contains vector paths instead of an image',async({page},testInfo)=>{
   await page.goto('/');
   await expect(page.locator('.project-menu>summary')).toContainText('gardeyn2');
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
   await page.getByLabel('Export format').selectOption('pdf');
   const pending=page.waitForEvent('download');
   await page.getByRole('button',{name:'Download PDF',exact:true}).click();

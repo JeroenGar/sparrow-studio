@@ -41,25 +41,45 @@ test('390px example stays usable and makes no external requests',async({page},te
   expect(external).toEqual([]);
 });
 
-test('downloads manual canvas geometry in both formats and snapshots live search',async({page},testInfo)=>{
+test('exports manual and best valid layouts, but never live search',async({page},testInfo)=>{
   await page.goto('/');await workshop(page);
+  for(const format of ['SVG','DXF','PDF']){
+    await page.getByLabel('Export format',{exact:true}).selectOption(format.toLowerCase());
+    await expect(page.getByRole('button',{name:`Download ${format}`,exact:true})).toBeEnabled();
+  }
+  await page.getByLabel('Export format',{exact:true}).selectOption('svg');
+  const manualDownload=page.waitForEvent('download');
+  await page.getByRole('button',{name:'Download SVG',exact:true}).click();
+  const manualPath=testInfo.outputPath('manual.svg');await(await manualDownload).saveAs(manualPath);
+  expect(await readFile(manualPath,'utf8')).toContain('Canvas layout (not checked for nesting)');
+  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
+  await expect(page.getByRole('img',{name:'Live nesting search',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Best valid solution',exact:true})).toBeEnabled();
+  await page.locator('.download-control').hover();
+  await expect(page.getByRole('tooltip').filter({hasText:'Switch to the best valid solution view to download.'})).toBeVisible();
+  await page.getByLabel('Export format',{exact:true}).focus();
+  await page.keyboard.press('Tab');
+  await page.getByLabel('Export format',{exact:true}).hover();
+  await expect(page.locator('#download-tooltip')).toBeVisible();
+  for(const format of ['SVG','DXF','PDF']){
+    await page.getByLabel('Export format',{exact:true}).selectOption(format.toLowerCase());
+    await expect(page.getByRole('button',{name:`Download ${format}`,exact:true})).toBeDisabled();
+  }
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Download PDF',exact:true})).toBeEnabled();
+  await page.getByRole('button',{name:'Live search',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Download PDF',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'Best valid solution',exact:true}).click();
+  await page.getByRole('button',{name:'Stop',exact:true}).click();
   for(const format of ['SVG','DXF']){
     await page.getByLabel('Export format',{exact:true}).selectOption(format.toLowerCase());
     const pending=page.waitForEvent('download');
     await page.getByRole('button',{name:`Download ${format}`,exact:true}).click();
-    const path=testInfo.outputPath(`manual.${format.toLowerCase()}`);await(await pending).saveAs(path);
+    const path=testInfo.outputPath(`checked.${format.toLowerCase()}`);await(await pending).saveAs(path);
     const text=await readFile(path,'utf8');
     if(format==='SVG'){
       expect(text.match(/<path id="part-/g)).toHaveLength(12);
-      expect(text).toContain('Canvas layout (not checked for nesting)');
+      expect(text).toContain('Checked nesting layout');
     }else expect(text.match(/LWPOLYLINE/g)).toHaveLength(12);
   }
-  await page.getByLabel('Export format',{exact:true}).selectOption('svg');
-  await page.getByRole('button',{name:'Nest parts',exact:true}).click();
-  await expect(page.getByRole('img',{name:'Live nesting search',exact:true})).toBeVisible();
-  const pending=page.waitForEvent('download');
-  await page.getByRole('button',{name:'Download SVG',exact:true}).click();
-  const path=testInfo.outputPath('live.svg');await(await pending).saveAs(path);
-  expect(await readFile(path,'utf8')).toContain('Canvas layout (not checked for nesting)');
-  await page.getByRole('button',{name:'Stop',exact:true}).click();
 });
