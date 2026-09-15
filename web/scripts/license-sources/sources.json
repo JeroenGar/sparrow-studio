@@ -15,37 +15,37 @@
   },
   {
     "package": "geo",
-    "version": "0.24.1",
-    "file": "geo-0.24.1-LICENSE-MIT.txt",
-    "url": "https://raw.githubusercontent.com/georust/geo/2b3f7b94f4f7aa9cab65e4d2db7ff09d8bf86177/LICENSE-MIT",
+    "version": "0.33.1",
+    "file": "geo-0.33.1-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/georust/geo/5ab50b072e34a915a33eaa46c80763d51d61295e/LICENSE-MIT",
     "sha256": "2f8267b247fd81e9555a2e196e119a5b341bcae21011cd93985c312f1312f727"
   },
   {
     "package": "geo",
-    "version": "0.24.1",
-    "file": "geo-0.24.1-LICENSE-APACHE.txt",
-    "url": "https://raw.githubusercontent.com/georust/geo/2b3f7b94f4f7aa9cab65e4d2db7ff09d8bf86177/LICENSE-APACHE",
+    "version": "0.33.1",
+    "file": "geo-0.33.1-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/georust/geo/5ab50b072e34a915a33eaa46c80763d51d61295e/LICENSE-APACHE",
     "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
   },
   {
     "package": "jagua-rs",
-    "version": "0.8.2",
-    "file": "jagua-rs-0.8.2-LICENSE.txt",
-    "url": "https://raw.githubusercontent.com/JeroenGar/jagua-rs/d03e82190c40a21afbc1fabed19876401d0572bc/LICENSE",
+    "version": "0.8.3",
+    "file": "jagua-rs-0.8.3-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/JeroenGar/jagua-rs/a15ddd4909c5bd4d619c1878342c7b71ab27ac4a/LICENSE",
     "sha256": "1f256ecad192880510e84ad60474eab7589218784b9a50bc7ceee34c2b91f1d5"
   },
   {
     "package": "rstar",
-    "version": "0.10.0",
-    "file": "rstar-0.10.0-LICENSE-MIT.txt",
-    "url": "https://raw.githubusercontent.com/georust/rstar/d454a5654b5e5064b854c3b880e0f5782e90a6cb/LICENSE-MIT",
+    "version": "0.12.2",
+    "file": "rstar-0.12.2-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/georust/rstar/c8c5bf9e41468281d030869d409e3f67f1aaf5b7/LICENSE-MIT",
     "sha256": "9b3a76c27bac8f3e0ff2d1f64f65941c50310ae3ff69318cea230bd4a36822c5"
   },
   {
     "package": "rstar",
-    "version": "0.10.0",
-    "file": "rstar-0.10.0-LICENSE-APACHE.txt",
-    "url": "https://raw.githubusercontent.com/georust/rstar/d454a5654b5e5064b854c3b880e0f5782e90a6cb/LICENSE-APACHE",
+    "version": "0.12.2",
+    "file": "rstar-0.12.2-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/georust/rstar/c8c5bf9e41468281d030869d409e3f67f1aaf5b7/LICENSE-APACHE",
     "sha256": "a60eea817514531668d7e00765731449fe14d059d3249e0bc93b36de45f759f2"
   },
   {
@@ -61,5 +61,26 @@
     "file": "vecks-3.9.2-MIT.txt",
     "url": "https://spdx.org/licenses/MIT.txt",
     "sha256": "c3b1b78bc8bd3ea13aa4bc9778442d16560270afa235006d816e5e88cef24db4"
+  },
+  {
+    "package": "i_key_sort",
+    "version": "0.10.3",
+    "file": "i_key_sort-0.10.3-LICENSE.txt",
+    "url": "https://raw.githubusercontent.com/iShape-Rust/iKeySort/10a9a72f0cdae785dd2185896eed138b09945515/LICENSE",
+    "sha256": "47e00f18b265d350a2860d3899f17dd1c7689b966545e929df8ffa7033f5acdc"
+  },
+  {
+    "package": "i_overlay",
+    "version": "4.5.2",
+    "file": "i_overlay-4.5.2-LICENSE-MIT.txt",
+    "url": "https://raw.githubusercontent.com/iShape-Rust/iOverlay/9448d8da87e11f5b7aedcf994967b18ff640c734/LICENSE-MIT",
+    "sha256": "260cc580f53a756821a0f35475e2cd6da790f8fed0efc058252fe1bed8f2689e"
+  },
+  {
+    "package": "i_overlay",
+    "version": "4.5.2",
+    "file": "i_overlay-4.5.2-LICENSE-APACHE.txt",
+    "url": "https://raw.githubusercontent.com/iShape-Rust/iOverlay/9448d8da87e11f5b7aedcf994967b18ff640c734/LICENSE-APACHE",
+    "sha256": "59899c6091b540582ed617e8eeaac4919dc985ccfc35459ee9752b699be5205b"
   }
 ]

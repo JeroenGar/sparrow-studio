@@ -140,9 +140,9 @@ original file or exact source URL. Declared dual-license choices are preserved.
 Rust standard-library notices are distributed alongside this file. See the
 toolchain section below. Dataset provenance and license: examples/NOTICE.txt.
 
-jagua-rs 0.8.2 is MPL-2.0. Its upstream source is available at:
-https://github.com/JeroenGar/jagua-rs/tree/d03e82190c40a21afbc1fabed19876401d0572bc/jagua-rs
-https://crates.io/api/v1/crates/jagua-rs/0.8.2/download
+jagua-rs 0.8.3 is MPL-2.0. Its upstream source is available at:
+https://github.com/JeroenGar/jagua-rs/tree/a15ddd4909c5bd4d619c1878342c7b71ab27ac4a/jagua-rs
+https://crates.io/api/v1/crates/jagua-rs/0.8.3/download
 Studio uses the unmodified published jagua-rs crate. The MPL text is included below.
 The solver sparrow is MIT at its pinned revision;
 it is distinct from the original sparroWASM wrapper repository's MPL license.
