@@ -115,7 +115,8 @@ export function useSolver() {
           setPhase(data.phase);setSkipping(false);
           (r.diagnostics.phases??=[]).push({phase:data.phase,elapsedMs:r.startedAt?performance.now()-r.startedAt:0});
           setWorkers(previous=>previous?{...previous,actual:data.workers}:previous);
-          if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);if(doc.settings.timeLimitSeconds!==null)r.watchdog=setTimeout(()=>end('Stopped','Solve duration plus two-second allowance elapsed.'),(doc.settings.timeLimitSeconds+2)*1000);}
+          // Sparrow's cooperative phase deadlines allow the current iteration to finish.
+          if(!r.startedAt) {r.startedAt=performance.now();r.diagnostics.initializationMs=data.initializationMs;clearTimeout(r.watchdog);}
           setState('Running');break;
         case 'live':r.latest=data;r.diagnostics.liveSnapshots!++;break;
         case 'candidate':
