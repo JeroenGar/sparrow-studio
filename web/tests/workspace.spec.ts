@@ -83,3 +83,18 @@ test('exports manual and best valid layouts, but never live search',async({page}
     }else expect(text.match(/LWPOLYLINE/g)).toHaveLength(12);
   }
 });
+
+test('opening Sparrow JSON as a project retains its strip width',async({page})=>{
+  await page.goto('/');
+  await expect(page.getByRole('status')).toHaveText('Ready');
+  await page.locator('input[type=file]').nth(1).setInputFiles({
+    name:'strip.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify({
+      name:'Imported strip',strip_height:321,items:[{id:0,demand:1,allowed_orientations:[0],shape:{type:'rectangle',data:{x_min:0,y_min:0,width:20,height:10}}}],
+    })),
+  });
+  await page.getByRole('button',{name:'Preview import',exact:true}).click();
+  await page.getByRole('button',{name:'Open project',exact:true}).click();
+  await finishSwitch(page);
+  await expect(page.getByLabel('Material width',{exact:false})).toHaveValue('321');
+  await expect(page.locator('.project-menu>summary')).toContainText('Imported strip');
+});
