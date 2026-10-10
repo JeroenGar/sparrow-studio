@@ -2,8 +2,8 @@ import type { RotationKind } from './rotations';
 
 /** Fill patterns that show how a part may rotate. Sizes are in screen pixels, scaled by `upp`. */
 export function RotationPatterns({ id, upp }: { id: string; upp: number }) {
-  const size = 7 * upp;
-  const line = { stroke: 'var(--pattern)', strokeWidth: 1.1 * upp };
+  const size = 11 * upp;
+  const line = { stroke: 'var(--pattern)', strokeWidth: 0.8 * upp };
   return (
     <defs>
       <pattern id={`${id}-half`} width={size} height={size} patternUnits="userSpaceOnUse">
@@ -13,7 +13,7 @@ export function RotationPatterns({ id, upp }: { id: string; upp: number }) {
         <path d={`M${size / 2} 0V${size}M0 ${size / 2}H${size}`} fill="none" {...line} />
       </pattern>
       <pattern id={`${id}-free`} width={size} height={size} patternUnits="userSpaceOnUse">
-        <circle cx={size / 2} cy={size / 2} r={1.2 * upp} fill="var(--pattern)" />
+        <circle cx={size / 2} cy={size / 2} r={1.1 * upp} fill="var(--pattern)" />
       </pattern>
       <pattern
         id={`${id}-custom`}

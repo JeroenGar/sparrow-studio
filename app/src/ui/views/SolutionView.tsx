@@ -157,7 +157,6 @@ export function SolutionView() {
                 <button
                   key={format}
                   aria-label={`Download ${format.toUpperCase()}`}
-                  className={format === 'dxf' ? 'primary' : undefined}
                   disabled={!!busy}
                   onClick={() => void exportLayout(format)}
                 >

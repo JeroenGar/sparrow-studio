@@ -374,7 +374,7 @@ function PartsDrawing({
   onMenu: (id: string, event: React.MouseEvent<SVGGElement>) => void;
 }) {
   const id = useId().replace(/:/g, '');
-  const stack = 6 * upp;
+  const stack = arrangement.stack;
   const badge = 11 * upp;
   return (
     <>
@@ -409,6 +409,8 @@ function PartsDrawing({
                 fillRule="evenodd"
               />
             )}
+            {/* An opaque base, so the stacked copies behind never show through. */}
+            <path d={d} fillRule="evenodd" fill="var(--sheet)" />
             <path
               d={d}
               fillRule="evenodd"
