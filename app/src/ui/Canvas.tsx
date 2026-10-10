@@ -8,6 +8,9 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import type { Box } from '../project/layout';
+import { unitScale } from '../engine/units';
+import { useStudio } from './context';
+import { rulerTicks } from './rulers';
 
 type ViewBox = [x: number, y: number, width: number, height: number];
 export type CanvasView = {
@@ -166,6 +169,7 @@ export function Canvas({
         <svg viewBox={view.join(' ')} preserveAspectRatio="none" role="img" aria-label={label}>
           {children({ upp })}
         </svg>
+        <Rulers view={view} size={size} />
         {overlay}
       </div>
     </section>
@@ -177,4 +181,53 @@ export function ringsPath(rings: [number, number][][], dx = 0, dy = 0): string {
   return rings
     .map((ring) => `M${ring.map(([x, y]) => `${x + dx},${-(y + dy)}`).join('L')}Z`)
     .join('');
+}
+
+const RULER = 20;
+
+/** Rulers along the top and left edge, in the display unit, for a sense of scale. */
+function Rulers({ view, size }: { view: ViewBox; size: { width: number; height: number } }) {
+  const { unit } = useStudio();
+  const mmPerPixel = view[2] / Math.max(size.width, 1);
+  const unitMm = unitScale(unit);
+  // The view's y axis points down; world y is its negative.
+  const x = rulerTicks(view[0], view[0] + size.width * mmPerPixel, mmPerPixel, unitMm);
+  const y = rulerTicks(-(view[1] + size.height * mmPerPixel), -view[1], mmPerPixel, unitMm);
+  const toX = (mm: number) => (mm - view[0]) / mmPerPixel;
+  const toY = (mm: number) => (-mm - view[1]) / mmPerPixel;
+  const visible = (px: number) => px > RULER + 2;
+  return (
+    <svg className="rulers" width={size.width} height={size.height} aria-hidden="true">
+      <rect x={0} y={0} width={size.width} height={RULER} />
+      <rect x={0} y={0} width={RULER} height={size.height} />
+      <path
+        d={[
+          ...x
+            .filter((t) => visible(toX(t.position)))
+            .map((t) => `M${toX(t.position)},${t.major ? 12 : 16}V${RULER}`),
+          ...y
+            .filter((t) => visible(toY(t.position)))
+            .map((t) => `M${t.major ? 12 : 16},${toY(t.position)}H${RULER}`),
+        ].join('')}
+      />
+      {x
+        .filter((t) => t.major && visible(toX(t.position)))
+        .map((t) => (
+          <text key={`x${t.value}`} x={toX(t.position) + 3} y={10}>
+            {t.value}
+          </text>
+        ))}
+      {y
+        .filter((t) => t.major && visible(toY(t.position)))
+        .map((t) => (
+          <text key={`y${t.value}`} transform={`translate(10 ${toY(t.position) - 3}) rotate(-90)`}>
+            {t.value}
+          </text>
+        ))}
+      <rect className="ruler-corner" x={0} y={0} width={RULER} height={RULER} />
+      <text x={RULER / 2} y={13} textAnchor="middle">
+        {unit}
+      </text>
+    </svg>
+  );
 }

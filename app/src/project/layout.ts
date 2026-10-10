@@ -44,5 +44,9 @@ export function arrangeParts(parts: Part[]): Arrangement {
     maxX = Math.max(maxX, x - gap);
     rowHeight = Math.max(rowHeight, h);
   }
-  return { offsets, boxes, extent: [0, y - rowHeight, maxX, 0] };
+  // Shift everything up so the drawing starts at the origin and the rulers read from zero.
+  const height = rowHeight - y;
+  for (const [id, [dx, dy]] of offsets) offsets.set(id, [dx, dy + height]);
+  for (const [id, [x0, y0, x1, y1]] of boxes) boxes.set(id, [x0, y0 + height, x1, y1 + height]);
+  return { offsets, boxes, extent: [0, 0, maxX, height] };
 }

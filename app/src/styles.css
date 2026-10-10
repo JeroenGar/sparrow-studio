@@ -645,8 +645,8 @@ input[aria-invalid='true'] {
 .canvas-toolbar {
   position: absolute;
   z-index: 5;
-  top: 12px;
-  left: 12px;
+  top: 30px;
+  left: 30px;
   right: 12px;
   display: flex;
   flex-wrap: wrap;
@@ -739,7 +739,7 @@ input[aria-invalid='true'] {
 }
 .legend {
   position: absolute;
-  left: 12px;
+  left: 30px;
   bottom: 12px;
   display: flex;
   flex-wrap: wrap;
@@ -1005,4 +1005,118 @@ input[aria-invalid='true'] {
   .compare {
     grid-template-columns: 1fr;
   }
+}
+
+/* Rulers along the canvas edges */
+.rulers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--mono);
+  font-size: 9px;
+}
+.rulers rect {
+  fill: var(--panel);
+  opacity: 0.92;
+}
+.rulers .ruler-corner {
+  opacity: 1;
+}
+.rulers path {
+  stroke: var(--muted);
+  stroke-width: 1;
+  fill: none;
+}
+.rulers text {
+  fill: var(--muted);
+}
+
+/* Solution and Live summaries */
+.summary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 16px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.metric-value {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.metric-value small {
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--muted);
+}
+.downloads {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.downloads button {
+  justify-content: center;
+  padding: 0 6px;
+}
+.progress {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.progress > span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.chart {
+  width: 100%;
+  height: 90px;
+  display: block;
+}
+.chart .line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+}
+.chart .area {
+  fill: var(--accent-soft);
+}
+.chart .axis {
+  stroke: var(--line);
+}
+.chart text {
+  fill: var(--muted);
+  font-size: 10px;
+  font-family: var(--mono);
+}
+.outline.faded {
+  stroke: var(--muted);
+  stroke-opacity: 0.4;
+}
+.tooltip {
+  position: absolute;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--panel);
+  border: 1px solid var(--control);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  white-space: nowrap;
 }

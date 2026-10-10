@@ -194,7 +194,7 @@ function EmptyParts() {
   );
 }
 
-function PartThumb({ part, index }: { part: Part; index: number }) {
+export function PartThumb({ part, index }: { part: Part; index: number }) {
   const b = bounds(part.outer);
   const size = Math.max(b[2] - b[0], b[3] - b[1]);
   const pad = size * 0.08;
