@@ -13,8 +13,8 @@ export class VersionConflict extends Error {
 }
 
 /**
- * Where projects live. The browser implementation below is the only one for now; a sparrow cloud
- * implementation can follow the cloud project endpoints, which use the same version check.
+ * Where projects live. The browser implementation below is the only one for now; another, such as
+ * project files on disk, can implement the same interface.
  */
 export interface ProjectStore {
   list(): Promise<ProjectSummary[]>;

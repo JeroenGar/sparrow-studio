@@ -1,7 +1,7 @@
 import type { DisplayUnit } from '../engine/units';
 import type { MachinePreset } from './model';
 
-/** Per-browser conveniences. They become account settings with sparrow cloud. */
+/** Per-browser conveniences, kept in local storage. */
 export type Preferences = {
   theme: 'system' | 'light' | 'dark';
   unit: DisplayUnit;

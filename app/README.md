@@ -1,6 +1,6 @@
 # sparrow studio (new app)
 
-The redesigned sparrow studio: six views that each pair a list with a canvas, several projects in browser storage, and local solving with the open-source sparrow algorithm through WebAssembly. The design is in [notes/web-app-design.md](../notes/web-app-design.md). The current app in `web/` stays as it is until this one launches.
+The redesigned sparrow studio: six views that each pair a list with a canvas, several projects in browser storage, and local solving with the open-source sparrow algorithm through WebAssembly. The current app in `web/` stays as it is until this one launches.
 
 ## Running it locally
 
