@@ -7,7 +7,7 @@ import { Canvas } from '../Canvas';
 import { CloudRow } from '../CloudTag';
 import { useStudio } from '../context';
 import { download } from '../download';
-import { formatArea, formatLength, formatSeconds } from '../format';
+import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
 import { LayoutDrawing, placementKey } from './LayoutDrawing';
 import { PartThumb } from './PartsView';
@@ -119,7 +119,7 @@ export function SolutionView() {
             <div className="metrics">
               <div className="metric">
                 <span className="metric-value">
-                  {utilization(job, result, netArea).toFixed(1)}%
+                  {formatPercent(utilization(job, result, netArea))}
                 </span>
                 <span className="muted">utilization</span>
               </div>

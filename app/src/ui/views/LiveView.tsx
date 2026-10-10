@@ -6,7 +6,7 @@ import type { Timing } from '../../engine/workers/useSolver';
 import { activeMachine, copyCount, utilization } from '../../project/model';
 import { Canvas } from '../Canvas';
 import { useStudio } from '../context';
-import { formatLength, formatSeconds } from '../format';
+import { formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
 import { LayoutDrawing } from './LayoutDrawing';
@@ -57,7 +57,7 @@ export function LiveView() {
               <div className="metrics">
                 <div className="metric">
                   <span className="metric-value">
-                    {best && runJob ? `${utilization(runJob, best, netArea).toFixed(1)}%` : '—'}
+                    {best && runJob ? formatPercent(utilization(runJob, best, netArea)) : '—'}
                   </span>
                   <span className="muted">utilization</span>
                 </div>
@@ -199,7 +199,7 @@ function ImprovementChart({
 }) {
   const W = 300;
   const H = 110;
-  const pad = { left: 38, right: 6, top: 8, bottom: 16 };
+  const pad = { left: 44, right: 6, top: 8, bottom: 16 };
   const area = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
   const percent = (lengthMm: number) => (area / (job.settings.materialWidthMm * lengthMm)) * 100;
   const values = history.map((entry) => percent(entry.lengthMm));
@@ -232,7 +232,7 @@ function ImprovementChart({
         <g key={value}>
           <line className="grid" x1={pad.left} x2={W - pad.right} y1={y(value)} y2={y(value)} />
           <text x={pad.left - 4} y={y(value) + 3} textAnchor="end">
-            {value.toFixed(1)}%
+            {formatPercent(value)}
           </text>
         </g>
       ))}

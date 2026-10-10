@@ -26,3 +26,6 @@ export const formatArea = (mm2: number, unit: DisplayUnit) =>
 
 export const formatSeconds = (seconds: number) =>
   `${seconds.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`;
+
+/** A utilization or other share, with two decimals. */
+export const formatPercent = (value: number) => `${value.toFixed(2)}%`;
