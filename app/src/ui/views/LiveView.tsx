@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react';
 import { netArea, worldParts } from '../../engine/geometry/validate';
+import type { Job } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
 import type { Timing } from '../../engine/workers/useSolver';
 import { activeMachine, copyCount, utilization } from '../../project/model';
@@ -79,7 +80,7 @@ export function LiveView() {
                 )}
               </div>
               {history.length > 1 && (
-                <ImprovementChart history={history} unit={unit} elapsed={solver.elapsed} />
+                <ImprovementChart history={history} job={runJob} elapsed={solver.elapsed} />
               )}
               {solver.error && <p className="field-error">{solver.error}</p>}
               {!running && best && (
@@ -181,33 +182,44 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
   );
 }
 
-/** Best length over time, as a step line: each improvement holds until the next. */
+/**
+ * Utilization of the best valid layout over time, as a step line: each improvement holds until
+ * the next. Time runs on a logarithmic axis, because most of the gain comes in the first seconds.
+ */
 function ImprovementChart({
   history,
-  unit,
+  job,
   elapsed,
 }: {
   history: Timing[];
-  unit: DisplayUnit;
+  job: Job;
   elapsed: number;
 }) {
   const W = 300;
   const H = 90;
   const pad = { left: 4, right: 4, top: 14, bottom: 16 };
-  const lengths = history.map((entry) => entry.lengthMm);
-  const max = Math.max(...lengths);
-  const min = Math.min(...lengths);
+  const area = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
+  const percent = (lengthMm: number) => (area / (job.settings.materialWidthMm * lengthMm)) * 100;
+  const values = history.map((entry) => percent(entry.lengthMm));
+  const low = Math.min(...values);
+  const high = Math.max(...values);
   const end = Math.max(elapsed * 1000, history.at(-1)!.elapsedMs, 1);
-  const x = (ms: number) => pad.left + (ms / end) * (W - pad.left - pad.right);
-  const y = (mm: number) =>
-    pad.top + (max === min ? 0.5 : (max - mm) / (max - min)) * (H - pad.top - pad.bottom);
-  let d = `M${x(history[0].elapsedMs)},${y(history[0].lengthMm)}`;
-  for (const entry of history.slice(1)) d += `H${x(entry.elapsedMs)}V${y(entry.lengthMm)}`;
+  // log(1 + t / 100 ms): close to linear for the first tenths of a second, logarithmic after.
+  const scale = (ms: number) => Math.log1p(ms / 100);
+  const x = (ms: number) => pad.left + (scale(ms) / scale(end)) * (W - pad.left - pad.right);
+  const y = (value: number) =>
+    H -
+    pad.bottom -
+    (high === low ? 0.5 : (value - low) / (high - low)) * (H - pad.top - pad.bottom);
+  let d = `M${x(history[0].elapsedMs)},${y(values[0])}`;
+  history.slice(1).forEach((entry, i) => (d += `H${x(entry.elapsedMs)}V${y(values[i + 1])}`));
   d += `H${x(end)}`;
-  const area = `${d}V${H - pad.bottom}H${x(history[0].elapsedMs)}Z`;
+  const fill = `${d}V${H - pad.bottom}H${x(history[0].elapsedMs)}Z`;
+  // Ticks at 1, 10, 100… seconds, leaving room for the end label.
+  const ticks = [1, 10, 100, 1000].map((s) => s * 1000).filter((ms) => x(ms) < x(end) - 36);
   return (
-    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Best length over time">
-      <path className="area" d={area} />
+    <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Utilization over time">
+      <path className="area" d={fill} />
       <path className="line" d={d} />
       <line
         className="axis"
@@ -216,14 +228,25 @@ function ImprovementChart({
         y1={H - pad.bottom}
         y2={H - pad.bottom}
       />
-      <text x={pad.left} y={H - 3}>
-        0 s
-      </text>
+      {ticks.map((ms) => (
+        <g key={ms}>
+          <line
+            className="axis"
+            x1={x(ms)}
+            x2={x(ms)}
+            y1={H - pad.bottom}
+            y2={H - pad.bottom + 3}
+          />
+          <text x={x(ms)} y={H - 3} textAnchor="middle">
+            {ms / 1000} s
+          </text>
+        </g>
+      ))}
       <text x={W - pad.right} y={H - 3} textAnchor="end">
         {formatSeconds(end / 1000)}
       </text>
       <text x={W - pad.right} y={10} textAnchor="end">
-        {formatLength(max, unit)} → {formatLength(min, unit)} {unit}
+        {low.toFixed(1)}% → {high.toFixed(1)}%
       </text>
     </svg>
   );
