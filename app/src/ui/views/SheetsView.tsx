@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { netArea } from '../../engine/geometry/validate';
 import { LIMITS } from '../../engine/model';
+import type { DisplayUnit } from '../../engine/units';
 import { Canvas } from '../Canvas';
 import { CloudRow, CloudTag } from '../CloudTag';
 import { useStudio } from '../context';
@@ -101,7 +102,7 @@ function StripDrawing({
   width: number;
   length: number;
   upp: number;
-  unit: string;
+  unit: DisplayUnit;
 }) {
   const id = useId().replace(/:/g, '');
   const open = length * 0.7;
@@ -140,7 +141,7 @@ function StripDrawing({
         textAnchor="middle"
         transform={`translate(${-offset - 6 * upp} ${-width / 2}) rotate(-90)`}
       >
-        {formatLength(width, unit as 'mm')} {unit}
+        {formatLength(width, unit)} {unit}
       </text>
       <text
         className="muted-text"

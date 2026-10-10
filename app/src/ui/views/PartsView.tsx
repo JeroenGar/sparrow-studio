@@ -3,6 +3,7 @@ import { bounds } from '../../engine/geometry/normalize';
 import { netArea } from '../../engine/geometry/validate';
 import { colors } from '../../engine/colors';
 import { LIMITS, type Part } from '../../engine/model';
+import type { DisplayUnit } from '../../engine/units';
 import { arrangeParts } from '../../project/layout';
 import { copyCount } from '../../project/model';
 import { Canvas, ringsPath } from '../Canvas';
@@ -368,7 +369,7 @@ function PartsDrawing({
   arrangement: ReturnType<typeof arrangeParts>;
   upp: number;
   selected?: string;
-  unit: string;
+  unit: DisplayUnit;
   onSelect: (id: string) => void;
   onMenu: (id: string, event: React.MouseEvent<SVGGElement>) => void;
 }) {
