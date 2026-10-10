@@ -1,23 +1,29 @@
 import { colors, shades } from '../engine/colors';
 import type { RotationKind } from './rotations';
 
+/** Pattern spacing in mm: a power of two, so lines stay put while zooming and stay 12–24 px apart. */
+export const patternSize = (upp: number) => 2 ** Math.ceil(Math.log2(12 * upp));
+
 /**
- * The fill pattern of one part, showing how it may rotate. It is sized in millimetres, so it stays
- * fixed to the part while the canvas pans and zooms, and drawn in a darker shade of the part's colour.
+ * The fill pattern of one part, showing how it may rotate, in a darker shade of the part's colour.
+ * It is laid out in millimetres, so it stays fixed to the part while the canvas pans and zooms.
  */
 export function PartPattern({
   id,
   kind,
   size,
+  stroke,
   color,
 }: {
   id: string;
   kind: RotationKind;
   size: number;
+  /** Line width in mm; one screen pixel keeps the lines light at any zoom. */
+  stroke: number;
   color: string;
 }) {
   if (kind === 'fixed') return null;
-  const line = { stroke: color, strokeWidth: size * 0.1 };
+  const line = { stroke: color, strokeWidth: stroke };
   return (
     <pattern
       id={id}
@@ -30,7 +36,7 @@ export function PartPattern({
       {kind === 'quarter' && (
         <path d={`M${size / 2} 0V${size}M0 ${size / 2}H${size}`} fill="none" {...line} />
       )}
-      {kind === 'free' && <circle cx={size / 2} cy={size / 2} r={size * 0.12} fill={color} />}
+      {kind === 'free' && <circle cx={size / 2} cy={size / 2} r={stroke * 1.3} fill={color} />}
       {kind === 'custom' && <line x1={size / 2} y1={0} x2={size / 2} y2={size} {...line} />}
     </pattern>
   );

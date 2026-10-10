@@ -11,7 +11,7 @@ import { CloudRow } from '../CloudTag';
 import { useStudio } from '../context';
 import { formatArea, formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
-import { PartPattern, PatternSwatch, patternFill } from '../patterns';
+import { PartPattern, PatternSwatch, patternFill, patternSize } from '../patterns';
 import {
   ROTATION_LABELS,
   describeAngles,
@@ -392,7 +392,8 @@ function PartsDrawing({
             <PartPattern
               id={`${id}-${index}`}
               kind={rotationKind(part.rotations)}
-              size={arrangement.pattern}
+              size={patternSize(upp)}
+              stroke={upp}
               color={shades[index % shades.length]}
             />
             {part.quantity >= 3 && (
