@@ -1068,7 +1068,7 @@ input[aria-invalid='true'] {
 }
 .chart {
   width: 100%;
-  height: 90px;
+  height: 110px;
   display: block;
 }
 .chart .line {
@@ -1081,6 +1081,9 @@ input[aria-invalid='true'] {
 }
 .chart .axis {
   stroke: var(--line);
+}
+.chart .grid {
+  stroke: var(--line-soft);
 }
 .chart text {
   fill: var(--muted);

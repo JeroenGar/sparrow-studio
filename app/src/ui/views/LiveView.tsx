@@ -8,6 +8,7 @@ import { Canvas } from '../Canvas';
 import { useStudio } from '../context';
 import { formatLength, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
+import { rulerStep } from '../rulers';
 import { LayoutDrawing } from './LayoutDrawing';
 
 export function LiveView() {
@@ -184,8 +185,8 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
 
 /**
  * Utilization of the best valid layout over time, as a step line: each improvement holds until
- * the next. Both axes are logarithmic: time, because most of the gain comes in the first seconds,
- * and utilization by its distance below the current best, so even small late improvements show.
+ * the next. Utilization is plotted by its distance below the current best on a log scale, so even
+ * small late improvements show; time runs linearly.
  */
 function ImprovementChart({
   history,
@@ -197,18 +198,16 @@ function ImprovementChart({
   elapsed: number;
 }) {
   const W = 300;
-  const H = 90;
-  const pad = { left: 4, right: 4, top: 14, bottom: 16 };
+  const H = 110;
+  const pad = { left: 38, right: 6, top: 8, bottom: 16 };
   const area = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
   const percent = (lengthMm: number) => (area / (job.settings.materialWidthMm * lengthMm)) * 100;
   const values = history.map((entry) => percent(entry.lengthMm));
   const low = Math.min(...values);
   const high = Math.max(...values);
   const end = Math.max(elapsed * 1000, history.at(-1)!.elapsedMs, 1);
-  // log(1 + t / 100 ms): close to linear for the first tenths of a second, logarithmic after.
-  const scale = (ms: number) => Math.log1p(ms / 100);
-  const x = (ms: number) => pad.left + (scale(ms) / scale(end)) * (W - pad.left - pad.right);
-  // Distance below the best on a log scale: the best sits at the top, the first layout at the bottom.
+  const x = (ms: number) => pad.left + (ms / end) * (W - pad.left - pad.right);
+  // The best sits at the top and the first layout at the bottom; in between, the log distance.
   const floor = Math.max((high - low) * 0.01, 1e-6);
   const depth = (value: number) => Math.log((high - value + floor) / floor);
   const y = (value: number) =>
@@ -219,10 +218,24 @@ function ImprovementChart({
   history.slice(1).forEach((entry, i) => (d += `H${x(entry.elapsedMs)}V${y(values[i + 1])}`));
   d += `H${x(end)}`;
   const fill = `${d}V${H - pad.bottom}H${x(history[0].elapsedMs)}Z`;
-  // Ticks at 1, 10, 100… seconds, leaving room for the end label.
-  const ticks = [1, 10, 100, 1000].map((s) => s * 1000).filter((ms) => x(ms) < x(end) - 36);
+  // Utilization ticks at round distances below the best, kept at least 11 px apart.
+  const yTicks: number[] = [];
+  for (const value of [high, high - 0.1, high - 1, high - 10, low])
+    if (value >= low && yTicks.every((tick) => Math.abs(y(tick) - y(value)) >= 11))
+      yTicks.push(value);
+  // Time ticks at a round step, about 70 px apart.
+  const step = rulerStep(((end / 1000) * 70) / (W - pad.left - pad.right));
+  const xTicks = Array.from({ length: Math.floor(end / 1000 / step) + 1 }, (_, i) => i * step);
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Utilization over time">
+      {yTicks.map((value) => (
+        <g key={value}>
+          <line className="grid" x1={pad.left} x2={W - pad.right} y1={y(value)} y2={y(value)} />
+          <text x={pad.left - 4} y={y(value) + 3} textAnchor="end">
+            {value.toFixed(1)}%
+          </text>
+        </g>
+      ))}
       <path className="area" d={fill} />
       <path className="line" d={d} />
       <line
@@ -232,26 +245,11 @@ function ImprovementChart({
         y1={H - pad.bottom}
         y2={H - pad.bottom}
       />
-      {ticks.map((ms) => (
-        <g key={ms}>
-          <line
-            className="axis"
-            x1={x(ms)}
-            x2={x(ms)}
-            y1={H - pad.bottom}
-            y2={H - pad.bottom + 3}
-          />
-          <text x={x(ms)} y={H - 3} textAnchor="middle">
-            {ms / 1000} s
-          </text>
-        </g>
+      {xTicks.map((seconds) => (
+        <text key={seconds} x={x(seconds * 1000)} y={H - 3} textAnchor="middle">
+          {Number(seconds.toPrecision(6))} s
+        </text>
       ))}
-      <text x={W - pad.right} y={H - 3} textAnchor="end">
-        {formatSeconds(end / 1000)}
-      </text>
-      <text x={W - pad.right} y={10} textAnchor="end">
-        {low.toFixed(1)}% → {high.toFixed(1)}%
-      </text>
     </svg>
   );
 }
