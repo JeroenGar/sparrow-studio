@@ -1,8 +1,8 @@
 import { useMemo, useRef, useState } from 'react';
-import { worldParts } from '../../engine/geometry/validate';
+import { netArea, worldParts } from '../../engine/geometry/validate';
 import type { DisplayUnit } from '../../engine/units';
 import type { Timing } from '../../engine/workers/useSolver';
-import { activeMachine, copyCount } from '../../project/model';
+import { activeMachine, copyCount, utilization } from '../../project/model';
 import { Canvas } from '../Canvas';
 import { useStudio } from '../context';
 import { formatLength, formatSeconds } from '../format';
@@ -27,8 +27,6 @@ export function LiveView() {
   longest.current.length = Math.max(longest.current.length, shownLength);
 
   const limit = runJob?.settings.timeLimitSeconds ?? null;
-  const first = history[0]?.lengthMm;
-  const improvement = first && best ? (1 - best.usedLengthMm / first) * 100 : 0;
   const status =
     solver.state === 'Initializing'
       ? 'Starting the solver…'
@@ -57,17 +55,18 @@ export function LiveView() {
               <div className="metrics">
                 <div className="metric">
                   <span className="metric-value">
-                    {best ? formatLength(best.usedLengthMm, unit) : '—'} <small>{unit}</small>
+                    {best && runJob ? `${utilization(runJob, best, netArea).toFixed(1)}%` : '—'}
                   </span>
-                  <span className="muted">best length so far</span>
+                  <span className="muted">utilization</span>
                 </div>
                 <div className="metric">
                   <span className="metric-value">
-                    {improvement ? `−${improvement.toFixed(1)}%` : '—'}
+                    {best ? formatLength(best.usedLengthMm, unit) : '—'} <small>{unit}</small>
                   </span>
-                  <span className="muted">since the first valid layout</span>
+                  <span className="muted">length used</span>
                 </div>
               </div>
+              <span className="muted">Of the best valid layout so far.</span>
               <div className="stack">
                 <span className="muted">
                   {formatSeconds(solver.elapsed)}
