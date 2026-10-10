@@ -34,11 +34,14 @@ export function grainPaths(
   const head = length * headRatio;
   let line = '';
   let heads = '';
+  // Lines stop where their arrowheads begin, so a head is never crossed by its line.
+  const inset = head * 0.75;
   const spoke = (degrees: number, both: boolean) => {
     const [ux, uy] = dir(degrees);
     const [ax, ay] = [cx - (ux * length) / 2, cy - (uy * length) / 2];
     const [bx, by] = [cx + (ux * length) / 2, cy + (uy * length) / 2];
-    line += `M${ax} ${ay}L${bx} ${by}`;
+    const start = both ? inset : 0;
+    line += `M${ax + ux * start} ${ay + uy * start}L${bx - ux * inset} ${by - uy * inset}`;
     heads += arrowhead(bx, by, ux, uy, head);
     if (both) heads += arrowhead(ax, ay, -ux, -uy, head);
   };
@@ -61,24 +64,23 @@ export function grainPaths(
     heads = arrowhead(x1 + tx * head * 0.4, y1 + ty * head * 0.4, tx, ty, head);
   }
   if (kind === 'custom' && rule.kind === 'discrete') {
+    const small = head * 0.6;
     for (const degrees of rule.degrees) {
       const [ux, uy] = dir(degrees);
       const [bx, by] = [cx + (ux * length) / 2, cy + (uy * length) / 2];
-      line += `M${cx} ${cy}L${bx} ${by}`;
-      heads += arrowhead(bx, by, ux, uy, head);
+      line += `M${cx} ${cy}L${bx - ux * small * 0.75} ${by - uy * small * 0.75}`;
+      heads += arrowhead(bx, by, ux, uy, small);
     }
-    const r = head * 0.35;
-    heads += `M${cx - r} ${cy}a${r} ${r} 0 1 0 ${2 * r} 0a${r} ${r} 0 1 0 ${-2 * r} 0Z`;
   }
   return { line, heads };
 }
 
 /** A grain line as a small icon, for the legend and the list. */
 export function GrainIcon({ rule, size = 18 }: { rule: RotationRule; size?: number }) {
-  const { line, heads } = grainPaths(rule, 0, 0, 15, 0.36);
+  const { line, heads } = grainPaths(rule, 0, 0, 16, 0.32);
   return (
     <svg width={size} height={size} viewBox="-9 -9 18 18" aria-hidden="true" className="grain-icon">
-      <path d={line} fill="none" strokeWidth="1.6" strokeLinecap="round" />
+      <path d={line} fill="none" strokeWidth="1.6" strokeLinecap="butt" />
       <path d={heads} stroke="none" />
     </svg>
   );

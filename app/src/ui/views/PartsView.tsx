@@ -459,7 +459,7 @@ function DefaultsPanel() {
             </span>
           ))}
           <span>
-            <GrainIcon rule={{ kind: 'discrete', degrees: [0, 45, 90] }} size={14} />
+            <GrainIcon rule={{ kind: 'discrete', degrees: [0, 120, 240] }} size={14} />
             Custom angles
           </span>
         </div>
@@ -553,7 +553,7 @@ function PartsDrawing({
                 fill={shades[index % shades.length]}
                 pointerEvents="none"
               >
-                <path d={grain.line} fill="none" strokeWidth={1.4 * upp} strokeLinecap="round" />
+                <path d={grain.line} fill="none" strokeWidth={1.4 * upp} />
                 <path d={grain.heads} stroke="none" />
               </g>
             )}
