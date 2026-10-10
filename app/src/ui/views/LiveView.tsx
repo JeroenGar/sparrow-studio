@@ -184,7 +184,8 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
 
 /**
  * Utilization of the best valid layout over time, as a step line: each improvement holds until
- * the next. Time runs on a logarithmic axis, because most of the gain comes in the first seconds.
+ * the next. Both axes are logarithmic: time, because most of the gain comes in the first seconds,
+ * and utilization by its distance below the current best, so even small late improvements show.
  */
 function ImprovementChart({
   history,
@@ -207,10 +208,13 @@ function ImprovementChart({
   // log(1 + t / 100 ms): close to linear for the first tenths of a second, logarithmic after.
   const scale = (ms: number) => Math.log1p(ms / 100);
   const x = (ms: number) => pad.left + (scale(ms) / scale(end)) * (W - pad.left - pad.right);
+  // Distance below the best on a log scale: the best sits at the top, the first layout at the bottom.
+  const floor = Math.max((high - low) * 0.01, 1e-6);
+  const depth = (value: number) => Math.log((high - value + floor) / floor);
   const y = (value: number) =>
-    H -
-    pad.bottom -
-    (high === low ? 0.5 : (value - low) / (high - low)) * (H - pad.top - pad.bottom);
+    high === low
+      ? (H - pad.bottom + pad.top) / 2
+      : pad.top + (depth(value) / depth(low)) * (H - pad.top - pad.bottom);
   let d = `M${x(history[0].elapsedMs)},${y(values[0])}`;
   history.slice(1).forEach((entry, i) => (d += `H${x(entry.elapsedMs)}V${y(values[i + 1])}`));
   d += `H${x(end)}`;
