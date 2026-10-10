@@ -61,7 +61,7 @@ export function LayoutDrawing({
             d={ringsPath([part.outer, ...part.holes])}
             fillRule="evenodd"
             fill={colors[(index.get(part.partId) ?? 0) % colors.length]}
-            fillOpacity={faded ? 0.15 : hovered === key ? 0.9 : 0.7}
+            fillOpacity={faded ? 0.25 : 1}
             className={active ? 'outline selected' : faded ? 'outline faded' : 'outline'}
             strokeWidth={(active ? 2.2 : 0.8) * upp}
             onClick={onPick && (() => onPick(part))}

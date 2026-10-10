@@ -1,35 +1,43 @@
+import { colors, shades } from '../engine/colors';
 import type { RotationKind } from './rotations';
 
-/** Fill patterns that show how a part may rotate. Sizes are in screen pixels, scaled by `upp`. */
-export function RotationPatterns({ id, upp }: { id: string; upp: number }) {
-  const size = 11 * upp;
-  const line = { stroke: 'var(--pattern)', strokeWidth: 0.8 * upp };
+/**
+ * The fill pattern of one part, showing how it may rotate. It is sized in millimetres, so it stays
+ * fixed to the part while the canvas pans and zooms, and drawn in a darker shade of the part's colour.
+ */
+export function PartPattern({
+  id,
+  kind,
+  size,
+  color,
+}: {
+  id: string;
+  kind: RotationKind;
+  size: number;
+  color: string;
+}) {
+  if (kind === 'fixed') return null;
+  const line = { stroke: color, strokeWidth: size * 0.1 };
   return (
-    <defs>
-      <pattern id={`${id}-half`} width={size} height={size} patternUnits="userSpaceOnUse">
-        <line x1={0} y1={size / 2} x2={size} y2={size / 2} {...line} />
-      </pattern>
-      <pattern id={`${id}-quarter`} width={size} height={size} patternUnits="userSpaceOnUse">
+    <pattern
+      id={id}
+      width={size}
+      height={size}
+      patternUnits="userSpaceOnUse"
+      patternTransform={kind === 'custom' ? 'rotate(45)' : undefined}
+    >
+      {kind === 'half' && <line x1={0} y1={size / 2} x2={size} y2={size / 2} {...line} />}
+      {kind === 'quarter' && (
         <path d={`M${size / 2} 0V${size}M0 ${size / 2}H${size}`} fill="none" {...line} />
-      </pattern>
-      <pattern id={`${id}-free`} width={size} height={size} patternUnits="userSpaceOnUse">
-        <circle cx={size / 2} cy={size / 2} r={1.1 * upp} fill="var(--pattern)" />
-      </pattern>
-      <pattern
-        id={`${id}-custom`}
-        width={size}
-        height={size}
-        patternUnits="userSpaceOnUse"
-        patternTransform="rotate(45)"
-      >
-        <line x1={size / 2} y1={0} x2={size / 2} y2={size} {...line} />
-      </pattern>
-    </defs>
+      )}
+      {kind === 'free' && <circle cx={size / 2} cy={size / 2} r={size * 0.12} fill={color} />}
+      {kind === 'custom' && <line x1={size / 2} y1={0} x2={size / 2} y2={size} {...line} />}
+    </pattern>
   );
 }
 
 export const patternFill = (id: string, kind: RotationKind) =>
-  kind === 'fixed' ? 'none' : `url(#${id}-${kind})`;
+  kind === 'fixed' ? 'none' : `url(#${id})`;
 
 /** A small swatch for legends and lists, drawn in its own coordinate space. */
 export function PatternSwatch({ kind }: { kind: RotationKind }) {
@@ -42,15 +50,15 @@ export function PatternSwatch({ kind }: { kind: RotationKind }) {
   };
   return (
     <svg width="16" height="16" viewBox="-1 -1 16 16" aria-hidden="true" className="swatch">
-      <rect width="14" height="14" rx="2" className="swatch-fill" />
+      <rect width="14" height="14" rx="2" className="swatch-fill" fill={colors[3]} />
       {kind === 'free' ? (
         [3.5, 10.5].flatMap((x) =>
           [3.5, 10.5].map((y) => (
-            <circle key={`${x}${y}`} cx={x} cy={y} r="1.2" fill="var(--pattern)" />
+            <circle key={`${x}${y}`} cx={x} cy={y} r="1.2" fill={shades[3]} />
           )),
         )
       ) : (
-        <path d={lines[kind]} stroke="var(--pattern)" strokeWidth="1.1" fill="none" />
+        <path d={lines[kind]} stroke={shades[3]} strokeWidth="1.1" fill="none" />
       )}
     </svg>
   );

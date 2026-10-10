@@ -5,6 +5,7 @@ import { normalizePart,normalizeRing } from '../src/engine/geometry/normalize';
 import { validate,worldParts } from '../src/engine/geometry/validate';
 import { importSparrow } from '../src/engine/import/sparrow';
 import { exportSVG } from '../src/engine/export/svg';
+import { colors } from '../src/engine/colors';
 import { importSVG } from '../src/engine/import/svg';
 import { bounds } from '../src/engine/geometry/normalize';
 
@@ -37,7 +38,7 @@ describe('independent layout validation',()=>{
     expect(svg).toContain('viewBox="-0.1 -0.1 2.2 2.2"');
     expect(svg).toContain('Plate &lt;script&gt; &amp; &quot;test&quot;');
     expect(svg).toContain('25.00% used');
-    expect(svg).toContain('fill="#fb923c"');
+    expect(svg).toContain(`fill="${colors[0]}"`);
     const imported=importSVG(svg,'layout.svg',{scale:1,tolerance:.01});
     expect(imported.issues??[]).toEqual([]);
     expect(imported.document.parts).toHaveLength(1);

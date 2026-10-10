@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { bounds } from '../../engine/geometry/normalize';
 import { netArea } from '../../engine/geometry/validate';
-import { colors } from '../../engine/colors';
+import { colors, shades } from '../../engine/colors';
 import { LIMITS, type Part } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
 import { arrangeParts } from '../../project/layout';
@@ -11,7 +11,7 @@ import { CloudRow } from '../CloudTag';
 import { useStudio } from '../context';
 import { formatArea, formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
-import { PatternSwatch, RotationPatterns, patternFill } from '../patterns';
+import { PartPattern, PatternSwatch, patternFill } from '../patterns';
 import {
   ROTATION_LABELS,
   describeAngles,
@@ -208,7 +208,6 @@ export function PartThumb({ part, index }: { part: Part; index: number }) {
         d={ringsPath([part.outer, ...part.holes])}
         fillRule="evenodd"
         fill={colors[index % colors.length]}
-        fillOpacity={0.55}
         stroke="var(--ink)"
         strokeWidth={size * 0.03}
       />
@@ -378,7 +377,6 @@ function PartsDrawing({
   const badge = 11 * upp;
   return (
     <>
-      <RotationPatterns id={id} upp={upp} />
       {parts.map((part, index) => {
         const [dx, dy] = arrangement.offsets.get(part.id)!;
         const box = arrangement.boxes.get(part.id)!;
@@ -391,6 +389,12 @@ function PartsDrawing({
             onClick={() => onSelect(part.id)}
             onContextMenu={(event) => onMenu(part.id, event)}
           >
+            <PartPattern
+              id={`${id}-${index}`}
+              kind={rotationKind(part.rotations)}
+              size={arrangement.pattern}
+              color={shades[index % shades.length]}
+            />
             {part.quantity >= 3 && (
               <path
                 d={d}
@@ -415,14 +419,14 @@ function PartsDrawing({
               d={d}
               fillRule="evenodd"
               fill={colors[index % colors.length]}
-              fillOpacity={part.quantity ? 0.45 : 0.15}
+              fillOpacity={part.quantity ? 1 : 0.35}
               className={isSelected ? 'outline selected' : 'outline'}
               strokeWidth={(isSelected ? 2.5 : 1.2) * upp}
             />
             <path
               d={d}
               fillRule="evenodd"
-              fill={patternFill(id, rotationKind(part.rotations))}
+              fill={patternFill(`${id}-${index}`, rotationKind(part.rotations))}
               pointerEvents="none"
             />
             <g transform={`translate(${box[2] + badge * 0.4} ${-box[3] - badge * 0.4})`}>

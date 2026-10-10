@@ -14,7 +14,6 @@
   --canvas: #ebebe7;
   --grid: #e0e0db;
   --sheet: #ffffff;
-  --pattern: rgba(28, 28, 26, 0.28);
   --stack: #ffffff;
   --cloud: #9a3412;
   --cloud-soft: #fff1e6;
@@ -53,7 +52,6 @@
     --canvas: #121211;
     --grid: #1c1c1a;
     --sheet: #24241f;
-    --pattern: rgba(236, 236, 232, 0.3);
     --stack: #2b2b27;
     --cloud: #fdba74;
     --cloud-soft: #3a2416;
@@ -81,7 +79,6 @@
   --canvas: #121211;
   --grid: #1c1c1a;
   --sheet: #24241f;
-  --pattern: rgba(236, 236, 232, 0.3);
   --stack: #2b2b27;
   --cloud: #fdba74;
   --cloud-soft: #3a2416;
@@ -759,7 +756,6 @@ input[aria-invalid='true'] {
   gap: 6px;
 }
 .swatch-fill {
-  fill: var(--sheet);
   stroke: var(--ink);
   stroke-width: 0.8;
 }

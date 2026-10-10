@@ -250,7 +250,6 @@ export function ImportFilesDialog({
                       d={ringsPath([part.outer, ...part.holes])}
                       fillRule="evenodd"
                       fill={colors[index % colors.length]}
-                      fillOpacity={0.6}
                       stroke="var(--ink)"
                       strokeWidth={size * 0.02}
                     />
