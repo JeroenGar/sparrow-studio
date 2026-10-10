@@ -10,6 +10,8 @@ import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength, inputLength, parseLength } from '../format';
 
+type Options = { scale: number; tolerance: number; enclosed: 'holes' | 'parts'; layers?: string[] };
+
 const MAX_FILE = 10 * 1024 * 1024;
 const MAX_BATCH = 25 * 1024 * 1024;
 
@@ -25,16 +27,28 @@ export function ImportFilesDialog({
   const picker = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<ImportFile[]>();
   const [scale, setScale] = useState(1);
-  const [tolerance, setTolerance] = useState(0.01);
   const [toleranceText, setToleranceText] = useState(inputLength(0.01, unit));
   const [enclosed, setEnclosed] = useState<'holes' | 'parts'>('holes');
   const [layers, setLayers] = useState<string[]>();
-  const [review, setReview] = useState<ImportReview>();
-  const [stale, setStale] = useState(false);
+  // A preview remembers what it was made from; it is outdated as soon as any of that changes.
+  const [reviewed, setReviewed] = useState<{
+    files: ImportFile[];
+    options: Options;
+    review: ImportReview;
+  }>();
   const [exclude, setExclude] = useState(false);
   const [useWidth, setUseWidth] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const latest = useRef(0);
+
+  const tolerance = parseLength(toleranceText, unit);
+  const toleranceValid = Number.isFinite(tolerance) && tolerance > 0 && tolerance <= 100;
+  const options: Options = { scale, tolerance, enclosed, layers };
+  const review = reviewed?.review;
+  const stale =
+    !!reviewed &&
+    (reviewed.files !== files || JSON.stringify(reviewed.options) !== JSON.stringify(options));
 
   async function read(list: FileList | File[]) {
     const batch = Array.from(list);
@@ -50,40 +64,38 @@ export function ImportFilesDialog({
     const read = await Promise.all(
       batch.map(async (file) => ({ name: file.name, text: await file.text() })),
     );
+    // New files start with every layer.
     setFiles(read);
     setLayers(undefined);
-    setReview(undefined);
-    void preview(read, undefined);
+    setReviewed(undefined);
+    void preview(read, { ...options, layers: undefined });
   }
 
-  async function preview(list = files, chosenLayers = layers) {
-    if (!list) return;
+  async function preview(list: ImportFile[], chosen: Options) {
+    const request = ++latest.current;
     setBusy(true);
     setError('');
     setExclude(false);
     try {
       const reply = await geometryTask({
         type: 'import',
-        runId: 1,
+        runId: request,
         documentRevision: 1,
         files: list,
-        scale,
-        tolerance,
-        enclosed,
-        layers: chosenLayers,
+        ...chosen,
       });
+      if (request !== latest.current) return;
       if (reply.type !== 'import-review') throw Error('Could not read these files.');
-      setReview(reply.review);
-      setStale(false);
+      setReviewed({ files: list, options: chosen, review: reply.review });
     } catch (reason) {
-      setReview(undefined);
+      if (request !== latest.current) return;
+      setReviewed(undefined);
       setError(reason instanceof Error ? reason.message : String(reason));
     } finally {
-      setBusy(false);
+      if (request === latest.current) setBusy(false);
     }
   }
 
-  const changed = () => setStale(true);
   const hasDrawings = !!files?.some((file) => !file.text.trimStart().startsWith('{'));
   const hasDXF = !!files?.some((file) => !['<', '{'].includes(file.text.trimStart()[0]));
   const isInstance = files?.length === 1 && files[0].text.trimStart().startsWith('{');
@@ -105,7 +117,11 @@ export function ImportFilesDialog({
         <>
           <button onClick={onClose}>Cancel</button>
           {stale ? (
-            <button className="primary" disabled={busy} onClick={() => void preview()}>
+            <button
+              className="primary"
+              disabled={busy || !toleranceValid}
+              onClick={() => files && void preview(files, options)}
+            >
               Update preview
             </button>
           ) : (
@@ -157,13 +173,7 @@ export function ImportFilesDialog({
         <div className="import-options">
           <label className="field">
             One drawing unit
-            <select
-              value={scale}
-              onChange={(event) => {
-                setScale(Number(event.target.value));
-                changed();
-              }}
-            >
+            <select value={scale} onChange={(event) => setScale(Number(event.target.value))}>
               <option value="1">1 mm</option>
               <option value="25.4">1 inch · 25.4 mm</option>
             </select>
@@ -175,15 +185,12 @@ export function ImportFilesDialog({
               <input
                 className="mono"
                 value={toleranceText}
-                onChange={(event) => {
-                  setToleranceText(event.target.value);
-                  const value = parseLength(event.target.value, unit);
-                  if (Number.isFinite(value) && value > 0 && value <= 100) {
-                    setTolerance(value);
-                    changed();
-                  }
-                }}
+                aria-invalid={!toleranceValid}
+                onChange={(event) => setToleranceText(event.target.value)}
               />
+              {!toleranceValid && (
+                <span className="field-error">Enter a positive distance up to 100 mm.</span>
+              )}
               <span className="muted">Curves become straight segments within this distance.</span>
             </label>
           )}
@@ -192,10 +199,7 @@ export function ImportFilesDialog({
               Contours inside contours
               <select
                 value={enclosed}
-                onChange={(event) => {
-                  setEnclosed(event.target.value as 'holes' | 'parts');
-                  changed();
-                }}
+                onChange={(event) => setEnclosed(event.target.value as 'holes' | 'parts')}
               >
                 <option value="holes">Are holes</option>
                 <option value="parts">Are separate parts</option>
@@ -217,7 +221,6 @@ export function ImportFilesDialog({
                           ? [...current, layer]
                           : current.filter((name) => name !== layer),
                       );
-                      changed();
                     }}
                   />
                   {layer}

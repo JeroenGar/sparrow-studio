@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { newId, type Job } from '../engine/model';
+import { newId } from '../engine/model';
 import { useSolver } from '../engine/workers/useSolver';
 import { geometryTask } from '../engine/workers/geometryTask';
 import { loadExample } from '../project/examples';
@@ -148,11 +148,13 @@ function StudioShell({
   const version = useRef(stored.version);
   const saved = useRef(stored.document);
   const solver = useSolver();
-  const [runJob, setRunJob] = useState<Job>();
+  const [preparing, setPreparing] = useState(false);
+  const preparation = useRef(0);
   const recording = useRef(false);
   const revision = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
-  const running = solver.state === 'Initializing' || solver.state === 'Running';
+  const running = preparing || solver.state === 'Initializing' || solver.state === 'Running';
+  const runJob = solver.job;
 
   const showError = useCallback((message: string) => setError(message), []);
   const edit = useCallback(
@@ -209,24 +211,43 @@ function StudioShell({
   }, [flush]);
 
   async function startRun() {
+    if (running) return;
+    const attempt = ++preparation.current;
+    setPreparing(true);
     try {
       const reply = await geometryTask({
         type: 'normalize',
-        runId: 1,
+        runId: attempt,
         documentRevision: 1,
         document: projectJob(project),
       });
+      // Stopped, or the studio closed, while the job was being prepared.
+      if (attempt !== preparation.current) return;
       if (reply.type !== 'normalized') throw Error('Could not prepare the job.');
       revision.current += 1;
       recording.current = true;
-      setRunJob(reply.document);
       setError('');
       solver.start(reply.document, revision.current, project.settings.threads || undefined);
       setTab('live');
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      if (attempt === preparation.current)
+        setError(reason instanceof Error ? reason.message : String(reason));
+    } finally {
+      if (attempt === preparation.current) setPreparing(false);
     }
   }
+  function stopRun() {
+    if (preparing) {
+      preparation.current += 1;
+      setPreparing(false);
+    } else solver.stop();
+  }
+  useEffect(
+    () => () => {
+      preparation.current += 1;
+    },
+    [],
+  );
 
   // When a run ends with a valid layout, it becomes the project's solution.
   useEffect(() => {
@@ -320,10 +341,10 @@ function StudioShell({
       runJob,
       running,
       startRun: () => void startRun(),
-      stopRun: solver.stop,
+      stopRun,
     }),
     // startRun reads the current project; it is recreated with it.
-    [project, edit, preferences, setPreferences, showError, solver, runJob, running],
+    [project, edit, preferences, setPreferences, showError, solver, runJob, running, preparing],
   );
 
   const saveLabel = {

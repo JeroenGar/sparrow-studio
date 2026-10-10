@@ -104,11 +104,20 @@ export function projectJob(project: ProjectDocument): Job {
   };
 }
 
-/** Compares jobs by the inputs that change a solution; the project name does not. */
+/** Compares jobs by the inputs that change a layout; names and file sources do not. */
 export function jobKey(job: Job): string {
   return JSON.stringify({
-    parts: job.parts.filter((part) => part.quantity > 0),
-    settings: { width: job.settings.materialWidthMm, gap: job.settings.clearanceMm },
+    parts: job.parts
+      .filter((part) => part.quantity > 0)
+      .map(({ id, outer, holes, quantity, rotations }) => [
+        id,
+        outer,
+        holes,
+        quantity,
+        ruleKey(rotations),
+      ]),
+    width: job.settings.materialWidthMm,
+    gap: job.settings.clearanceMm,
   });
 }
 

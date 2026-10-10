@@ -2,8 +2,14 @@ import { newId } from '../engine/model';
 import { parseProject } from './file';
 import type { ProjectDocument } from './model';
 
+export type StoredProject = {
+  id: string;
+  updatedAt: string;
+  version: number;
+  document: ProjectDocument;
+};
+/** A project in a listing. Its name comes from the document; the record does not store it twice. */
 export type ProjectSummary = { id: string; name: string; updatedAt: string; version: number };
-export type StoredProject = ProjectSummary & { document: ProjectDocument };
 
 /** Thrown when a save starts from an older version, for example after an edit in another tab. */
 export class VersionConflict extends Error {
@@ -77,9 +83,9 @@ async function transaction<T>(
   }
 }
 
-const summary = ({ id, name, updatedAt, version }: StoredProject): ProjectSummary => ({
+const summary = ({ id, updatedAt, version, document }: StoredProject): ProjectSummary => ({
   id,
-  name,
+  name: document.name,
   updatedAt,
   version,
 });
@@ -102,7 +108,6 @@ export const browserStore: ProjectStore = {
   async create(document) {
     const stored: StoredProject = {
       id: newId(),
-      name: document.name,
       updatedAt: new Date().toISOString(),
       version: 1,
       document,
@@ -121,7 +126,6 @@ export const browserStore: ProjectStore = {
         if (current.version !== expectedVersion) return abort(new VersionConflict());
         const next: StoredProject = {
           id,
-          name: document.name,
           updatedAt: new Date().toISOString(),
           version: current.version + 1,
           document,

@@ -8,6 +8,7 @@ import { arrangeParts } from '../../project/layout';
 import {
   copyCount,
   differsFromDefaults,
+  ruleKey,
   resolvedParts,
   setDefaultRotations,
   setPartRotations,
@@ -376,9 +377,24 @@ function RotationField({
   onChange: (rule: RotationRule | 'default', key?: string) => void;
 }) {
   const kind = rotationKind(rule);
-  const [angles, setAngles] = useState(describeAngles(rule).replace(/°/g, ''));
+  const draftOf = (value: RotationRule) => describeAngles(value).replace(/°/g, '');
+  const [angles, setAngles] = useState(draftOf(rule));
+  // Opening the angle editor is a choice of its own: typed angles may match a named rule.
+  const [customOpen, setCustomOpen] = useState(kind === 'custom');
+  const emitted = useRef<string | undefined>(undefined);
+  const key = ruleKey(rule);
+  useEffect(() => {
+    // Follow changes made elsewhere (undo, another field), not the ones typed here.
+    if (key === emitted.current) return;
+    setAngles(draftOf(rule));
+    setCustomOpen(rotationKind(rule) === 'custom');
+  }, [key]);
+  const emit = (next: RotationRule | 'default', editKey?: string) => {
+    emitted.current = next === 'default' ? undefined : ruleKey(next);
+    onChange(next, editKey);
+  };
   const anglesValid = !!parseAngles(angles);
-  const value = defaultRule && usesDefault ? 'default' : kind;
+  const value = customOpen ? 'custom' : defaultRule && usesDefault ? 'default' : kind;
   return (
     <>
       <label className="field">
@@ -418,7 +434,7 @@ function RotationField({
             onChange={(event) => {
               setAngles(event.target.value);
               const parsed = parseAngles(event.target.value);
-              if (parsed) onChange(parsed, 'angles');
+              if (parsed) emit(parsed, 'angles');
             }}
           />
           {!anglesValid && (

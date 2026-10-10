@@ -49,10 +49,12 @@ describe('project document', () => {
     expect(project.machines[0].id).not.toBe(machine.id);
   });
 
-  it('treats a renamed project as the same job, and a quantity change as a new one', () => {
+  it('treats renamed projects and parts as the same job, and a quantity change as a new one', () => {
     const project = addParts(newProject('Job'), [square(10)]);
     const key = jobKey(projectJob(project));
     expect(jobKey(projectJob({ ...project, name: 'Renamed' }))).toBe(key);
+    const renamedPart = { ...project, parts: [{ ...project.parts[0], name: 'Bracket' }] };
+    expect(jobKey(projectJob(renamedPart))).toBe(key);
     expect(
       jobKey(projectJob({ ...project, parts: [{ ...project.parts[0], quantity: 2 }] })),
     ).not.toBe(key);

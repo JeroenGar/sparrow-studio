@@ -12,9 +12,11 @@ export function RunBar() {
           Stop
         </button>
         <span className="muted">
-          {solver.state === 'Initializing'
-            ? 'Starting the solver…'
-            : `Running · ${formatSeconds(solver.elapsed)}`}
+          {solver.state === 'Running'
+            ? `Running · ${formatSeconds(solver.elapsed)}`
+            : solver.state === 'Initializing'
+              ? 'Starting the solver…'
+              : 'Preparing the job…'}
         </span>
       </div>
     );

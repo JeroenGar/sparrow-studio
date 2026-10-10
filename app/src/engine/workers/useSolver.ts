@@ -37,6 +37,8 @@ export function useSolver() {
   const [phase,setPhase]=useState<string>(),[skipping,setSkipping]=useState(false),[canSkip,setCanSkip]=useState(false);
   const [live,setLive]=useState<LiveFrame>(),[liveError,setLiveError]=useState('');
   const [workers,setWorkers]=useState<{actual:number;requested?:number;reason?:string}>();
+  // The job of the current or last run: the one place it is kept.
+  const [job,setJob]=useState<Job>();
   const run=useRef<Run|undefined>(undefined),serial=useRef(0);
   const diagnostics=useRef<Diagnostics|undefined>(undefined);
   useEffect(()=>{
@@ -78,7 +80,7 @@ export function useSolver() {
   }
   function start(doc:Job,revision:number,threads?:number,requestedAt=performance.now()) {
     const startup:StartupTiming={preparedMs:performance.now()-requestedAt};
-    clear();setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setError('');setElapsed(0);setState('Initializing');
+    clear();setJob(doc);setWorkers(undefined);setResult(undefined);setLive(undefined);setLiveError('');setError('');setElapsed(0);setState('Initializing');
     const id=++serial.current,seed=crypto.getRandomValues(new BigUint64Array(1))[0].toString();
     const solver=new Worker(new URL('./solver.worker.ts',import.meta.url),{type:'module'});
     const preview=new Worker(new URL('./geometry.worker.ts',import.meta.url),{type:'module'});
@@ -146,5 +148,5 @@ export function useSolver() {
     setSkipping(true);r.diagnostics.compressionRequestedMs=r.startedAt?performance.now()-r.startedAt:0;
     r.solver.postMessage({type:'skip'});
   }
-  return {phase,canSkip,skipping,skipToCompression,state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
+  return {job,phase,canSkip,skipping,skipToCompression,state,workers,result,live,liveError,elapsed,error,start,stop:()=>end('Stopped'),invalidate,load,diagnostics};
 }
