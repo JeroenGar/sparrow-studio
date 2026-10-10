@@ -7,8 +7,6 @@ export type Arrangement = {
   offsets: Map<string, [number, number]>;
   boxes: Map<string, Box>;
   extent: Box;
-  /** Offset of the stacked outlines behind a part with several copies, in mm, so it scales with zoom. */
-  stack: number;
 };
 
 /**
@@ -18,7 +16,7 @@ export type Arrangement = {
 export function arrangeParts(parts: Part[]): Arrangement {
   const offsets = new Map<string, [number, number]>();
   const boxes = new Map<string, Box>();
-  if (!parts.length) return { offsets, boxes, extent: [0, 0, 100, 100], stack: 1 };
+  if (!parts.length) return { offsets, boxes, extent: [0, 0, 100, 100] };
   const sizes = parts.map((part) => {
     const b = bounds(part.outer);
     return { part, b, w: b[2] - b[0], h: b[3] - b[1] };
@@ -50,5 +48,5 @@ export function arrangeParts(parts: Part[]): Arrangement {
   const height = rowHeight - y;
   for (const [id, [dx, dy]] of offsets) offsets.set(id, [dx, dy + height]);
   for (const [id, [x0, y0, x1, y1]] of boxes) boxes.set(id, [x0, y0 + height, x1, y1 + height]);
-  return { offsets, boxes, extent: [0, 0, maxX, height], stack: gap * 0.1 };
+  return { offsets, boxes, extent: [0, 0, maxX, height] };
 }

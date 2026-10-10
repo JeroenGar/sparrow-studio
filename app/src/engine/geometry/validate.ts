@@ -86,4 +86,4 @@ export function validate(doc: Job, result: Result, serialized?: WorldPart[]): Va
   } catch(error) { v.errors.push(error instanceof Error?error.message:String(error)); }
   return v;
 }
-export const netArea = (part: Part) => Math.abs(area(part.outer))-part.holes.reduce((n,h)=>n+Math.abs(area(h)),0);
+export const netArea = (part: Pick<Part,'outer'|'holes'>) => Math.abs(area(part.outer))-part.holes.reduce((n,h)=>n+Math.abs(area(h)),0);

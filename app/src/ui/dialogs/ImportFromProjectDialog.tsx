@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import type { Part } from '../../engine/model';
-import type { MachinePreset, ProjectDocument, Strip } from '../../project/model';
+import {
+  resolvedParts,
+  type MachinePreset,
+  type ProjectDocument,
+  type Strip,
+} from '../../project/model';
 import { browserStore, type ProjectSummary } from '../../project/store';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
@@ -95,7 +100,10 @@ export function ImportFromProjectDialog({
               disabled={!chosen.size}
               onClick={() =>
                 onImport({
-                  parts: kind === 'parts' ? source.parts.filter((part) => chosen.has(part.id)) : [],
+                  parts:
+                    kind === 'parts'
+                      ? resolvedParts(source).filter((part) => chosen.has(part.id))
+                      : [],
                   strip: kind === 'sheets' && chosen.size ? source.stock.strip : undefined,
                   machines:
                     kind === 'machines'

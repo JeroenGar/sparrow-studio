@@ -2,7 +2,19 @@ import { describe, expect, it } from 'vitest';
 import { newPart, type Part } from '../src/engine/model';
 import { parseProject, projectFileName, serializeProject } from '../src/project/file';
 import { arrangeParts } from '../src/project/layout';
-import { jobKey, newMachine, newProject, projectJob, startBlockers } from '../src/project/model';
+import {
+  addParts,
+  commonRotations,
+  differsFromDefaults,
+  jobKey,
+  newMachine,
+  newProject,
+  projectJob,
+  resolvedParts,
+  setDefaultRotations,
+  setPartRotations,
+  startBlockers,
+} from '../src/project/model';
 import { historyReducer, initialHistory } from '../src/ui/history';
 import { parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
 
@@ -18,7 +30,7 @@ const square = (size: number, quantity = 1): Part => ({
 
 describe('project document', () => {
   it('round-trips through a project file', () => {
-    const project = { ...newProject('Shop job'), parts: [square(10, 3)] };
+    const project = addParts(newProject('Shop job'), [square(10, 3)]);
     expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
   });
 
@@ -30,7 +42,7 @@ describe('project document', () => {
 
   it('builds the solver job from the strip, the active machine and the settings', () => {
     const machine = newMachine('Laser', 0.5);
-    const project = { ...newProject('Job', machine), parts: [square(10)] };
+    const project = addParts(newProject('Job', machine), [square(10)]);
     const job = projectJob(project);
     expect(job.settings.materialWidthMm).toBe(1000);
     expect(job.settings.clearanceMm).toBe(0.5);
@@ -38,7 +50,7 @@ describe('project document', () => {
   });
 
   it('treats a renamed project as the same job, and a quantity change as a new one', () => {
-    const project = { ...newProject('Job'), parts: [square(10)] };
+    const project = addParts(newProject('Job'), [square(10)]);
     const key = jobKey(projectJob(project));
     expect(jobKey(projectJob({ ...project, name: 'Renamed' }))).toBe(key);
     expect(
@@ -118,5 +130,41 @@ describe('undo history', () => {
     expect(state.present.solutions).toEqual([solution]);
     state = historyReducer(state, { type: 'redo' });
     expect(state.present.name).toBe('AB');
+  });
+});
+
+describe('part defaults', () => {
+  const half = { kind: 'discrete' as const, degrees: [0, 180] };
+  const free = { kind: 'continuous' as const };
+  const rules = (project: ReturnType<typeof newProject>) =>
+    resolvedParts(project).map((part) => part.rotations);
+
+  it('stores a rule only on parts that have their own', () => {
+    let project = addParts(newProject('Job'), [square(10), { ...square(20), rotations: free }]);
+    expect(project.parts.map(differsFromDefaults)).toEqual([false, true]);
+    expect(project.parts[0].rotations).toBeUndefined();
+    project = setDefaultRotations(project, { kind: 'discrete', degrees: [0] });
+    expect(rules(project)).toEqual([{ kind: 'discrete', degrees: [0] }, free]);
+    expect(projectJob(project).parts.map((part) => part.rotations)).toEqual(rules(project));
+  });
+
+  it('can give a part its own rule and take it back', () => {
+    let project = addParts(newProject('Job'), [square(10)]);
+    const id = project.parts[0].id;
+    project = setPartRotations(project, [id], free);
+    expect(differsFromDefaults(project.parts[0])).toBe(true);
+    project = setPartRotations(project, [id], 'default');
+    expect(differsFromDefaults(project.parts[0])).toBe(false);
+    expect(rules(project)).toEqual([half]);
+  });
+
+  it('round-trips parts that follow the defaults through a project file', () => {
+    const project = addParts(newProject('Job'), [square(10), { ...square(20), rotations: free }]);
+    expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
+  });
+
+  it('takes the most common rule as the defaults of a set of parts', () => {
+    const parts = [square(1), { ...square(2), rotations: free }, { ...square(3), rotations: free }];
+    expect(commonRotations(parts, half)).toEqual(free);
   });
 });

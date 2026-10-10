@@ -46,8 +46,26 @@ export function parseProject(value: unknown): ProjectDocument {
   )
     return fail('invalid solver settings.');
   if (!Array.isArray(value.solutions)) return fail('solutions must be a list.');
+  const defaults = value.partDefaults;
+  const rule = isRecord(defaults) ? defaults.rotations : undefined;
+  const validRule =
+    isRecord(rule) &&
+    (rule.kind === 'continuous' ||
+      (rule.kind === 'discrete' &&
+        Array.isArray(rule.degrees) &&
+        rule.degrees.length > 0 &&
+        rule.degrees.every(finite)));
+  if (!validRule) return fail('invalid part defaults.');
   const project = value as unknown as ProjectDocument;
-  return { ...project, parts: project.parts.map(normalizePart) };
+  // Check each part with the rule it solves with, then keep only what it stores itself.
+  const parts = project.parts.map((part) => {
+    const { rotations, ...checked } = normalizePart({
+      ...part,
+      rotations: part.rotations ?? project.partDefaults.rotations,
+    });
+    return part.rotations ? { ...checked, rotations } : checked;
+  });
+  return { ...project, parts };
 }
 
 export const serializeProject = (project: ProjectDocument) => JSON.stringify(project, null, 2);

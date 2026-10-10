@@ -2,7 +2,13 @@ import { scalePart } from '../engine/geometry/normalize';
 import { netArea } from '../engine/geometry/validate';
 import type { Job } from '../engine/model';
 import { geometryTask } from '../engine/workers/geometryTask';
-import { newProject, type MachinePreset, type ProjectDocument } from './model';
+import {
+  addParts,
+  commonRotations,
+  newProject,
+  type MachinePreset,
+  type ProjectDocument,
+} from './model';
 
 export type Example = {
   id: string;
@@ -65,9 +71,13 @@ export async function loadExample(file: string, machine?: MachinePreset): Promis
   const project = newProject(`${file.replace(/\.json$/, '')} (example)`, machine);
   // Round up so every part that fitted before still fits.
   const width = Math.ceil(job.settings.materialWidthMm * 100) / 100;
-  return {
-    ...project,
-    parts: job.parts,
-    stock: { ...project.stock, strip: { ...project.stock.strip, widthMm: width } },
-  };
+  const rotations = commonRotations(job.parts, project.partDefaults.rotations);
+  return addParts(
+    {
+      ...project,
+      partDefaults: { ...project.partDefaults, rotations },
+      stock: { ...project.stock, strip: { ...project.stock.strip, widthMm: width } },
+    },
+    job.parts,
+  );
 }

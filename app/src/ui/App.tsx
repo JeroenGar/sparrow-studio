@@ -4,7 +4,7 @@ import { useSolver } from '../engine/workers/useSolver';
 import { geometryTask } from '../engine/workers/geometryTask';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
-import { newProject, projectJob, type ProjectDocument } from '../project/model';
+import { addParts, newProject, projectJob, type ProjectDocument } from '../project/model';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import { browserStore, VersionConflict, type StoredProject } from '../project/store';
 import { StudioContext, type Studio, type Tab } from './context';
@@ -61,14 +61,19 @@ export default function App() {
     [setPreferences],
   );
   const openLatest = useCallback(async () => {
-    const [latest] = await browserStore.list();
-    if (latest) await open(latest.id);
-    else
-      await create(
-        await loadExample(FIRST_EXAMPLE, preferences.defaultMachine).catch(() =>
-          newProject('Untitled project'),
-        ),
-      );
+    // Open the most recent project that still reads; a draft-format project is skipped.
+    for (const project of await browserStore.list()) {
+      try {
+        return await open(project.id);
+      } catch {
+        continue;
+      }
+    }
+    await create(
+      await loadExample(FIRST_EXAMPLE, preferences.defaultMachine).catch(() =>
+        newProject('Untitled project'),
+      ),
+    );
   }, [open, create, preferences.defaultMachine]);
 
   useEffect(() => {
@@ -269,24 +274,29 @@ function StudioShell({
   }, []);
 
   const importContent = (content: ProjectImport) => {
-    edit((current) => ({
-      ...current,
-      parts: [...current.parts, ...content.parts.map((part) => ({ ...part, id: newId() }))],
-      stock: content.strip
-        ? {
-            ...current.stock,
-            strip: {
-              ...current.stock.strip,
-              name: content.strip.name,
-              widthMm: content.strip.widthMm,
-            },
-          }
-        : current.stock,
-      machines: [
-        ...current.machines,
-        ...content.machines.map((machine) => ({ ...machine, id: newId() })),
-      ],
-    }));
+    edit((previous) => {
+      const current = addParts(
+        previous,
+        content.parts.map((part) => ({ ...part, id: newId() })),
+      );
+      return {
+        ...current,
+        stock: content.strip
+          ? {
+              ...current.stock,
+              strip: {
+                ...current.stock.strip,
+                name: content.strip.name,
+                widthMm: content.strip.widthMm,
+              },
+            }
+          : current.stock,
+        machines: [
+          ...current.machines,
+          ...content.machines.map((machine) => ({ ...machine, id: newId() })),
+        ],
+      };
+    });
     setDialog(undefined);
   };
 
@@ -474,13 +484,18 @@ function StudioShell({
         <ImportFilesDialog
           onClose={() => setDialog(undefined)}
           onAdd={(parts, widthMm) => {
-            edit((current) => ({
-              ...current,
-              parts: [...current.parts, ...parts.map((part) => ({ ...part, id: newId() }))],
-              stock: widthMm
-                ? { ...current.stock, strip: { ...current.stock.strip, widthMm } }
-                : current.stock,
-            }));
+            edit((previous) => {
+              const current = addParts(
+                previous,
+                parts.map((part) => ({ ...part, id: newId() })),
+              );
+              return {
+                ...current,
+                stock: widthMm
+                  ? { ...current.stock, strip: { ...current.stock.strip, widthMm } }
+                  : current.stock,
+              };
+            });
             setDialog(undefined);
             setTab('parts');
           }}

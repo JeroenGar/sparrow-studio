@@ -14,7 +14,6 @@
   --canvas: #ebebe7;
   --grid: #e0e0db;
   --sheet: #ffffff;
-  --stack: #ffffff;
   --cloud: #9a3412;
   --cloud-soft: #fff1e6;
   --cloud-line: #c2410c;
@@ -23,6 +22,7 @@
   --good-soft: #e7f5ec;
   --good-line: #86c29b;
   --overlap: rgba(220, 38, 38, 0.72);
+  --differs: #e5372c;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
@@ -52,7 +52,6 @@
     --canvas: #121211;
     --grid: #1c1c1a;
     --sheet: #24241f;
-    --stack: #2b2b27;
     --cloud: #fdba74;
     --cloud-soft: #3a2416;
     --cloud-line: #c2610c;
@@ -79,7 +78,6 @@
   --canvas: #121211;
   --grid: #1c1c1a;
   --sheet: #24241f;
-  --stack: #2b2b27;
   --cloud: #fdba74;
   --cloud-soft: #3a2416;
   --cloud-line: #c2610c;
@@ -681,10 +679,6 @@ input[aria-invalid='true'] {
 .outline.selected {
   stroke: var(--accent);
 }
-.stack {
-  fill: var(--stack);
-  stroke: var(--muted);
-}
 .badge {
   fill: var(--ink);
 }
@@ -754,10 +748,6 @@ input[aria-invalid='true'] {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-.swatch-fill {
-  stroke: var(--ink);
-  stroke-width: 0.8;
 }
 .legend-badge {
   font-family: var(--mono);
@@ -1115,4 +1105,84 @@ input[aria-invalid='true'] {
   box-shadow: var(--shadow);
   pointer-events: none;
   white-space: nowrap;
+}
+
+/* Part defaults and parts that differ from them */
+.defaults-panel {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+  overflow-y: auto;
+}
+.properties.plain {
+  background: transparent;
+  border: 0;
+}
+.differs-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 50%;
+  background: var(--differs);
+}
+.differs-mark {
+  fill: var(--differs);
+  stroke: var(--panel);
+}
+.differs-note,
+.differs-count {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.defaults-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+  font-size: 13px;
+}
+.defaults-summary button {
+  align-self: flex-start;
+}
+.grain-icon {
+  stroke: var(--muted);
+  fill: var(--muted);
+}
+@media (max-width: 1100px) {
+  .defaults-panel {
+    flex-basis: 240px;
+  }
+}
+@media (max-width: 900px) {
+  .defaults-panel {
+    flex: none;
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+}
+.rotation-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.rotation-input select {
+  flex: 1;
+}
+.grain-key {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.grain-key span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
