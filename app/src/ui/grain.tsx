@@ -19,10 +19,19 @@ function arrowhead(x: number, y: number, ux: number, uy: number, size: number): 
   return `M${x} ${y}L${bx + nx * w} ${by + ny * w}L${bx - nx * w} ${by - ny * w}Z`;
 }
 
-/** The grain line of a rule, centred at (cx, cy), `length` long. */
-export function grainPaths(rule: RotationRule, cx: number, cy: number, length: number): GrainPaths {
+/**
+ * The grain line of a rule, centred at (cx, cy), `length` long. Small icons need larger
+ * arrowheads (`headRatio`) to stay readable; fixed and half-turns differ only in their heads.
+ */
+export function grainPaths(
+  rule: RotationRule,
+  cx: number,
+  cy: number,
+  length: number,
+  headRatio = 0.17,
+): GrainPaths {
   const kind: RotationKind = rotationKind(rule);
-  const head = length * 0.17;
+  const head = length * headRatio;
   let line = '';
   let heads = '';
   const spoke = (degrees: number, both: boolean) => {
@@ -66,10 +75,10 @@ export function grainPaths(rule: RotationRule, cx: number, cy: number, length: n
 
 /** A grain line as a small icon, for the legend and the list. */
 export function GrainIcon({ rule, size = 18 }: { rule: RotationRule; size?: number }) {
-  const { line, heads } = grainPaths(rule, 0, 0, 14);
+  const { line, heads } = grainPaths(rule, 0, 0, 15, 0.36);
   return (
     <svg width={size} height={size} viewBox="-9 -9 18 18" aria-hidden="true" className="grain-icon">
-      <path d={line} fill="none" strokeWidth="1.4" strokeLinecap="round" />
+      <path d={line} fill="none" strokeWidth="1.6" strokeLinecap="round" />
       <path d={heads} stroke="none" />
     </svg>
   );
