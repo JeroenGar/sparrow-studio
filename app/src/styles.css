@@ -12,7 +12,8 @@
   --accent-soft: #eef3ff;
   --accent-line: #c9d7fb;
   --canvas: #ebebe7;
-  --grid: #e0e0db;
+  --grid: #e3e3de;
+  --grid-major: #d3d3cd;
   --sheet: #ffffff;
   --cloud: #9a3412;
   --cloud-soft: #fff1e6;
@@ -51,6 +52,7 @@
     --accent-line: #34406a;
     --canvas: #121211;
     --grid: #1c1c1a;
+    --grid-major: #262624;
     --sheet: #24241f;
     --cloud: #fdba74;
     --cloud-soft: #3a2416;
@@ -77,6 +79,7 @@
   --accent-line: #34406a;
   --canvas: #121211;
   --grid: #1c1c1a;
+  --grid-major: #262624;
   --sheet: #24241f;
   --cloud: #fdba74;
   --cloud-soft: #3a2416;
@@ -632,10 +635,6 @@ input[aria-invalid='true'] {
   flex-direction: column;
   position: relative;
   background-color: var(--canvas);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 24px 24px;
 }
 .canvas-toolbar {
   position: absolute;
@@ -786,10 +785,6 @@ input[aria-invalid='true'] {
   justify-content: center;
   padding: 56px 24px 24px;
   background-color: var(--canvas);
-  background-image:
-    linear-gradient(var(--grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
-  background-size: 24px 24px;
 }
 .explanation.collapsed {
   flex: 0 0 auto;
@@ -1188,4 +1183,12 @@ input[aria-invalid='true'] {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+/* The canvas grid, drawn in the drawing so it pans and zooms with it */
+.grid-minor {
+  stroke: var(--grid);
+}
+.grid-major {
+  stroke: var(--grid-major);
 }

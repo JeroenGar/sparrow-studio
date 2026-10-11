@@ -167,6 +167,7 @@ export function Canvas({
         }}
       >
         <svg viewBox={view.join(' ')} preserveAspectRatio="none" role="img" aria-label={label}>
+          <Grid view={view} size={size} />
           {children({ upp })}
         </svg>
         <Rulers view={view} size={size} />
@@ -184,6 +185,27 @@ export function ringsPath(rings: [number, number][][], dx = 0, dy = 0): string {
 }
 
 const RULER = 20;
+
+/** Grid lines on the ruler's ticks, in drawing coordinates, so they move and zoom with it. */
+function Grid({ view, size }: { view: ViewBox; size: { width: number; height: number } }) {
+  const { unit } = useStudio();
+  const upp = view[2] / Math.max(size.width, 1);
+  const unitMm = unitScale(unit);
+  const [x0, y0, w, h] = view;
+  const x = rulerTicks(x0, x0 + w, upp, unitMm);
+  const y = rulerTicks(-(y0 + h), -y0, upp, unitMm);
+  const lines = (major: boolean) =>
+    [
+      ...x.filter((t) => t.major === major).map((t) => `M${t.position} ${y0}V${y0 + h}`),
+      ...y.filter((t) => t.major === major).map((t) => `M${x0} ${-t.position}H${x0 + w}`),
+    ].join('');
+  return (
+    <g aria-hidden="true" pointerEvents="none">
+      <path d={lines(false)} className="grid-minor" strokeWidth={upp} fill="none" />
+      <path d={lines(true)} className="grid-major" strokeWidth={upp} fill="none" />
+    </g>
+  );
+}
 
 /** Rulers along the top and left edge, in the display unit, for a sense of scale. */
 function Rulers({ view, size }: { view: ViewBox; size: { width: number; height: number } }) {
