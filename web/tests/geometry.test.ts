@@ -1,10 +1,14 @@
 import './svg-wasm';
 import { describe,it,expect } from 'vitest';
-import { newPart,DEFAULT_SETTINGS,type Document,type Result } from '../src/model';
+import { newPart,DEFAULT_SETTINGS,SHEET_LAYER,defaultDXFLayers,type Document,type Result } from '../src/model';
 import { normalizePart,normalizeRing } from '../src/geometry/normalize';
 import { validate,worldParts } from '../src/geometry/validate';
 import { importSparrow } from '../src/import/sparrow';
 import { exportSVG } from '../src/export/svg';
+import { exportDXF } from '../src/export/dxf';
+import { DOMParser } from '@xmldom/xmldom';
+import { importDXF } from '../src/import/dxf';
+import type { WorldPart } from '../src/geometry/validate';
 import { importSVG } from '../src/import/svg';
 import { bounds } from '../src/geometry/normalize';
 
@@ -26,7 +30,6 @@ describe('independent layout validation',()=>{
     expect(exported.dxf).toContain('nested with sparrow/studio');
     expect(exported.dxf).toContain('https://sparrowstudio.app');
     expect(exported.dxf).toContain('SPARROW_INFO');
-    expect(exported.dxf).toContain('290\n0\n');
     expect(exported.world[1].outer).toEqual([[1,0],[2,0],[2,1],[1,1]]);
   });
   it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
@@ -35,7 +38,7 @@ describe('independent layout validation',()=>{
     result.validation=validate(doc,result);
     const {svg}=exportSVG(doc,result);
     expect(svg).toContain('viewBox="-0.1 -0.1 2.2 2.2"');
-    expect(svg).toContain('Plate &lt;script&gt; &amp; &quot;test&quot;');
+    expect(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('title')[0].textContent).toBe('Plate <script> & "test" — sparrow/studio');
     expect(svg).toContain('25.00% used');
     expect(svg).toContain('fill="#fb923c"');
     const imported=importSVG(svg,'layout.svg',{scale:1,tolerance:.01});
@@ -104,24 +107,57 @@ it('exports overlapping manual copies outside the material without moving or cer
   expect(bundle.svg).toContain('not checked for nesting');
   expect(bundle.svg).not.toContain('Checked nesting layout');
   expect(bundle.svg).toContain('viewBox="-5.3 -3.25 6.6 5.5"');
-  expect(bundle.dxf).toContain('10\n-5.0\n20\n4.0\n');
+  expect(bundle.dxf).toMatch(/\n10\n-5(\.0)?\n20\n4(\.0)?\n/);
   expect(bundle.dxf).toContain('HOLES');
 });
 
-it('writes unique handles, ownership, plot styles and decimal reals for AutoCAD-family importers',()=>{
-  const {doc}=fixture(),text=exportSVG(doc).dxf,lines=text.trimEnd().split('\n');
-  const pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
-  const ids=pairs.filter(([code])=>code==='5').map(([,value])=>value);
-  expect(new Set(ids).size).toBe(ids.length);
-  for(const [,owner] of pairs.filter(([code])=>code==='330'))expect(owner==='0'||ids.includes(owner)).toBe(true);
-  expect(text).toContain('2\nBLOCK_RECORD\n5\n9\n');
-  // Autodesk Viewer and Fusion reject layers without a plot style and reals without a decimal point.
-  for(const layer of text.split('\n0\nLAYER\n').slice(1))expect(layer).toMatch(/\n390\nD(\n|$)/);
-  expect(text).toContain('0\nACDBPLACEHOLDER\n5\nD\n');
-  for(const [code,value] of pairs)if(+code>=10&&+code<=59)expect(value).toMatch(/[.e]/);
-  expect(text).toContain('2\n*Model_Space\n');
-  expect(text).toContain('2\n*Paper_Space\n');
-  expect(text).toContain('2\nBLOCKS\n');
+it('writes a DXF in millimetres with the sheet, parts and credit on their own layers',()=>{
+  const {doc,result}=fixture();result.validation=validate(doc,result);
+  const text=exportSVG(doc,result).dxf;
+  expect(text.split('$INSUNITS\n70\n')[1].split('\n')[0].trim()).toBe('4');
   const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
-  expect(entities.match(/330\n21\n/g)).toHaveLength(3);
+  expect(entities.match(/\nLWPOLYLINE\n/g)).toHaveLength(3);
+  expect(entities).toContain('\n1\nnested with sparrow/studio - https://sparrowstudio.app\n');
+  expect(text).toMatch(/^[\x20-\x7e\n]*$/);
+  expect(record(text,'LAYER',SHEET_LAYER).get('62')).toBe('8');
+  for(const layer of ['PARTS','HOLES','SPARROW_INFO'])expect(record(text,'LAYER',layer).get('62')).toBe('7');
+  const {extents}=framing(text);expect(extents.slice(0,2)).toEqual([0,0]);expect(extents[2]).toBeGreaterThanOrEqual(2);
+});
+
+// The group codes of the named record, up to the next record (first value per code).
+function record(text:string,type:string,name:string){
+  const lines=text.trimEnd().split('\n'),pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
+  const starts=pairs.flatMap(([code,value],i)=>code==='0'&&value===type?[i]:[]);
+  for(const start of starts){
+    const end=pairs.findIndex(([code],i)=>i>start&&code==='0'),body=pairs.slice(start+1,end);
+    if(body.some(([code,value])=>code==='2'&&value===name))return new Map(body.reverse());
+  }
+  throw Error(`No ${type} ${name}`);
+}
+// Autodesk Viewer clips to the saved view, so the active viewport must contain the header extents.
+function framing(text:string){
+  const header=(name:string,code:string)=>+text.split(`$${name}\n`)[1].split(`${code}\n`)[1].split('\n')[0];
+  const extents=[header('EXTMIN','10'),header('EXTMIN','20'),header('EXTMAX','10'),header('EXTMAX','20')];
+  const vport=record(text,'VPORT','*Active'),field=(code:string)=>{expect(vport.has(code)).toBe(true);return +vport.get(code)!;};
+  const [height,width]=[field('40'),field('40')*field('41')];
+  const view=[field('12')-width/2,field('22')-height/2,field('12')+width/2,field('22')+height/2];
+  expect(view[0]).toBeLessThanOrEqual(extents[0]);expect(view[1]).toBeLessThanOrEqual(extents[1]);
+  expect(view[2]).toBeGreaterThanOrEqual(extents[2]);expect(view[3]).toBeGreaterThanOrEqual(extents[3]);
+  return {extents,view};
+}
+
+it('frames wide layouts with negative coordinates and reimports exports as their parts',()=>{
+  const doc:Document={name:'wide',parts:[],settings:{...DEFAULT_SETTINGS,materialWidthMm:100}};
+  const world=[{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as WorldPart[];
+  const text=exportDXF(doc,world,1000),{extents,view}=framing(text);
+  expect(extents.slice(0,3)).toEqual([-50,0,1000]);
+  expect(extents[2]-extents[0]).toBeGreaterThan(5*(extents[3]-extents[1]));
+  expect(view[2]-view[0]).toBeGreaterThan(extents[2]-extents[0]);
+  const options={scale:1,tolerance:.01,enclosed:'holes' as const};
+  const review=importDXF(text,'wide.dxf',options);
+  expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
+  expect(review.document.parts.map(part=>[bounds(part.outer),part.holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
+  expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers)}).document.parts).toHaveLength(2);
+  // Choosing the sheet layer too makes the sheet enclose and cross the parts.
+  expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
 });

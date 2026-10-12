@@ -28,7 +28,7 @@ test('DXF layer review, explicit exclusions, real nesting and export round trip'
   await expect(page.getByRole('button',{name:'Download DXF'})).toBeEnabled();
   const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Download DXF'}).click();
   const path=testInfo.outputPath('plate.dxf');await(await pending).saveAs(path);
-  const exported=await readFile(path,'utf8');expect(exported.match(/LWPOLYLINE/g)).toHaveLength(4);
+  const exported=await readFile(path,'utf8');expect(exported.match(/LWPOLYLINE/g)).toHaveLength(5);
   expect(exported).toContain('$INSUNITS\n70\n4');
   await page.locator('input[type=file]').first().setInputFiles(path);
   await page.getByRole('button',{name:'Preview import',exact:true}).click();
