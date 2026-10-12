@@ -104,17 +104,21 @@ it('exports overlapping manual copies outside the material without moving or cer
   expect(bundle.svg).toContain('not checked for nesting');
   expect(bundle.svg).not.toContain('Checked nesting layout');
   expect(bundle.svg).toContain('viewBox="-5.3 -3.25 6.6 5.5"');
-  expect(bundle.dxf).toContain('10\n-5\n20\n4\n');
+  expect(bundle.dxf).toContain('10\n-5.0\n20\n4.0\n');
   expect(bundle.dxf).toContain('HOLES');
 });
 
-it('writes unique handles and model-space ownership for strict R2000 importers',()=>{
+it('writes unique handles, ownership, plot styles and decimal reals for AutoCAD-family importers',()=>{
   const {doc}=fixture(),text=exportSVG(doc).dxf,lines=text.trimEnd().split('\n');
   const pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
   const ids=pairs.filter(([code])=>code==='5').map(([,value])=>value);
   expect(new Set(ids).size).toBe(ids.length);
   for(const [,owner] of pairs.filter(([code])=>code==='330'))expect(owner==='0'||ids.includes(owner)).toBe(true);
-  expect(text).toContain('2\nBLOCK_RECORD\n5\n20\n');
+  expect(text).toContain('2\nBLOCK_RECORD\n5\n9\n');
+  // Autodesk Viewer and Fusion reject layers without a plot style and reals without a decimal point.
+  for(const layer of text.split('\n0\nLAYER\n').slice(1))expect(layer).toMatch(/\n390\nD(\n|$)/);
+  expect(text).toContain('0\nACDBPLACEHOLDER\n5\nD\n');
+  for(const [code,value] of pairs)if(+code>=10&&+code<=59)expect(value).toMatch(/[.e]/);
   expect(text).toContain('2\n*Model_Space\n');
   expect(text).toContain('2\n*Paper_Space\n');
   expect(text).toContain('2\nBLOCKS\n');
