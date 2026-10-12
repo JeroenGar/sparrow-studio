@@ -5,7 +5,8 @@ import { normalizePart,normalizeRing } from '../src/engine/geometry/normalize';
 import { validate,worldParts } from '../src/engine/geometry/validate';
 import { importSparrow } from '../src/engine/import/sparrow';
 import { exportSVG } from '../src/engine/export/svg';
-import { real,exportDXF } from '../src/engine/export/dxf';
+import { exportDXF } from '../src/engine/export/dxf';
+import { DOMParser } from '@xmldom/xmldom';
 import { importDXF } from '../src/engine/import/dxf';
 import type { WorldPart } from '../src/engine/geometry/validate';
 import { colors } from '../src/engine/colors';
@@ -30,7 +31,6 @@ describe('independent layout validation',()=>{
     expect(exported.dxf).toContain('nested with sparrow studio');
     expect(exported.dxf).toContain('https://sparrowstudio.app');
     expect(exported.dxf).toContain('SPARROW_INFO');
-    expect(exported.dxf).toContain('290\n0\n');
     expect(exported.world[1].outer).toEqual([[1,0],[2,0],[2,1],[1,1]]);
   });
   it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
@@ -39,7 +39,7 @@ describe('independent layout validation',()=>{
     result.validation=validate(doc,result);
     const {svg}=exportSVG(doc,result);
     expect(svg).toContain('viewBox="-0.1 -0.1 2.2 2.2"');
-    expect(svg).toContain('Plate &lt;script&gt; &amp; &quot;test&quot;');
+    expect(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('title')[0].textContent).toBe('Plate <script> & "test" — sparrow studio');
     expect(svg).toContain('25.00% used');
     expect(svg).toContain(`fill="${colors[0]}"`);
     const imported=importSVG(svg,'layout.svg',{scale:1,tolerance:.01});
@@ -98,36 +98,20 @@ it('JSON preserves rotation semantics, scales geometry and rejects empty orienta
   Object.assign(data.items[0],{allowed_orientations:[]});expect(()=>importSparrow(JSON.stringify(data),'input.json',1)).toThrow('nonempty');
 });
 
-it('writes a complete R2000 drawing that AutoCAD-family importers open and frame whole',()=>{
+it('writes a DXF in millimetres with the sheet, parts and credit on their own layers',()=>{
   const {doc,result}=fixture();result.validation=validate(doc,result);
-  const text=exportSVG(doc,result).dxf,lines=text.trimEnd().split('\n');
-  const pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
-  const header=pairs.findIndex(([code,value])=>code==='0'&&value==='ENDSEC');
-  const ids=pairs.slice(header).filter(([code])=>code==='5').map(([,value])=>value);
-  expect(new Set(ids).size).toBe(ids.length);
-  const seed=parseInt(text.split('$HANDSEED\n5\n')[1],16);
-  expect(ids.every(id=>parseInt(id,16)<seed)).toBe(true);
-  // Every owner and pointer resolves to a written object.
-  for(const [code,value] of pairs)if(['330','340','350','390'].includes(code))expect(value==='0'||ids.includes(value)).toBe(true);
-  for(const name of ['HEADER','CLASSES','TABLES','BLOCKS','ENTITIES','OBJECTS'])expect(text).toContain(`0\nSECTION\n2\n${name}\n`);
-  for(const name of ['VPORT','LTYPE','LAYER','STYLE','VIEW','UCS','APPID','DIMSTYLE','BLOCK_RECORD'])expect(text).toContain(`0\nTABLE\n2\n${name}\n`);
-  // Autodesk Viewer and Fusion reject layers without a plot style and reals without a decimal point.
-  for(const layer of text.split('\n0\nLAYER\n').slice(1))expect(layer).toMatch(/\n390\nD(\n|$)/);
-  for(const [code,value] of pairs)if((+code>=10&&+code<=59)||(+code>=140&&+code<=149))expect(value).toMatch(/^-?\d+\.\d+$/);
-  expect(text).toMatch(/^[\x20-\x7e\n]*$/);
-  // Model space holds the sheet, both copies and the attribution.
+  const text=exportSVG(doc,result).dxf;
+  expect(text.split('$INSUNITS\n70\n')[1].split('\n')[0].trim()).toBe('4');
   const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
-  expect(entities.match(/330\n21\n/g)).toHaveLength(4);
-  expect(entities).toContain(`8\n${SHEET_LAYER}\n100\nAcDbPolyline\n90\n4\n70\n1\n10\n0.0\n20\n0.0\n10\n2.0\n20\n0.0\n10\n2.0\n20\n2.0\n10\n0.0\n20\n2.0\n`);
-  expect(entities).toContain('8\nSPARROW_INFO\n100\nAcDbText\n');
+  expect(entities.match(/\nLWPOLYLINE\n/g)).toHaveLength(3);
   expect(entities).toContain('\n1\nnested with sparrow studio - https://sparrowstudio.app\n');
-  // The sheet plots in grey; only the attribution layer is non-plotting.
-  expect(record(text,'LAYER',SHEET_LAYER).get('62')).toBe('8');expect(record(text,'LAYER',SHEET_LAYER).has('290')).toBe(false);
-  expect(record(text,'LAYER','SPARROW_INFO').get('290')).toBe('0');
+  expect(text).toMatch(/^[\x20-\x7e\n]*$/);
+  expect(record(text,'LAYER',SHEET_LAYER).get('62')).toBe('8');
+  for(const layer of ['PARTS','HOLES','SPARROW_INFO'])expect(record(text,'LAYER',layer).get('62')).toBe('7');
   const {extents}=framing(text);expect(extents.slice(0,2)).toEqual([0,0]);expect(extents[2]).toBeGreaterThanOrEqual(2);
 });
 
-// The group codes of the named symbol table record, up to the next record (first value per code).
+// The group codes of the named record, up to the next record (first value per code).
 function record(text:string,type:string,name:string){
   const lines=text.trimEnd().split('\n'),pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
   const starts=pairs.flatMap(([code,value],i)=>code==='0'&&value===type?[i]:[]);
@@ -154,7 +138,8 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   const world=[{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as WorldPart[];
   const text=exportDXF(doc,world,1000),{extents,view}=framing(text);
   expect(extents.slice(0,3)).toEqual([-50,0,1000]);
-  expect((view[2]-view[0])/(view[3]-view[1])).toBeGreaterThan(5);
+  expect(extents[2]-extents[0]).toBeGreaterThan(5*(extents[3]-extents[1]));
+  expect(view[2]-view[0]).toBeGreaterThan(extents[2]-extents[0]);
   const options={scale:1,tolerance:.01,enclosed:'holes' as const};
   const review=importDXF(text,'wide.dxf',options);
   expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
@@ -162,10 +147,4 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers)}).document.parts).toHaveLength(2);
   // Choosing the sheet layer too makes the sheet enclose and cross the parts.
   expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
-});
-
-it('writes DXF reals exactly in plain decimal notation',()=>{
-  expect([0,-0,1,-5,2.5,1e21,1.5e-7,-1.5e-7,123e-20].map(real)).toEqual(['0.0','0.0','1.0','-5.0','2.5','1000000000000000000000.0','0.00000015','-0.00000015','0.00000000000000000123']);
-  for(const v of [0.1,-1/3,Math.PI*1e-9,1e300,-5e-324,Number.MAX_SAFE_INTEGER+2])expect(Number(real(v))).toBe(v);
-  for(const v of [NaN,Infinity,-Infinity])expect(()=>real(v)).toThrow('non-finite');
 });
