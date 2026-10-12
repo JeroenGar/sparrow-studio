@@ -5,6 +5,7 @@ import { normalizePart,normalizeRing } from '../src/engine/geometry/normalize';
 import { validate,worldParts } from '../src/engine/geometry/validate';
 import { importSparrow } from '../src/engine/import/sparrow';
 import { exportSVG } from '../src/engine/export/svg';
+import { real } from '../src/engine/export/dxf';
 import { colors } from '../src/engine/colors';
 import { importSVG } from '../src/engine/import/svg';
 import { bounds } from '../src/engine/geometry/normalize';
@@ -95,21 +96,39 @@ it('JSON preserves rotation semantics, scales geometry and rejects empty orienta
   Object.assign(data.items[0],{allowed_orientations:[]});expect(()=>importSparrow(JSON.stringify(data),'input.json',1)).toThrow('nonempty');
 });
 
-it('writes unique handles, ownership, plot styles and decimal reals for AutoCAD-family importers',()=>{
+it('writes a complete R2000 drawing that AutoCAD-family importers open and frame whole',()=>{
   const {doc,result}=fixture();result.validation=validate(doc,result);
   const text=exportSVG(doc,result).dxf,lines=text.trimEnd().split('\n');
   const pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
-  const ids=pairs.filter(([code])=>code==='5').map(([,value])=>value);
+  const header=pairs.findIndex(([code,value])=>code==='0'&&value==='ENDSEC');
+  const ids=pairs.slice(header).filter(([code])=>code==='5').map(([,value])=>value);
   expect(new Set(ids).size).toBe(ids.length);
-  for(const [,owner] of pairs.filter(([code])=>code==='330'))expect(owner==='0'||ids.includes(owner)).toBe(true);
-  expect(text).toContain('2\nBLOCK_RECORD\n5\n9\n');
+  const seed=parseInt(text.split('$HANDSEED\n5\n')[1],16);
+  expect(ids.every(id=>parseInt(id,16)<seed)).toBe(true);
+  // Every owner and pointer resolves to a written object.
+  for(const [code,value] of pairs)if(['330','340','350','390'].includes(code))expect(value==='0'||ids.includes(value)).toBe(true);
+  for(const name of ['HEADER','CLASSES','TABLES','BLOCKS','ENTITIES','OBJECTS'])expect(text).toContain(`0\nSECTION\n2\n${name}\n`);
+  for(const name of ['VPORT','LTYPE','LAYER','STYLE','VIEW','UCS','APPID','DIMSTYLE','BLOCK_RECORD'])expect(text).toContain(`0\nTABLE\n2\n${name}\n`);
   // Autodesk Viewer and Fusion reject layers without a plot style and reals without a decimal point.
   for(const layer of text.split('\n0\nLAYER\n').slice(1))expect(layer).toMatch(/\n390\nD(\n|$)/);
-  expect(text).toContain('0\nACDBPLACEHOLDER\n5\nD\n');
-  for(const [code,value] of pairs)if(+code>=10&&+code<=59)expect(value).toMatch(/[.e]/);
-  expect(text).toContain('2\n*Model_Space\n');
-  expect(text).toContain('2\n*Paper_Space\n');
-  expect(text).toContain('2\nBLOCKS\n');
+  for(const [code,value] of pairs)if((+code>=10&&+code<=59)||(+code>=140&&+code<=149))expect(value).toMatch(/^-?\d+\.\d+$/);
+  expect(text).toMatch(/^[\x20-\x7e\n]*$/);
+  // Model space holds the sheet, both copies and the attribution.
   const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
-  expect(entities.match(/330\n21\n/g)).toHaveLength(3);
+  expect(entities.match(/330\n21\n/g)).toHaveLength(4);
+  expect(entities).toContain('8\nSHEET\n100\nAcDbPolyline\n90\n4\n70\n1\n10\n0.0\n20\n0.0\n10\n2.0\n20\n0.0\n10\n2.0\n20\n2.0\n10\n0.0\n20\n2.0\n');
+  // Autodesk Viewer clips to the saved view, so the active viewport must contain the extents.
+  const value=(name:string,code:string)=>+text.split(`$${name}\n`)[1].split(`${code}\n`)[1].split('\n')[0];
+  const [minX,minY,maxX,maxY]=[value('EXTMIN','10'),value('EXTMIN','20'),value('EXTMAX','10'),value('EXTMAX','20')];
+  expect([minX,minY,maxX]).toEqual([0,0,2]);expect(maxY).toBeGreaterThan(2);
+  const vport=text.split('2\n*Active\n')[1],field=(code:string)=>+vport.split(`\n${code}\n`)[1].split('\n')[0];
+  const viewHeight=field('40'),viewWidth=viewHeight*field('41');
+  expect(field('12')-viewWidth/2).toBeLessThanOrEqual(minX);expect(field('12')+viewWidth/2).toBeGreaterThanOrEqual(maxX);
+  expect(field('22')-viewHeight/2).toBeLessThanOrEqual(minY);expect(field('22')+viewHeight/2).toBeGreaterThanOrEqual(maxY);
+});
+
+it('writes DXF reals exactly in plain decimal notation',()=>{
+  expect([0,-0,1,-5,2.5,1e21,1.5e-7,-1.5e-7,123e-20].map(real)).toEqual(['0.0','0.0','1.0','-5.0','2.5','1000000000000000000000.0','0.00000015','-0.00000015','0.00000000000000000123']);
+  for(const v of [0.1,-1/3,Math.PI*1e-9,1e300,-5e-324,Number.MAX_SAFE_INTEGER+2])expect(Number(real(v))).toBe(v);
+  for(const v of [NaN,Infinity,-Infinity])expect(()=>real(v)).toThrow('non-finite');
 });
