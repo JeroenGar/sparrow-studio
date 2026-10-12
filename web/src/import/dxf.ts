@@ -1,7 +1,7 @@
 import parseString from 'dxf/lib/parseString';
 import bSpline from 'dxf/lib/util/bSpline';
 import {pointSegmentDistance} from '../geometry/validate';
-import {DEFAULT_SETTINGS,type Point,type Ring} from '../model';
+import {DEFAULT_SETTINGS,SHEET_LAYER,type Point,type Ring} from '../model';
 import {apply,multiply,append,ellipse,type Matrix} from '../geometry/flatten';
 import {bounds,normalizeDocument,normalizeRing,ringCrosses} from '../geometry/normalize';
 import {contoursToParts} from './svg';
@@ -204,7 +204,7 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
         }
         return;
       }
-      if(options.layers&&!options.layers.includes(layer))return;
+      if(options.layers?!options.layers.includes(layer):layer===SHEET_LAYER)return;
       const matrix=entity.extrusionZ===-1&&['CIRCLE','ARC','LWPOLYLINE','POLYLINE'].includes(entity.type)?multiply(parent,[-1,0,0,1,0,0]):parent;
       const tolerance=options.tolerance/Math.hypot(matrix[0],matrix[1],matrix[2],matrix[3]);
       const point=(p:DxfPoint|undefined):Point=>{

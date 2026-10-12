@@ -1,11 +1,13 @@
 import './svg-wasm';
 import { describe,it,expect } from 'vitest';
-import { newPart,DEFAULT_SETTINGS,type Document,type Result } from '../src/model';
+import { newPart,DEFAULT_SETTINGS,SHEET_LAYER,defaultDXFLayers,type Document,type Result } from '../src/model';
 import { normalizePart,normalizeRing } from '../src/geometry/normalize';
 import { validate,worldParts } from '../src/geometry/validate';
 import { importSparrow } from '../src/import/sparrow';
 import { exportSVG } from '../src/export/svg';
-import { real } from '../src/export/dxf';
+import { real,exportDXF } from '../src/export/dxf';
+import { importDXF } from '../src/import/dxf';
+import type { WorldPart } from '../src/geometry/validate';
 import { importSVG } from '../src/import/svg';
 import { bounds } from '../src/geometry/normalize';
 
@@ -129,15 +131,50 @@ it('writes a complete R2000 drawing that AutoCAD-family importers open and frame
   // Model space holds the sheet, both copies and the attribution.
   const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
   expect(entities.match(/330\n21\n/g)).toHaveLength(4);
-  expect(entities).toContain('8\nSHEET\n100\nAcDbPolyline\n90\n4\n70\n1\n10\n0.0\n20\n0.0\n10\n2.0\n20\n0.0\n10\n2.0\n20\n2.0\n10\n0.0\n20\n2.0\n');
-  // Autodesk Viewer clips to the saved view, so the active viewport must contain the extents.
-  const value=(name:string,code:string)=>+text.split(`$${name}\n`)[1].split(`${code}\n`)[1].split('\n')[0];
-  const [minX,minY,maxX,maxY]=[value('EXTMIN','10'),value('EXTMIN','20'),value('EXTMAX','10'),value('EXTMAX','20')];
-  expect([minX,minY,maxX]).toEqual([0,0,2]);expect(maxY).toBeGreaterThan(2);
-  const vport=text.split('2\n*Active\n')[1],field=(code:string)=>+vport.split(`\n${code}\n`)[1].split('\n')[0];
-  const viewHeight=field('40'),viewWidth=viewHeight*field('41');
-  expect(field('12')-viewWidth/2).toBeLessThanOrEqual(minX);expect(field('12')+viewWidth/2).toBeGreaterThanOrEqual(maxX);
-  expect(field('22')-viewHeight/2).toBeLessThanOrEqual(minY);expect(field('22')+viewHeight/2).toBeGreaterThanOrEqual(maxY);
+  expect(entities).toContain(`8\n${SHEET_LAYER}\n100\nAcDbPolyline\n90\n4\n70\n1\n10\n0.0\n20\n0.0\n10\n2.0\n20\n0.0\n10\n2.0\n20\n2.0\n10\n0.0\n20\n2.0\n`);
+  expect(entities).toContain('8\nSPARROW_INFO\n100\nAcDbText\n');
+  expect(entities).toContain('\n1\nnested with sparrow/studio - https://sparrowstudio.app\n');
+  // The sheet plots in grey; only the attribution layer is non-plotting.
+  expect(record(text,'LAYER',SHEET_LAYER).get('62')).toBe('8');expect(record(text,'LAYER',SHEET_LAYER).has('290')).toBe(false);
+  expect(record(text,'LAYER','SPARROW_INFO').get('290')).toBe('0');
+  const {extents}=framing(text);expect(extents.slice(0,2)).toEqual([0,0]);expect(extents[2]).toBeGreaterThanOrEqual(2);
+});
+
+// The group codes of the named symbol table record, up to the next record (first value per code).
+function record(text:string,type:string,name:string){
+  const lines=text.trimEnd().split('\n'),pairs=Array.from({length:lines.length/2},(_,i)=>[lines[2*i],lines[2*i+1]]);
+  const starts=pairs.flatMap(([code,value],i)=>code==='0'&&value===type?[i]:[]);
+  for(const start of starts){
+    const end=pairs.findIndex(([code],i)=>i>start&&code==='0'),body=pairs.slice(start+1,end);
+    if(body.some(([code,value])=>code==='2'&&value===name))return new Map(body.reverse());
+  }
+  throw Error(`No ${type} ${name}`);
+}
+// Autodesk Viewer clips to the saved view, so the active viewport must contain the header extents.
+function framing(text:string){
+  const header=(name:string,code:string)=>+text.split(`$${name}\n`)[1].split(`${code}\n`)[1].split('\n')[0];
+  const extents=[header('EXTMIN','10'),header('EXTMIN','20'),header('EXTMAX','10'),header('EXTMAX','20')];
+  const vport=record(text,'VPORT','*Active'),field=(code:string)=>{expect(vport.has(code)).toBe(true);return +vport.get(code)!;};
+  const [height,width]=[field('40'),field('40')*field('41')];
+  const view=[field('12')-width/2,field('22')-height/2,field('12')+width/2,field('22')+height/2];
+  expect(view[0]).toBeLessThanOrEqual(extents[0]);expect(view[1]).toBeLessThanOrEqual(extents[1]);
+  expect(view[2]).toBeGreaterThanOrEqual(extents[2]);expect(view[3]).toBeGreaterThanOrEqual(extents[3]);
+  return {extents,view};
+}
+
+it('frames wide layouts with negative coordinates and reimports exports as their parts',()=>{
+  const doc:Document={name:'wide',parts:[],settings:{...DEFAULT_SETTINGS,materialWidthMm:100}};
+  const world=[{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as WorldPart[];
+  const text=exportDXF(doc,world,1000),{extents,view}=framing(text);
+  expect(extents.slice(0,3)).toEqual([-50,0,1000]);
+  expect((view[2]-view[0])/(view[3]-view[1])).toBeGreaterThan(5);
+  const options={scale:1,tolerance:.01,enclosed:'holes' as const};
+  const review=importDXF(text,'wide.dxf',options);
+  expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
+  expect(review.document.parts.map(part=>[bounds(part.outer),part.holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
+  expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers)}).document.parts).toHaveLength(2);
+  // Choosing the sheet layer too makes the sheet enclose and cross the parts.
+  expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
 });
 
 it('writes DXF reals exactly in plain decimal notation',()=>{
