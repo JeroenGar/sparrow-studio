@@ -2,10 +2,10 @@ import { documentPlacements } from '../geometry/placements';
 import type { Document, Result, Ring } from '../model';
 import { worldParts, netArea, type WorldPart } from '../geometry/validate';
 import { exportDXF, STUDIO_CREDIT } from './dxf';
-import {DOMParser} from '@xmldom/xmldom';
+import {DOMImplementation,DOMParser,XMLSerializer,type Element} from '@xmldom/xmldom';
 import {pathData} from '../geometry/path';
 import {colors} from '../colors';
-const xmlText=(text:string)=>text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&apos;');
+const SVG_NS='http://www.w3.org/2000/svg';
 export type ExportBundle = { svg: string; dxf:string; world: WorldPart[] };
 export function exportSVG(doc: Document,result?: Result): ExportBundle {
   if(result&&result.validation.status!=='passed') throw Error('Only a checked result can be exported.');
@@ -25,27 +25,33 @@ export function exportSVG(doc: Document,result?: Result): ExportBundle {
   const fontSize=Math.min(padY*.3,frameWidth/(summary.length*.65));
   const creditFontSize=Math.min(padY*.3,frameWidth/(STUDIO_CREDIT.length*.65));
   const partIndex=new Map(doc.parts.map((part,i)=>[part.id,i]));
-  const paths=world.map((p,i)=>{
+  const svgDocument=new DOMImplementation().createDocument(SVG_NS,'svg',null),root=svgDocument.documentElement!;
+  const add=(parent:Element,name:string,attributes:Record<string,string|number>,text?:string)=>{
+    const element=svgDocument.createElementNS(SVG_NS,name);
+    for(const [key,value] of Object.entries(attributes))element.setAttribute(key,String(value));
+    if(text!==undefined)element.textContent=text;
+    parent.appendChild(element);
+    return element;
+  };
+  for(const [key,value] of Object.entries({width:`${pageWidth}mm`,height:`${pageHeight}mm`,viewBox,preserveAspectRatio:'xMidYMid meet',style:'width:100%;height:100%',role:'img','aria-labelledby':'layout-title layout-description'}))root.setAttribute(key,value);
+  add(root,'title',{id:'layout-title'},`${doc.name} — sparrow/studio`);
+  add(root,'desc',{id:'layout-description'},`${summary}. ${result?'Checked nesting layout':'Canvas layout (not checked for nesting)'}; geometry is in millimetres.`);
+  const decoration=add(root,'g',{'data-sparrow-decoration':'true','aria-hidden':'true'});
+  add(decoration,'rect',{x:left-padX,y:top-padY,width:pageWidth,height:pageHeight,fill:'#ffffff'});
+  add(decoration,'rect',{x:0,y:0,width,height,fill:'#f1f5f9',stroke:'#64748b','stroke-width':Math.min(width,height)*.0025});
+  add(decoration,'text',{x:left,y:top-padY*.6,'font-family':'monospace','font-size':fontSize,fill:'#334155'},summary);
+  const credit=add(decoration,'text',{x:left,y:top-padY*.15,'font-family':'monospace','font-size':creditFontSize,fill:'#334155'});
+  add(credit,'a',{href:'https://sparrowstudio.app',target:'_blank'},STUDIO_CREDIT);
+  const parts=add(root,'g',{id:'parts',transform:`translate(0 ${height}) scale(1 -1)`,stroke:'#334155','stroke-width':Math.min(width,height)*.0015,'stroke-linejoin':'round'});
+  world.forEach((p,i)=>{
     const index=partIndex.get(p.partId)!,part=doc.parts[index];
-    return `<path id="part-${i}" fill="${colors[index%colors.length]}" fill-rule="evenodd" d="${pathData([p.outer,...p.holes])}"><title>${xmlText(part.name)} · copy ${p.copyIndex+1}</title></path>`;
-  }).join('\n');
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${pageWidth}mm" height="${pageHeight}mm" viewBox="${viewBox}" preserveAspectRatio="xMidYMid meet" style="width:100%;height:100%" role="img" aria-labelledby="layout-title layout-description">
-<title id="layout-title">${xmlText(doc.name)} — sparrow/studio</title>
-<desc id="layout-description">${xmlText(summary)}. ${result?'Checked nesting layout':'Canvas layout (not checked for nesting)'}; geometry is in millimetres.</desc>
-<g data-sparrow-decoration="true" aria-hidden="true">
-<rect x="${left-padX}" y="${top-padY}" width="${pageWidth}" height="${pageHeight}" fill="#ffffff"/>
-<rect x="0" y="0" width="${width}" height="${height}" fill="#f1f5f9" stroke="#64748b" stroke-width="${Math.min(width,height)*.0025}"/>
-<text x="${left}" y="${top-padY*.6}" font-family="monospace" font-size="${fontSize}" fill="#334155">${xmlText(summary)}</text>
-<text x="${left}" y="${top-padY*.15}" font-family="monospace" font-size="${creditFontSize}" fill="#334155"><a href="https://sparrowstudio.app" target="_blank">${xmlText(STUDIO_CREDIT)}</a></text>
-</g>
-<g id="parts" transform="translate(0 ${height}) scale(1 -1)" stroke="#334155" stroke-width="${Math.min(width,height)*.0015}" stroke-linejoin="round">
-${paths}
-</g>
-</svg>
-`;
+    const path=add(parts,'path',{id:`part-${i}`,fill:colors[index%colors.length],'fill-rule':'evenodd',d:pathData([p.outer,...p.holes])});
+    add(path,'title',{},`${part.name} · copy ${p.copyIndex+1}`);
+  });
+  const svg=new XMLSerializer().serializeToString(svgDocument)+'\n';
   const xml=new DOMParser({onError:(_level,message)=>{throw Error(message);}}).parseFromString(svg,'image/svg+xml');
-  const root=xml.documentElement!,group=Array.from(root.getElementsByTagName('g')).find(g=>g.getAttribute('id')==='parts'),elements=Array.from(root.getElementsByTagName('path'));
-  if(root.getAttribute('width')!==`${pageWidth}mm`||root.getAttribute('height')!==`${pageHeight}mm`||root.getAttribute('viewBox')!==viewBox||!group||group.getAttribute('transform')!==`translate(0 ${doc.settings.materialWidthMm}) scale(1 -1)`||elements.length!==world.length)throw Error('Serialized SVG dimensions, axes or copy count changed.');
+  const parsedRoot=xml.documentElement!,group=Array.from(parsedRoot.getElementsByTagName('g')).find(g=>g.getAttribute('id')==='parts'),elements=Array.from(parsedRoot.getElementsByTagName('path'));
+  if(parsedRoot.getAttribute('width')!==`${pageWidth}mm`||parsedRoot.getAttribute('height')!==`${pageHeight}mm`||parsedRoot.getAttribute('viewBox')!==viewBox||!group||group.getAttribute('transform')!==`translate(0 ${doc.settings.materialWidthMm}) scale(1 -1)`||elements.length!==world.length)throw Error('Serialized SVG dimensions, axes or copy count changed.');
   const reparsed=elements.map((element,i)=>{
     const d=element.getAttribute('d')??'',commands=d.match(/M[^MZ]+Z/g)??[];
     if(commands.join('')!==d||element.getAttribute('fill-rule')!=='evenodd')throw Error('Serialized SVG lost its closed contour structure.');
