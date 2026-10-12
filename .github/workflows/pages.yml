@@ -3,14 +3,18 @@ name: Deploy GitHub Pages
 on:
   push:
     branches: [main]
+  # Pull requests run the same build and checks, so a failing deploy shows up before merging.
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: github-pages
-  cancel-in-progress: false
+  # Deploys queue behind each other; a new push to a pull request replaces its running check.
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || 'github-pages' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   build:
@@ -62,10 +66,12 @@ jobs:
           npx playwright install --with-deps chromium
           npx playwright test --project=chromium
       - uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b
+        if: github.event_name != 'pull_request'
         with:
           path: web/dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 10
