@@ -80,7 +80,10 @@ test('exports manual and best valid layouts, but never live search',async({page}
     if(format==='SVG'){
       expect(text.match(/<path id="part-/g)).toHaveLength(12);
       expect(text).toContain('Checked nesting layout');
-    }else expect(text.match(/LWPOLYLINE/g)).toHaveLength(12);
+    }else{
+      expect(text.match(/\n8\nPARTS\n/g)).toHaveLength(12);
+      expect(text.match(/\n8\nSPARROW_SHEET\n/g)).toHaveLength(1);
+    }
   }
 });
 
