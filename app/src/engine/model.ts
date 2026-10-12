@@ -21,6 +21,9 @@ export type Result = { documentRevision: number; solverRevision: string; seed: s
 export const DEFAULT_SETTINGS: JobSettings = { solverPreset: 'standard', materialWidthMm: 1000, clearanceMm: 0, timeLimitSeconds: null };
 export const SOLVER_REVISION = '7f0e10f946f70a86138d3938548a13ee46464f39';
 export const LIMITS = { copies: 500, verticesPerPart: 5000, verticesTotal: 100000, extent: 100000 };
+// DXF exports draw the sheet on this layer; DXF import leaves it out unless chosen, so exports reimport as their parts.
+export const SHEET_LAYER = 'SPARROW_SHEET';
+export const defaultDXFLayers = (layers: string[]) => layers.filter((layer) => layer !== SHEET_LAYER);
 export const POLICY = { linearMm: 1e-6, overlapMm2: 1e-8, angleDeg: 1e-4 };
 // getRandomValues also works on HTTP LAN addresses, unlike randomUUID.
 export function newId(): string {

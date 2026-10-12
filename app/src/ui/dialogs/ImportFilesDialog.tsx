@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { bounds } from '../../engine/geometry/normalize';
 import { colors } from '../../engine/colors';
 import type { ImportReview } from '../../engine/import/sparrow';
-import type { Part } from '../../engine/model';
+import { defaultDXFLayers, type Part } from '../../engine/model';
 import type { ImportFile } from '../../engine/workers/protocol';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { ringsPath } from '../Canvas';
@@ -213,9 +213,9 @@ export function ImportFilesDialog({
                 <label key={layer} className="choice">
                   <input
                     type="checkbox"
-                    checked={(layers ?? availableLayers).includes(layer)}
+                    checked={(layers ?? defaultDXFLayers(availableLayers)).includes(layer)}
                     onChange={(event) => {
-                      const current = layers ?? availableLayers;
+                      const current = layers ?? defaultDXFLayers(availableLayers);
                       setLayers(
                         event.target.checked
                           ? [...current, layer]
