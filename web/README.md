@@ -1,6 +1,6 @@
 # sparrow/studio
 
-An interactive browser demo of the sparrow nesting algorithm, developed from [the design plan](../notes/web-app-design.md). The app is independent of the original sparroWASM wrapper. The "Say hello" button opens Jeroen’s LinkedIn and email links. Its hand waves once after the first layout download, unless reduced motion is preferred.
+The current public app at sparrowstudio.app: an interactive browser demo of the sparrow nesting algorithm. It stays online until the new app in `../app` launches. The app is independent of the original sparroWASM wrapper. The "Say hello" button opens Jeroen’s LinkedIn and email links. Its hand waves once after the first layout download, unless reduced motion is preferred.
 
 ## Build and run
 
@@ -75,7 +75,7 @@ Native Safari 26.6 also completed a production run, Stop and restart using three
 
 Independent XML/GEOS checks passed 12 exported SVGs, and ezdxf/GEOS checks passed three holed DXF exports. The public repository contains the sources needed to rebuild all four WASM variants and the complete static app using the documented toolchains and dependency lockfiles.
 
-Two generated 100,000-vertex preparation workloads imported and remained interactive with no measured main-thread task over 50 ms. Those extreme workloads reached the solver initialization watchdog before producing a candidate; being under the import limits does not guarantee a completed nesting result. Stop remained responsive. High-limit candidate-validation responsiveness was therefore not measured. See [the performance record](../notes/preparation-performance.md) and [acceptance audit](../notes/web-app-acceptance-audit.md) for the machine, methods and precise scope. Physical iPhone/iPad testing has not been performed.
+Two generated 100,000-vertex preparation workloads imported and remained interactive with no measured main-thread task over 50 ms. Those extreme workloads reached the solver initialization watchdog before producing a candidate; being under the import limits does not guarantee a completed nesting result. Stop remained responsive. High-limit candidate-validation responsiveness was therefore not measured. Physical iPhone/iPad testing has not been performed.
 
 Independent export checks, from `web/`:
 
@@ -105,4 +105,4 @@ python3 web/scripts/generate-notices.py
 python3 web/scripts/generate-notices.py --check
 ```
 
-See [the notices audit](../notes/notices-audit.md) for exact upstream packaging gaps and source availability. The public sparrow-studio repository contains the application and WASM bridge; exact upstream dependency sources are linked in the notices. Preserve the notice files when publishing, and verify their deployed relative links.
+See [the notices audit](../docs/engine/notices-audit.md) for exact upstream packaging gaps and source availability. The public sparrow-studio repository contains the application and WASM bridge; exact upstream dependency sources are linked in the notices. Preserve the notice files when publishing, and verify their deployed relative links.
