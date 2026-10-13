@@ -388,8 +388,8 @@ input[aria-invalid='true'] {
   background: transparent;
 }
 .brand-icon {
-  width: 40px;
-  height: 40px;
+  width: 30px;
+  height: 30px;
   display: block;
 }
 .brand span {
