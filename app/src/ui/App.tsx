@@ -358,6 +358,11 @@ function StudioShell({
       <div className="app">
         <header className="top-bar">
           <span className="brand">
+            <img
+              className="brand-icon"
+              src={`${import.meta.env.BASE_URL}sparrow-icon.svg`}
+              alt=""
+            />
             sparrow <span>studio</span>
           </span>
           <ProjectMenu
