@@ -14,6 +14,11 @@
   --canvas: #ebebe7;
   --grid: #e3e3de;
   --grid-major: #d3d3cd;
+  --bar: #f3e3c3;
+  --bar-ink: #3a2312;
+  --bar-muted: #6e5a42;
+  --bar-line: #dcc69e;
+  --bar-control: rgba(255, 255, 255, 0.55);
   --sheet: #ffffff;
   --cloud: #9a3412;
   --cloud-soft: #fff1e6;
@@ -53,6 +58,11 @@
     --canvas: #121211;
     --grid: #1c1c1a;
     --grid-major: #262624;
+    --bar: #2a2018;
+    --bar-ink: #f3e3c3;
+    --bar-muted: #c2ad8c;
+    --bar-line: #45362a;
+    --bar-control: rgba(255, 255, 255, 0.06);
     --sheet: #24241f;
     --cloud: #fdba74;
     --cloud-soft: #3a2416;
@@ -80,6 +90,11 @@
   --canvas: #121211;
   --grid: #1c1c1a;
   --grid-major: #262624;
+  --bar: #2a2018;
+  --bar-ink: #f3e3c3;
+  --bar-muted: #c2ad8c;
+  --bar-line: #45362a;
+  --bar-control: rgba(255, 255, 255, 0.06);
   --sheet: #24241f;
   --cloud: #fdba74;
   --cloud-soft: #3a2416;
@@ -364,9 +379,24 @@ input[aria-invalid='true'] {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 10px 16px;
-  background: var(--panel);
-  border-bottom: 1px solid var(--line);
+  padding: 8px 16px;
+  color: var(--bar-ink);
+  background: var(--bar);
+  border-bottom: 1px solid var(--bar-line);
+}
+/* Controls on the cream bar take its warm tones. */
+.top-bar > button,
+.top-bar .menu > summary {
+  color: var(--bar-ink);
+  background: var(--bar-control);
+  border-color: var(--bar-line);
+}
+.top-bar > button:hover:not(:disabled),
+.top-bar .menu > summary:hover {
+  background: var(--bar-line);
+}
+.top-bar .save-state {
+  color: var(--bar-muted);
 }
 .brand {
   display: inline-flex;
@@ -376,20 +406,22 @@ input[aria-invalid='true'] {
   background: transparent;
   padding: 0 4px;
   margin-right: 6px;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 650;
 }
-.brand:hover:not(:disabled) {
+.top-bar > .brand,
+.top-bar > .brand:hover:not(:disabled) {
+  color: var(--bar-ink);
   background: transparent;
 }
 .brand-icon {
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   display: block;
 }
 .brand span {
   font-weight: 400;
-  color: var(--muted);
+  color: var(--bar-muted);
 }
 .save-state {
   font-size: 12px;
