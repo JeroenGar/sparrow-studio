@@ -369,14 +369,18 @@ input[aria-invalid='true'] {
   border-bottom: 1px solid var(--line);
 }
 .brand {
-  font-weight: 650;
-  font-size: 18px;
-  margin-right: 6px;
-}
-.brand {
   display: inline-flex;
   align-items: center;
   gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 0 4px;
+  margin-right: 6px;
+  font-size: 18px;
+  font-weight: 650;
+}
+.brand:hover:not(:disabled) {
+  background: transparent;
 }
 .brand-icon {
   width: 30px;
@@ -1201,4 +1205,17 @@ input[aria-invalid='true'] {
 }
 .grid-major {
   stroke: var(--grid-major);
+}
+
+.about-logo {
+  width: 140px;
+  height: 140px;
+  align-self: center;
+}
+.about-links {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }

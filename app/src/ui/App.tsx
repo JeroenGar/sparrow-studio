@@ -8,6 +8,7 @@ import { addParts, newProject, projectJob, type ProjectDocument } from '../proje
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import { browserStore, VersionConflict, type StoredProject } from '../project/store';
 import { StudioContext, type Studio, type Tab } from './context';
+import { AboutDialog } from './dialogs/AboutDialog';
 import { CloudDialog } from './dialogs/CloudDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
@@ -112,6 +113,7 @@ type Dialogs =
   | { type: 'examples' }
   | { type: 'cloud' }
   | { type: 'preferences' }
+  | { type: 'about' }
   | { type: 'import-files' }
   | { type: 'import-project'; kind: 'parts' | 'sheets' | 'machines' };
 
@@ -357,14 +359,18 @@ function StudioShell({
     <StudioContext.Provider value={studio}>
       <div className="app">
         <header className="top-bar">
-          <span className="brand">
+          <button
+            className="brand"
+            title="About sparrow studio"
+            onClick={() => setDialog({ type: 'about' })}
+          >
             <img
               className="brand-icon"
               src={`${import.meta.env.BASE_URL}sparrow-icon.svg`}
               alt=""
             />
             sparrow <span>studio</span>
-          </span>
+          </button>
           <ProjectMenu
             name={project.name}
             canUndo={history.past.length > 0}
@@ -499,6 +505,7 @@ function StudioShell({
         />
       )}
       {dialog?.type === 'cloud' && <CloudDialog onClose={() => setDialog(undefined)} />}
+      {dialog?.type === 'about' && <AboutDialog onClose={() => setDialog(undefined)} />}
       {dialog?.type === 'preferences' && (
         <PreferencesDialog
           preferences={preferences}

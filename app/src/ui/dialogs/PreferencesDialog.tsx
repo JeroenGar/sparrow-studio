@@ -42,14 +42,7 @@ export function PreferencesDialog({
         />
         Show explanations in the Machine and Settings tabs
       </label>
-      <p className="muted">
-        sparrow studio runs the open-source{' '}
-        <a href="https://github.com/JeroenGar/sparrow" target="_blank" rel="noreferrer">
-          sparrow
-        </a>{' '}
-        nesting algorithm in your browser. Files and geometry stay on this device. Preferences are
-        kept in this browser.
-      </p>
+      <p className="muted">Preferences are kept in this browser.</p>
     </Dialog>
   );
 }
