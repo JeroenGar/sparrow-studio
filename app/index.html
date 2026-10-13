@@ -10,14 +10,15 @@
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <script>
+      // Pick the theme before the first paint, so the page never flashes the wrong one.
+      let theme = 'system';
       try {
-        const saved = JSON.parse(localStorage.getItem('sparrow-studio-preferences') ?? '{}');
-        document.documentElement.dataset.theme = ['light', 'dark'].includes(saved.theme)
-          ? saved.theme
-          : 'system';
-      } catch {
-        document.documentElement.dataset.theme = 'system';
-      }
+        theme = JSON.parse(localStorage.getItem('sparrow-studio-preferences') ?? '{}').theme;
+      } catch {}
+      const dark =
+        theme === 'dark' ||
+        (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
     </script>
   </head>
   <body>

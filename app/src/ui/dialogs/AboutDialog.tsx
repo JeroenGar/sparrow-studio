@@ -1,4 +1,5 @@
 import { Dialog } from '../Dialog';
+import { Logo } from '../Logo';
 
 const links = [
   { href: 'https://github.com/JeroenGar/sparrow-studio', label: 'Source code of sparrow studio' },
@@ -13,11 +14,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       actions={<button onClick={onClose}>Close</button>}
     >
-      <img
-        className="about-logo"
-        src={`${import.meta.env.BASE_URL}sparrow-studio.svg`}
-        alt="sparrow studio"
-      />
+      <Logo name="sparrow-studio" className="about-logo" alt="sparrow studio" />
       <p>
         Nest parts to use less material, with the open-source sparrow algorithm running in your
         browser.

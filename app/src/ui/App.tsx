@@ -9,6 +9,7 @@ import { readPreferences, writePreferences, type Preferences } from '../project/
 import { browserStore, VersionConflict, type StoredProject } from '../project/store';
 import { StudioContext, type Studio, type Tab } from './context';
 import { AboutDialog } from './dialogs/AboutDialog';
+import { Logo } from './Logo';
 import { CloudDialog } from './dialogs/CloudDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
@@ -40,8 +41,17 @@ export default function App() {
       return next;
     });
   }, []);
+  // Resolve "system" to light or dark here, and follow the system while it is chosen.
   useEffect(() => {
-    document.documentElement.dataset.theme = preferences.theme;
+    const query = matchMedia('(prefers-color-scheme: dark)');
+    const apply = () => {
+      const dark =
+        preferences.theme === 'dark' || (preferences.theme === 'system' && query.matches);
+      document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+    };
+    apply();
+    query.addEventListener('change', apply);
+    return () => query.removeEventListener('change', apply);
   }, [preferences.theme]);
 
   const open = useCallback(
@@ -364,11 +374,7 @@ function StudioShell({
             title="About sparrow studio"
             onClick={() => setDialog({ type: 'about' })}
           >
-            <img
-              className="brand-icon"
-              src={`${import.meta.env.BASE_URL}sparrow-icon.svg`}
-              alt=""
-            />
+            <Logo name="sparrow-icon" className="brand-icon" />
             sparrow <span>studio</span>
           </button>
           <ProjectMenu

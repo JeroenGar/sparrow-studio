@@ -1,35 +1,37 @@
+/* Light: eggshell, from the logo's cream. Dark: the bird's brown with cream ink.
+   The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
-  --bg: #f4f4f2;
-  --panel: #ffffff;
-  --panel-soft: #f7f7f5;
-  --ink: #1c1c1a;
-  --muted: #5e5e58;
-  --line: #d6d6d1;
-  --line-soft: #e8e8e3;
-  --control: #c4c4be;
+  --bg: #eee6d6;
+  --panel: #fbf7ee;
+  --panel-soft: #f4eee1;
+  --ink: #2a1d12;
+  --muted: #6b5d4c;
+  --line: #ddd1bb;
+  --line-soft: #ebe3d2;
+  --control: #cbbda3;
   --accent: #1d4ed8;
-  --accent-soft: #eef3ff;
-  --accent-line: #c9d7fb;
-  --canvas: #ebebe7;
-  --grid: #e3e3de;
-  --grid-major: #d3d3cd;
+  --accent-soft: #e8edf9;
+  --accent-line: #c3d0f0;
+  --canvas: #f1e9da;
+  --grid: #e9e0cd;
+  --grid-major: #ddd0b7;
   --bar: #f3e3c3;
   --bar-ink: #3a2312;
   --bar-muted: #6e5a42;
   --bar-line: #dcc69e;
-  --bar-control: rgba(255, 255, 255, 0.55);
-  --sheet: #ffffff;
+  --bar-control: rgba(255, 255, 255, 0.45);
+  --sheet: #fffcf5;
   --cloud: #9a3412;
-  --cloud-soft: #fff1e6;
+  --cloud-soft: #fbe8d6;
   --cloud-line: #c2410c;
   --danger: #b42318;
   --good: #14532d;
-  --good-soft: #e7f5ec;
+  --good-soft: #e3efdc;
   --good-line: #86c29b;
   --overlap: rgba(220, 38, 38, 0.72);
   --differs: #e5372c;
-  --shadow: 0 8px 24px rgba(0, 0, 0, 0.14);
+  --shadow: 0 8px 24px rgba(58, 35, 18, 0.16);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     system-ui,
@@ -40,70 +42,41 @@
   color: var(--ink);
   background: var(--bg);
 }
-
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
-    color-scheme: dark;
-    --bg: #161615;
-    --panel: #1f1f1d;
-    --panel-soft: #262624;
-    --ink: #ecece8;
-    --muted: #a6a69f;
-    --line: #393936;
-    --line-soft: #2e2e2b;
-    --control: #4a4a46;
-    --accent: #8aa9ff;
-    --accent-soft: #23293a;
-    --accent-line: #34406a;
-    --canvas: #121211;
-    --grid: #1c1c1a;
-    --grid-major: #262624;
-    --bar: #2a2018;
-    --bar-ink: #f3e3c3;
-    --bar-muted: #c2ad8c;
-    --bar-line: #45362a;
-    --bar-control: rgba(255, 255, 255, 0.06);
-    --sheet: #24241f;
-    --cloud: #fdba74;
-    --cloud-soft: #3a2416;
-    --cloud-line: #c2610c;
-    --danger: #ff8a80;
-    --good: #9be0b2;
-    --good-soft: #17301f;
-    --good-line: #2f6b43;
-    --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
-  }
-}
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #161615;
-  --panel: #1f1f1d;
-  --panel-soft: #262624;
-  --ink: #ecece8;
-  --muted: #a6a69f;
-  --line: #393936;
-  --line-soft: #2e2e2b;
-  --control: #4a4a46;
+  --bg: #2c190c;
+  --panel: #3a2312;
+  --panel-soft: #44291a;
+  --ink: #f3e3c3;
+  --muted: #c9b292;
+  --line: #5a3d26;
+  --line-soft: #4a2f1c;
+  --control: #6b4b32;
   --accent: #8aa9ff;
-  --accent-soft: #23293a;
-  --accent-line: #34406a;
-  --canvas: #121211;
-  --grid: #1c1c1a;
-  --grid-major: #262624;
-  --bar: #2a2018;
+  --accent-soft: rgba(138, 169, 255, 0.16);
+  --accent-line: rgba(138, 169, 255, 0.36);
+  --canvas: #2f1c0e;
+  --grid: #3a2414;
+  --grid-major: #4a301d;
+  --bar: #3a2312;
   --bar-ink: #f3e3c3;
-  --bar-muted: #c2ad8c;
-  --bar-line: #45362a;
-  --bar-control: rgba(255, 255, 255, 0.06);
-  --sheet: #24241f;
+  --bar-muted: #c9b292;
+  --bar-line: #5a3d26;
+  --bar-control: rgba(243, 227, 195, 0.08);
+  --sheet: #4a2e1b;
   --cloud: #fdba74;
-  --cloud-soft: #3a2416;
+  --cloud-soft: #4a2a14;
   --cloud-line: #c2610c;
   --danger: #ff8a80;
   --good: #9be0b2;
-  --good-soft: #17301f;
+  --good-soft: #23331f;
   --good-line: #2f6b43;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+/* Logos come in a light and a dark version; show the one for the theme. */
+:root[data-theme='dark'] .logo-light,
+:root:not([data-theme='dark']) .logo-dark {
+  display: none;
 }
 
 * {
