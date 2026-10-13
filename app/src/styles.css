@@ -671,6 +671,9 @@ input[aria-invalid='true'] {
   pointer-events: auto;
 }
 .canvas-surface {
+  /* Clicks and drags pan and select parts; they never select text. */
+  user-select: none;
+  -webkit-user-select: none;
   flex: 1;
   position: relative;
   min-height: 0;
