@@ -374,8 +374,7 @@ function StudioShell({
             title="About sparrow studio"
             onClick={() => setDialog({ type: 'about' })}
           >
-            <Logo name="sparrow-icon" className="brand-icon" />
-            sparrow <span>studio</span>
+            <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
           </button>
           <ProjectMenu
             name={project.name}
