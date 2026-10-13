@@ -4,7 +4,7 @@ export function Logo({
   className,
   alt = '',
 }: {
-  name: 'sparrow-studio-wordmark' | 'sparrow-studio';
+  name: 'sparrow-studio-wordmark' | 'sparrow-studio-wordmark-below';
   className: string;
   alt?: string;
 }) {
