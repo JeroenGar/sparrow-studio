@@ -1,27 +1,27 @@
-/* Light: eggshell, from the logo's cream. Dark: the bird's brown with cream ink.
+/* Light: a soft eggshell, from the logo's cream. Dark: a warm near-black with cream ink.
    The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
-  --bg: #eee6d6;
-  --panel: #fbf7ee;
-  --panel-soft: #f4eee1;
-  --ink: #2a1d12;
-  --muted: #6b5d4c;
-  --line: #ddd1bb;
-  --line-soft: #ebe3d2;
-  --control: #cbbda3;
-  --accent: #3a2312;
-  --accent-soft: #efe0c4;
-  --accent-line: #d2b98f;
-  --canvas: #f1e9da;
-  --grid: #e9e0cd;
-  --grid-major: #ddd0b7;
-  --bar: #f3e3c3;
-  --bar-ink: #3a2312;
-  --bar-muted: #6e5a42;
-  --bar-line: #dcc69e;
+  --bg: #efebe4;
+  --panel: #fcfaf6;
+  --panel-soft: #f5f2ec;
+  --ink: #2a231d;
+  --muted: #6b6359;
+  --line: #ddd6ca;
+  --line-soft: #ebe6dd;
+  --control: #cbc2b3;
+  --accent: #3d2d20;
+  --accent-soft: #efe7da;
+  --accent-line: #cfbfa6;
+  --canvas: #f2eee7;
+  --grid: #e8e2d8;
+  --grid-major: #dcd3c4;
+  --bar: #f4ecdd;
+  --bar-ink: #3d2d20;
+  --bar-muted: #6e6152;
+  --bar-line: #e0d4c0;
   --bar-control: rgba(255, 255, 255, 0.45);
-  --sheet: #fffcf5;
+  --sheet: #fffdf9;
   --cloud: #9a3412;
   --cloud-soft: #fbe8d6;
   --cloud-line: #c2410c;
@@ -31,7 +31,7 @@
   --good-line: #86c29b;
   --overlap: rgba(220, 38, 38, 0.72);
   --differs: #e5372c;
-  --shadow: 0 8px 24px rgba(58, 35, 18, 0.16);
+  --shadow: 0 8px 24px rgba(40, 30, 20, 0.14);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     system-ui,
