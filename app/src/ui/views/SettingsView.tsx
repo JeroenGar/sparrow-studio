@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { Preset, TimeLimit } from '../../engine/model';
 import { TIME_LIMITS, type SolverSettings, type Threads } from '../../project/model';
-import { CloudTag } from '../CloudTag';
+import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
 import { RunBar } from '../RunBar';
 import { Explanation } from './Explanation';
@@ -66,14 +66,14 @@ export function SettingsView() {
                         </span>
                       </label>
                       <div className="choice disabled">
-                        <input type="radio" name="solve-with" disabled aria-label="Cloud" />
+                        <input type="radio" name="solve-with" disabled aria-label="sparrow pro" />
                         <span className="grow">
-                          Cloud
+                          sparrow pro
                           <span className="muted block">
                             Sheets, remnants, defects, clamps and reflection.
                           </span>
                         </span>
-                        <CloudTag />
+                        <ProTag />
                       </div>
                     </>
                   )}
@@ -148,7 +148,7 @@ export function SettingsView() {
 function SettingsExplanation({ item }: { item: Item }) {
   if (item === 'solve')
     return (
-      <Explanation title="Local or cloud">
+      <Explanation title="Local or sparrow pro">
         <div className="compare">
           <div>
             <strong>Local</strong>
@@ -157,8 +157,8 @@ function SettingsExplanation({ item }: { item: Item }) {
             <span>One strip of open length.</span>
           </div>
           <div>
-            <strong>Cloud</strong>
-            <span>Runs on sparrow cloud. Needs signing in.</span>
+            <strong>sparrow pro</strong>
+            <span>Runs on sparrow pro, the hosted solver. Needs signing in.</span>
             <span>Sheets in order, remnants and irregular sheets.</span>
             <span>Defects, clamps and reflection.</span>
           </div>

@@ -3,7 +3,7 @@ import { netArea } from '../../engine/geometry/validate';
 import { LIMITS } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
 import { Canvas } from '../Canvas';
-import { CloudRow, CloudTag } from '../CloudTag';
+import { ProRow, ProTag } from '../ProTag';
 import { useStudio } from '../context';
 import { formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
@@ -31,11 +31,11 @@ export function SheetsView() {
       <section className="list-panel" aria-label="Sheets">
         <div className="segmented" role="group" aria-label="Packing">
           <button aria-pressed="true">Strip</button>
-          <CloudTag label="Sheets · sparrow cloud" />
+          <ProTag label="Sheets · sparrow pro" />
         </div>
         <p className="muted pad">
           Parts nest into one strip of fixed width. The solver minimizes the length used. Sheets,
-          remnants and irregular sheets need sparrow cloud.
+          remnants and irregular sheets need sparrow pro.
         </p>
         <div className="list-head">
           <span className="label">Strip</span>
@@ -77,11 +77,11 @@ export function SheetsView() {
                 Length
                 <span className="muted">Open: the solver minimizes it.</span>
               </div>
-              <CloudRow>Defects and clamp zones</CloudRow>
+              <ProRow>Defects and clamp zones</ProRow>
             </div>
           )}
           <div className="pad">
-            <CloudRow>Add sheets, in nesting order</CloudRow>
+            <ProRow>Add sheets, in nesting order</ProRow>
           </div>
         </div>
         <RunBar />

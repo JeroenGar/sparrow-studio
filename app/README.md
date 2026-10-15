@@ -1,6 +1,6 @@
 # sparrow studio (new app)
 
-The new sparrow studio: six tabs that each pair a list with a canvas, several projects in browser storage, and local solving with the open-source sparrow algorithm through WebAssembly. Features marked _sparrow cloud_ are planned and shown disabled. The current app in `web/` stays as it is until this one launches.
+The new sparrow studio: six tabs that each pair a list with a canvas, several projects in browser storage, and local solving with the open-source sparrow algorithm through WebAssembly. Features marked _sparrow pro_ are planned and shown disabled. The current app in `web/` stays as it is until this one launches.
 
 ## Running it locally
 

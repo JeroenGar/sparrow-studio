@@ -15,7 +15,7 @@ export const PROJECT_VERSION = 1;
 
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };
-/** What the parts are nested into. Sheets (bin packing) arrive with sparrow cloud. */
+/** What the parts are nested into. Sheets (bin packing) arrive with sparrow pro. */
 export type Stock = { packing: 'strip'; strip: Strip };
 /** Machine-specific solver inputs. Clamps and a separate sheet boundary distance come later. */
 export type MachinePreset = { id: string; name: string; gapMm: number };
@@ -51,7 +51,7 @@ export type ProjectDocument = {
   machines: MachinePreset[];
   machineId: string;
   settings: SolverSettings;
-  /** Holds at most one solution for now; sparrow cloud will return several. */
+  /** Holds at most one solution for now; sparrow pro will return several. */
   solutions: Solution[];
 };
 

@@ -14,7 +14,7 @@ import {
   setPartRotations,
 } from '../../project/model';
 import { Canvas, ringsPath } from '../Canvas';
-import { CloudRow } from '../CloudTag';
+import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
 import { formatArea, formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
@@ -340,8 +340,8 @@ function PartProperties({
           </button>
         </div>
       )}
-      <CloudRow>Allow reflection</CloudRow>
-      <CloudRow>Nest parts inside its holes</CloudRow>
+      <ProRow>Allow reflection</ProRow>
+      <ProRow>Nest parts inside its holes</ProRow>
       <dl className="facts">
         <dt>Shape</dt>
         <dd>
@@ -464,8 +464,8 @@ function DefaultsPanel() {
             edit((current) => setDefaultRotations(current, rule), key && `default-${key}`)
           }
         />
-        <CloudRow>Allow reflection</CloudRow>
-        <CloudRow>Nest parts inside holes</CloudRow>
+        <ProRow>Allow reflection</ProRow>
+        <ProRow>Nest parts inside holes</ProRow>
         <div className="grain-key" aria-label="Grain lines">
           <span className="muted">Parts that differ show their grain line:</span>
           {(['fixed', 'half', 'quarter', 'free'] as const).map((kind) => (
