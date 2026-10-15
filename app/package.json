@@ -1,0 +1,38 @@
+{
+  "name": "sparrow-studio-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "wasm:build": "node ../web/scripts/build-wasm.mjs",
+    "dev": "vite --host 127.0.0.1",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "format": "prettier --write src/project src/ui src/main.tsx src/styles.css index.html tests/project.test.ts",
+    "format:check": "prettier --check src/project src/ui src/main.tsx src/styles.css index.html tests/project.test.ts",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/d3-path": "3.1.1",
+    "@types/react": "19.1.6",
+    "@types/react-dom": "19.1.6",
+    "prettier": "3.6.2",
+    "typescript": "5.8.3",
+    "vite": "6.4.3",
+    "vitest": "3.2.7"
+  },
+  "dependencies": {
+    "@tarikjabiri/dxf": "2.9.0",
+    "@xmldom/xmldom": "0.9.12",
+    "d3-path": "3.1.0",
+    "dxf": "5.3.1",
+    "jspdf": "4.2.1",
+    "polygon-clipping": "0.15.7",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "robust-predicates": "3.0.2",
+    "svg2pdf.js": "2.8.1"
+  }
+}
