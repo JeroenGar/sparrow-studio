@@ -1,0 +1,3642 @@
+{
+  "components": {
+    "schemas": {
+      "ApiError": {
+        "allOf": [
+          {
+            "properties": {
+              "doc_url": {
+                "description": "Explains the code.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "For people; it may change. It states what was wrong and how to fix it.",
+                "type": "string"
+              },
+              "param": {
+                "description": "The JSON Pointer of the field at fault within the request body, if any.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "message",
+              "doc_url",
+              "param"
+            ],
+            "type": "object"
+          },
+          {
+            "anyOf": [
+              {
+                "description": "400: the body is not valid JSON, or the request envelope is wrong.",
+                "properties": {
+                  "code": {
+                    "const": "malformed_request",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "400: the job input or settings do not parse or validate. The errors found, at least one,\neach tied to a field; not necessarily every error.",
+                "properties": {
+                  "code": {
+                    "const": "invalid_job_input",
+                    "type": "string"
+                  },
+                  "field_errors": {
+                    "items": {
+                      "$ref": "#/components/schemas/FieldError"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "code",
+                  "field_errors"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "422: the input parses, but uses a feature this service does not offer. One error per field\nwhose value is not available, at least one.",
+                "properties": {
+                  "code": {
+                    "const": "feature_unavailable",
+                    "type": "string"
+                  },
+                  "field_errors": {
+                    "items": {
+                      "$ref": "#/components/schemas/FieldError"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "code",
+                  "field_errors"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "401: missing, unknown, expired, or revoked credential.",
+                "properties": {
+                  "code": {
+                    "const": "unauthenticated",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "402: the available balance does not cover the job's hold.",
+                "properties": {
+                  "code": {
+                    "const": "insufficient_credits",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "403: the account is suspended.",
+                "properties": {
+                  "code": {
+                    "const": "account_suspended",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "404: no such resource for this account.",
+                "properties": {
+                  "code": {
+                    "const": "not_found",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "409: the idempotency key was used for a different request.",
+                "properties": {
+                  "code": {
+                    "const": "idempotency_conflict",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "410: the job document was deleted at its expiry.",
+                "properties": {
+                  "code": {
+                    "const": "expired",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "412: the project changed since the version in `If-Match`.",
+                "properties": {
+                  "code": {
+                    "const": "version_conflict",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "413: the request body exceeds the size limit.",
+                "properties": {
+                  "code": {
+                    "const": "request_too_large",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "422: the request exceeds a limit.",
+                "properties": {
+                  "code": {
+                    "const": "limit_exceeded",
+                    "type": "string"
+                  },
+                  "limit": {
+                    "$ref": "#/components/schemas/Limit"
+                  }
+                },
+                "required": [
+                  "code",
+                  "limit"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "428: a project save or deletion without `If-Match`.",
+                "properties": {
+                  "code": {
+                    "const": "precondition_required",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "429: too many requests or queued jobs; `Retry-After` gives seconds.",
+                "properties": {
+                  "code": {
+                    "const": "rate_limited",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "500: server failure.",
+                "properties": {
+                  "code": {
+                    "const": "internal_error",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "503: temporarily unavailable; `Retry-After` gives seconds.",
+                "properties": {
+                  "code": {
+                    "const": "unavailable",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        ],
+        "description": "What went wrong with a request."
+      },
+      "Contour": {
+        "description": "A closed boundary.",
+        "oneOf": [
+          {
+            "description": "At least 3 points, in either winding; a last point equal to the first is allowed. The\nedges must not cross each other.",
+            "properties": {
+              "points": {
+                "items": {
+                  "items": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "polygon",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "points"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "An axis-aligned rectangle with positive `width` and `height`.",
+            "properties": {
+              "height": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": {
+                "const": "rectangle",
+                "type": "string"
+              },
+              "width": {
+                "format": "double",
+                "type": "number"
+              },
+              "x_min": {
+                "format": "double",
+                "type": "number"
+              },
+              "y_min": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "type",
+              "x_min",
+              "y_min",
+              "width",
+              "height"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A circle with a positive `radius`.",
+            "properties": {
+              "center": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "radius": {
+                "format": "double",
+                "type": "number"
+              },
+              "type": {
+                "const": "circle",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "center",
+              "radius"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A contour of segments, meant for curves; `Contour::Polygon` is the compact form for\nstraight edges. Each segment runs from the previous segment's end, or `start`, to its own\nend, and a path that does not end at `start` is closed by a straight line. It must not\ncross itself; an error names the segments that cross.",
+            "properties": {
+              "segments": {
+                "items": {
+                  "$ref": "#/components/schemas/Segment"
+                },
+                "type": "array"
+              },
+              "start": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "type": {
+                "const": "path",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "start",
+              "segments"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Credits": {
+        "description": "A job's credits.",
+        "properties": {
+          "charged": {
+            "description": "The charge, once the job ends.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "held": {
+            "description": "The current hold, released when the job ends.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "held",
+          "charged"
+        ],
+        "type": "object"
+      },
+      "Diagnostic": {
+        "anyOf": [
+          {
+            "description": "The search found no placement for the part on any empty sheet; its movable copies are\nleft unplaced. It means none was found, not that none exists.",
+            "properties": {
+              "kind": {
+                "const": "no_valid_placement",
+                "type": "string"
+              },
+              "part_id": {
+                "type": "string"
+              },
+              "quantity": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "kind",
+              "part_id",
+              "quantity"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A locked placement reaches outside its sheet, overlaps another locked placement, a sheet\nhole, or a defect, or comes closer to them than the separations allow; it is kept as given.\n`path` points to the placement in the input.",
+            "properties": {
+              "kind": {
+                "const": "locked_placement_conflict",
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "path"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A hole of the part's geometry reaches outside its outer contour, overlaps another hole, or\nsplits the part into pieces; it is ignored, so the part is solid there. `hole_index`\nindexes the geometry's holes.",
+            "properties": {
+              "hole_index": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "kind": {
+                "const": "hole_ignored",
+                "type": "string"
+              },
+              "part_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "part_id",
+              "hole_index"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "The boundary separation lay between 0 and half the parts' separation and was raised to\nhalf of it.",
+            "properties": {
+              "kind": {
+                "const": "boundary_separation_raised",
+                "type": "string"
+              },
+              "requested": {
+                "format": "double",
+                "type": "number"
+              },
+              "used": {
+                "format": "double",
+                "type": "number"
+              }
+            },
+            "required": [
+              "kind",
+              "requested",
+              "used"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "A fallback the import took. With `OnInputError::Fail`, any of them fails the job instead."
+      },
+      "Engine": {
+        "description": "The engine that ran a job.",
+        "properties": {
+          "build_id": {
+            "description": "Identifies the exact build.",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "build_id"
+        ],
+        "type": "object"
+      },
+      "ErrorBody": {
+        "description": "The body of every error response.",
+        "properties": {
+          "error": {
+            "$ref": "#/components/schemas/ApiError"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "type": "object"
+      },
+      "FieldError": {
+        "description": "An error in one field of invalid input.",
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "param": {
+            "description": "The JSON Pointer of the field at fault.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "param",
+          "message"
+        ],
+        "type": "object"
+      },
+      "Fulfillment": {
+        "description": "Whether all demand was placed.",
+        "oneOf": [
+          {
+            "enum": [
+              "complete"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "partial",
+            "description": "Some demand is [unplaced](Outcome::unplaced).",
+            "type": "string"
+          }
+        ]
+      },
+      "Geometry": {
+        "description": "A shape that any number of parts and sheets may use. A geometry is never altered: fallbacks\napply to the part or sheet that uses it.",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "shape": {
+            "$ref": "#/components/schemas/Shape"
+          }
+        },
+        "required": [
+          "id",
+          "shape"
+        ],
+        "type": "object"
+      },
+      "HoleMode": {
+        "description": "Whether other parts may be placed in a part's holes, locked copies included.",
+        "enum": [
+          "nestable",
+          "solid"
+        ],
+        "type": "string"
+      },
+      "Input": {
+        "description": "The input a client submits: one complete nesting problem.",
+        "properties": {
+          "geometries": {
+            "description": "The shapes that parts and sheets refer to, nonempty.",
+            "items": {
+              "$ref": "#/components/schemas/Geometry"
+            },
+            "type": "array"
+          },
+          "minimum_separation_distance": {
+            "$ref": "#/components/schemas/MinimumSeparationDistance"
+          },
+          "parts": {
+            "description": "What is to be produced, nonempty.",
+            "items": {
+              "$ref": "#/components/schemas/Part"
+            },
+            "type": "array"
+          },
+          "problem": {
+            "$ref": "#/components/schemas/Problem",
+            "description": "The material and the goal."
+          },
+          "schema_version": {
+            "description": "`SCHEMA_VERSION`.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "geometries",
+          "parts",
+          "minimum_separation_distance",
+          "problem"
+        ],
+        "type": "object"
+      },
+      "Job": {
+        "description": "The job resource: the light view of a job for polling and lists, without its input and outcome,\nwhich the full `JobDocument` holds.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credits": {
+            "$ref": "#/components/schemas/Credits"
+          },
+          "diagnostics": {
+            "description": "The fallbacks the import took; absent in lists.",
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            },
+            "type": "array"
+          },
+          "document_expires_at": {
+            "description": "When the job document is deleted, 30 days after the job ends; `None` until then.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "finished_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "$ref": "#/components/schemas/JobId"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/Settings",
+            "description": "Including the values the service chose, such as the seed."
+          },
+          "started_at": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          }
+        },
+        "required": [
+          "id",
+          "state",
+          "created_at",
+          "settings",
+          "credits",
+          "document_expires_at",
+          "finished_at",
+          "started_at"
+        ],
+        "type": "object"
+      },
+      "JobDocument": {
+        "description": "The self-contained record of a job, from input to outcome. It holds the job's own data only:\ncredits, timestamps, and the job's ID belong to the API's job resource.",
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/Input",
+            "description": "The input as submitted."
+          },
+          "outcome": {
+            "$ref": "#/components/schemas/Outcome",
+            "description": "Present only for a completed job."
+          },
+          "run": {
+            "$ref": "#/components/schemas/Run",
+            "description": "Present once the job has started."
+          },
+          "schema_version": {
+            "description": "`SCHEMA_VERSION`.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/Settings"
+          },
+          "state": {
+            "$ref": "#/components/schemas/State"
+          }
+        },
+        "required": [
+          "schema_version",
+          "input",
+          "settings",
+          "state"
+        ],
+        "type": "object"
+      },
+      "JobError": {
+        "allOf": [
+          {
+            "properties": {
+              "doc_url": {
+                "description": "Explains the code.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "message": {
+                "description": "For people; it may change.",
+                "type": "string"
+              },
+              "param": {
+                "description": "The JSON Pointer of the field at fault, if any, within the request body.",
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "message",
+              "doc_url",
+              "param"
+            ],
+            "type": "object"
+          },
+          {
+            "anyOf": [
+              {
+                "description": "The worker's import refused the input: with `OnInputError::Fail`, a fallback would have\nbeen needed. The errors found, at least one, each tied to a field.",
+                "properties": {
+                  "code": {
+                    "const": "invalid_job_input",
+                    "type": "string"
+                  },
+                  "field_errors": {
+                    "items": {
+                      "$ref": "#/components/schemas/FieldError"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "code",
+                  "field_errors"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "The search ended before it found any feasible solution.",
+                "properties": {
+                  "code": {
+                    "const": "no_feasible_solution",
+                    "type": "string"
+                  },
+                  "termination": {
+                    "$ref": "#/components/schemas/Termination",
+                    "description": "What ended the search."
+                  }
+                },
+                "required": [
+                  "code",
+                  "termination"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "The time limit ran out during import, before any search.",
+                "properties": {
+                  "code": {
+                    "const": "import_timeout",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "The worker stopped responding.",
+                "properties": {
+                  "code": {
+                    "const": "worker_lost",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "The job could not be run, such as one not started within 24 hours.",
+                "properties": {
+                  "code": {
+                    "const": "internal_error",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "code": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        ],
+        "description": "Why a job failed, in the shape of an API error."
+      },
+      "JobId": {
+        "description": "A job's ID, such as `job_7Hq2…`.",
+        "type": "string"
+      },
+      "JobList": {
+        "description": "One page of a list, ordered by the listed timestamp, ties broken by ID.",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Job"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "The cursor for the next page; `None` on the last page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "JobRequest": {
+        "description": "The body of `POST /v1/jobs` and `POST /v1/jobs/validate`.",
+        "properties": {
+          "input": {
+            "$ref": "#/components/schemas/Input"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/JobSettings"
+          }
+        },
+        "required": [
+          "settings",
+          "input"
+        ],
+        "type": "object"
+      },
+      "JobSettings": {
+        "description": "The settings a job is submitted with. The service fills in the rest, as recorded in the job's\n`Settings`.",
+        "properties": {
+          "auto_termination": {
+            "description": "End the search early once it stops improving; `false` when absent.",
+            "type": "boolean"
+          },
+          "on_input_error": {
+            "$ref": "#/components/schemas/OnInputError",
+            "description": "`Fallback` when absent."
+          },
+          "seed": {
+            "description": "From 0 to 2⁵³ − 1; chosen by the service when absent.",
+            "format": "uint64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "time_limit_seconds": {
+            "description": "The maximum solver time, from 1 up to the account's\n`max_time_limit_seconds`. It sets the job's credit\nhold.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time_limit_seconds"
+        ],
+        "type": "object"
+      },
+      "JobStatus": {
+        "description": "A job's status, the filter of `GET /v1/jobs`. Statuses are closed: a new one needs a new API\nversion.",
+        "enum": [
+          "queued",
+          "running",
+          "completed",
+          "cancelled",
+          "failed"
+        ],
+        "type": "string"
+      },
+      "Layout": {
+        "description": "The placements on one opened sheet. Sheets of one entry repeat its `sheet_id`; their order\ntells them apart. A layout that completes a locked layout starts with its placements,\nunchanged and in their input order.",
+        "properties": {
+          "placements": {
+            "items": {
+              "$ref": "#/components/schemas/Placement"
+            },
+            "type": "array"
+          },
+          "sheet_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sheet_id",
+          "placements"
+        ],
+        "type": "object"
+      },
+      "LayoutStats": {
+        "description": "Statistics of one layout.",
+        "properties": {
+          "consumed_area": {
+            "description": "The sheet's material in use: the area of its outline left of `cut_x`, minus the area its\nholes cover, with defects counted as consumed.",
+            "format": "double",
+            "type": "number"
+          },
+          "cut_x": {
+            "description": "Where the last opened sheet is cut, as an x coordinate in the sheet's own coordinates: the\nparts lie left of it, the boundary separation included. `None` for the sheets before the\nlast, which are used in full.",
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "density": {
+            "description": "`placed_area / consumed_area`; 0 when `consumed_area` is 0.",
+            "format": "double",
+            "type": "number"
+          },
+          "placed_area": {
+            "description": "The material area of the placed parts, locked ones included.",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "consumed_area",
+          "placed_area",
+          "density",
+          "cut_x"
+        ],
+        "type": "object"
+      },
+      "Limit": {
+        "description": "A limit that a request exceeded.",
+        "properties": {
+          "name": {
+            "$ref": "#/components/schemas/LimitName"
+          },
+          "value": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "value"
+        ],
+        "type": "object"
+      },
+      "LimitName": {
+        "anyOf": [
+          {
+            "enum": [
+              "max_time_limit_seconds",
+              "max_part_copies",
+              "max_projects",
+              "max_project_bytes"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "The name of a limit; those in `Limits` carry its field's name."
+      },
+      "Limits": {
+        "description": "The account's current limits, from `GET /v1/limits`.",
+        "properties": {
+          "max_part_copies": {
+            "description": "The most part copies in one job input.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_project_bytes": {
+            "description": "The total size of the account's project documents.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_projects": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_queued_jobs": {
+            "description": "The most queued jobs; beyond them, submission is rate limited.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_request_bytes": {
+            "description": "The largest request body, uncompressed.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_running_jobs": {
+            "description": "The most jobs running at once; further jobs wait as queued.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_time_limit_seconds": {
+            "description": "The largest `time_limit_seconds` of a job.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "max_request_bytes",
+          "max_time_limit_seconds",
+          "max_part_copies",
+          "max_running_jobs",
+          "max_queued_jobs",
+          "max_projects",
+          "max_project_bytes"
+        ],
+        "type": "object"
+      },
+      "LockedLayout": {
+        "description": "Given placements on one sheet, which the solver completes.\n\n- Each locked layout takes the next unused sheet of its entry, in input order; an entry with\n  fewer sheets than locked layouts is invalid.\n- Each placement uses up one copy of its part; a part with fewer copies than locked\n  placements is invalid.\n- A sheet holding a locked layout, and every sheet before it, is opened.\n- Placements stand as given, also when they conflict, see\n  `Diagnostic::LockedPlacementConflict`. They\n  are not checked against the part's permitted orientations.",
+        "properties": {
+          "placements": {
+            "description": "At least one placement.",
+            "items": {
+              "$ref": "#/components/schemas/Placement"
+            },
+            "type": "array"
+          },
+          "sheet_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sheet_id",
+          "placements"
+        ],
+        "type": "object"
+      },
+      "MinimumSeparationDistance": {
+        "description": "Minimum clearances, both nonnegative.",
+        "properties": {
+          "boundary": {
+            "description": "Between a part and the edge of its material, a sheet hole, or a defect. A value between 0\nand half of `parts` is raised to half of `parts`, with\n`Diagnostic::BoundarySeparationRaised`.",
+            "format": "double",
+            "type": "number"
+          },
+          "parts": {
+            "description": "Between any two parts, also between a part and the edge of another part's hole it lies in.",
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "parts",
+          "boundary"
+        ],
+        "type": "object"
+      },
+      "OnInputError": {
+        "description": "What happens to input that cannot be used as given.",
+        "oneOf": [
+          {
+            "const": "fallback",
+            "description": "Used with a fallback and reported as a `Diagnostic`.",
+            "type": "string"
+          },
+          {
+            "const": "fail",
+            "description": "The job fails instead, with `invalid_job_input` and the errors listed.",
+            "type": "string"
+          }
+        ]
+      },
+      "Orientation": {
+        "description": "The permitted orientations of a part's copies: every combination of a permitted reflection\nand a permitted rotation.",
+        "properties": {
+          "reflection": {
+            "description": "Nonempty and without repeats. A mirror across another axis is the x-axis mirror plus a\nrotation.",
+            "items": {
+              "$ref": "#/components/schemas/Reflection"
+            },
+            "type": "array"
+          },
+          "rotation": {
+            "$ref": "#/components/schemas/Rotation"
+          }
+        },
+        "required": [
+          "rotation"
+        ],
+        "type": "object"
+      },
+      "Outcome": {
+        "description": "The result of a completed job.",
+        "properties": {
+          "diagnostics": {
+            "description": "The fallbacks the import took.",
+            "items": {
+              "$ref": "#/components/schemas/Diagnostic"
+            },
+            "type": "array"
+          },
+          "replay": {
+            "$ref": "#/components/schemas/Replay"
+          },
+          "solution": {
+            "$ref": "#/components/schemas/Solution"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          },
+          "unplaced": {
+            "description": "Per part with copies not placed. For every part, its quantity equals its placed copies,\nlocked ones included, plus its unplaced copies.",
+            "items": {
+              "$ref": "#/components/schemas/Unplaced"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "solution",
+          "stats",
+          "unplaced",
+          "diagnostics",
+          "replay"
+        ],
+        "type": "object"
+      },
+      "Part": {
+        "description": "Something to produce, in copies that cannot be told apart.",
+        "properties": {
+          "geometry_id": {
+            "type": "string"
+          },
+          "hole_mode": {
+            "$ref": "#/components/schemas/HoleMode"
+          },
+          "id": {
+            "type": "string"
+          },
+          "orientation": {
+            "$ref": "#/components/schemas/Orientation"
+          },
+          "quantity": {
+            "description": "Copies to produce, at least 1, locked ones included.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "geometry_id",
+          "quantity",
+          "orientation"
+        ],
+        "type": "object"
+      },
+      "Placement": {
+        "description": "A copy of a part, placed on a sheet or the strip.",
+        "properties": {
+          "part_id": {
+            "type": "string"
+          },
+          "transformation": {
+            "$ref": "#/components/schemas/Transformation"
+          }
+        },
+        "required": [
+          "part_id",
+          "transformation"
+        ],
+        "type": "object"
+      },
+      "Problem": {
+        "description": "The material and the goal.",
+        "oneOf": [
+          {
+            "description": "Every copy of every part is placed. The expanded sheets are opened strictly in order, as a\nprefix of the list, and the solver opens as few as possible. On the last opened sheet, the\nparts are packed to the left and the sheet is cut vertically at\n`LayoutStats::cut_x`, as far left as possible; the material right\nof the cut is kept as a remnant. Every opened sheet but the last is used in full.",
+            "properties": {
+              "locked_parts": {
+                "description": "Placements that are given, which the solver completes.",
+                "items": {
+                  "$ref": "#/components/schemas/LockedLayout"
+                },
+                "type": "array"
+              },
+              "sheets": {
+                "description": "The material, in the order it is used, nonempty.",
+                "items": {
+                  "$ref": "#/components/schemas/SheetEntry"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "minimize_sheets_in_order",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "sheets"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "One strip, from y = 0 to `height` and from x = 0 to the right without end. Every copy of every\npart is placed, and the solver minimizes the length used,\n`LayoutStats::cut_x`. The solution has one layout, whose\n`sheet_id` is `\"strip\"`. The boundary separation applies to the strip's bottom, top, and left\nedges.",
+            "properties": {
+              "height": {
+                "description": "Greater than 0.",
+                "format": "double",
+                "type": "number"
+              },
+              "locked_parts": {
+                "description": "Placements that are given, which the solver completes, in strip coordinates; as for\n`LockedLayout::placements`.",
+                "items": {
+                  "$ref": "#/components/schemas/Placement"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "minimize_strip_length",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "height"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Project": {
+        "description": "A client's project, stored with the account. Every response with a project carries its version\nin an `ETag` header, which a save or deletion sends back in `If-Match`.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "document": {
+            "description": "Opaque to the API: the client defines its format, and the API stores it as given."
+          },
+          "id": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "updated_at",
+          "document"
+        ],
+        "type": "object"
+      },
+      "ProjectId": {
+        "description": "A project's ID, such as `prj_…`.",
+        "type": "string"
+      },
+      "ProjectRequest": {
+        "description": "The body of `POST /v1/projects` and `PUT /v1/projects/{project_id}`.",
+        "properties": {
+          "document": {},
+          "name": {
+            "description": "From 1 to 256 characters.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "document"
+        ],
+        "type": "object"
+      },
+      "ProjectSummary": {
+        "description": "A project in a list, without its document; lists are ordered by `updated_at`, most recent\nfirst.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/ProjectId"
+          },
+          "name": {
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "updated_at"
+        ],
+        "type": "object"
+      },
+      "ProjectSummaryList": {
+        "description": "One page of a list, ordered by the listed timestamp, ties broken by ID.",
+        "properties": {
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectSummary"
+            },
+            "type": "array"
+          },
+          "next_cursor": {
+            "description": "The cursor for the next page; `None` on the last page.",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "data",
+          "next_cursor"
+        ],
+        "type": "object"
+      },
+      "Reflection": {
+        "description": "A mirror of a geometry before it is rotated.",
+        "oneOf": [
+          {
+            "const": "none",
+            "description": "Keeps the geometry as it is.",
+            "type": "string"
+          },
+          {
+            "const": "x_axis",
+            "description": "Mirrors the geometry across its own x-axis: (x, y) ↦ (x, −y).",
+            "type": "string"
+          }
+        ]
+      },
+      "Replay": {
+        "description": "What the search did, so that the same input, settings, threads, and build repeat it exactly.",
+        "properties": {
+          "compression_attempts": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "exploration_attempts": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "exploration_attempts",
+          "compression_attempts"
+        ],
+        "type": "object"
+      },
+      "Rotation": {
+        "description": "The permitted rotations.",
+        "oneOf": [
+          {
+            "description": "A nonempty list of at most 65,536 angles; equivalent angles are merged, and 0° is not\nimplicit.",
+            "properties": {
+              "angles": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "discrete",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "angles"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Any angle.",
+            "properties": {
+              "type": {
+                "const": "continuous",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Run": {
+        "description": "How the job runs, known from its start.",
+        "properties": {
+          "engine": {
+            "$ref": "#/components/schemas/Engine"
+          },
+          "threads": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "engine",
+          "threads"
+        ],
+        "type": "object"
+      },
+      "Search": {
+        "description": "The data of a `search` event, sent only with `EventsQuery::search`: the layout the search is\nworking on, which may be infeasible, at most a few times a second. Best-effort: a job may send\nnone.",
+        "properties": {
+          "elapsed_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "sequence": {
+            "description": "Orders `search` events among themselves.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "solution": {
+            "$ref": "#/components/schemas/Solution"
+          }
+        },
+        "required": [
+          "sequence",
+          "elapsed_seconds",
+          "solution"
+        ],
+        "type": "object"
+      },
+      "Segment": {
+        "description": "A piece of a `Contour::Path`, running from the previous segment's end to its own.",
+        "oneOf": [
+          {
+            "properties": {
+              "to": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "type": {
+                "const": "line",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "to"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A circular arc. `bulge` is tan(θ/4) for the swept angle θ, positive counterclockwise, as\nin DXF; `0` is a straight line. Its ends must differ: a full circle is a\n`Contour::Circle` or two arcs.",
+            "properties": {
+              "bulge": {
+                "format": "double",
+                "type": "number"
+              },
+              "to": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "type": {
+                "const": "arc",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "to",
+              "bulge"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A quadratic Bézier curve.",
+            "properties": {
+              "control": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "to": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "type": {
+                "const": "quadratic",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "control",
+              "to"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A cubic Bézier curve.",
+            "properties": {
+              "control1": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "control2": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "to": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "maxItems": 2,
+                "minItems": 2,
+                "type": "array"
+              },
+              "type": {
+                "const": "cubic",
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "control1",
+              "control2",
+              "to"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "A clamped NURBS curve. `control_points` lists the control points after the segment's\nstart, which is the first control point and is not repeated; the last is the segment's\nend. With m listed points, the curve has m + 1 control points:\n\n- 1 ≤ `degree` ≤ m;\n- `knots` has m + `degree` + 2 entries, nondecreasing, the first and last repeated exactly\n  `degree` + 1 times, no interior knot more than `degree` times;\n- `weights`, when given, has m + 1 positive entries, the start's first; omitted means\n  all 1.",
+            "properties": {
+              "control_points": {
+                "items": {
+                  "items": {
+                    "format": "double",
+                    "type": "number"
+                  },
+                  "maxItems": 2,
+                  "minItems": 2,
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              "degree": {
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "knots": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              "type": {
+                "const": "nurbs",
+                "type": "string"
+              },
+              "weights": {
+                "items": {
+                  "format": "double",
+                  "type": "number"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "type",
+              "degree",
+              "control_points",
+              "knots"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Settings": {
+        "description": "How the solver ran on the input, including the values the service chose.",
+        "properties": {
+          "auto_termination": {
+            "description": "Whether the search ended early once it stopped improving.",
+            "type": "boolean"
+          },
+          "on_input_error": {
+            "$ref": "#/components/schemas/OnInputError"
+          },
+          "seed": {
+            "description": "The random seed, from 0 to 2⁵³ − 1.",
+            "format": "uint64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "time_limit_seconds": {
+            "description": "The maximum solver time, in whole seconds.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "time_limit_seconds",
+          "auto_termination",
+          "seed",
+          "on_input_error"
+        ],
+        "type": "object"
+      },
+      "Shape": {
+        "description": "One outer contour and any number of holes, which are regions without material.\n\nIn a part's geometry, each hole lies inside the outer contour; holes may touch it and each\nother, but not overlap, and the material stays one connected piece. Otherwise the input is\ninvalid. In a sheet's geometry, holes are unusable regions without further rules: they may\nreach outside the sheet, overlap, or split it into pieces.",
+        "properties": {
+          "holes": {
+            "items": {
+              "$ref": "#/components/schemas/Contour"
+            },
+            "type": "array"
+          },
+          "outer": {
+            "$ref": "#/components/schemas/Contour"
+          }
+        },
+        "required": [
+          "outer"
+        ],
+        "type": "object"
+      },
+      "SheetEntry": {
+        "description": "Identical, anonymous sheets in a row. Sheets with different defects, or that must be told\napart, need separate entries.",
+        "properties": {
+          "defects": {
+            "description": "Unusable regions in the sheet's coordinates, such as flaws or clamp areas. They may overlap\neach other and reach outside the sheet.",
+            "items": {
+              "$ref": "#/components/schemas/Contour"
+            },
+            "type": "array"
+          },
+          "geometry_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "quantity": {
+            "description": "How many sheets the entry expands to, at least 1.",
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "geometry_id"
+        ],
+        "type": "object"
+      },
+      "Snapshot": {
+        "description": "The data of a `snapshot` event on `GET /v1/jobs/{job_id}/events`: the best feasible solution\nso far. A `status` event carries the `Job`.",
+        "properties": {
+          "elapsed_seconds": {
+            "format": "double",
+            "type": "number"
+          },
+          "sequence": {
+            "description": "Increases within the job; also the event's ID.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "solution": {
+            "$ref": "#/components/schemas/Solution"
+          }
+        },
+        "required": [
+          "sequence",
+          "elapsed_seconds",
+          "solution"
+        ],
+        "type": "object"
+      },
+      "Solution": {
+        "description": "The placements per opened sheet; live snapshots carry solutions.",
+        "properties": {
+          "layouts": {
+            "description": "One layout per opened sheet, in the order the sheets are used.",
+            "items": {
+              "$ref": "#/components/schemas/Layout"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "layouts"
+        ],
+        "type": "object"
+      },
+      "State": {
+        "description": "Where a job stands.",
+        "oneOf": [
+          {
+            "properties": {
+              "status": {
+                "const": "queued",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "status": {
+                "const": "running",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "fulfillment": {
+                "$ref": "#/components/schemas/Fulfillment"
+              },
+              "solver_seconds": {
+                "description": "Solver time used, from the start of import, in whole seconds rounded up.",
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "completed",
+                "type": "string"
+              },
+              "termination": {
+                "$ref": "#/components/schemas/Termination"
+              }
+            },
+            "required": [
+              "status",
+              "termination",
+              "fulfillment",
+              "solver_seconds"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Only a queued job is cancelled.",
+            "properties": {
+              "status": {
+                "const": "cancelled",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "error": {
+                "$ref": "#/components/schemas/JobError"
+              },
+              "solver_seconds": {
+                "description": "Solver time used, as for a completed job; absent for a job that never started.",
+                "format": "uint32",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "status": {
+                "const": "failed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "status",
+              "error"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "Stats": {
+        "description": "Statistics in total; `Stats::layouts` has them per layout.",
+        "properties": {
+          "consumed_area": {
+            "format": "double",
+            "type": "number"
+          },
+          "density": {
+            "format": "double",
+            "type": "number"
+          },
+          "layouts": {
+            "items": {
+              "$ref": "#/components/schemas/LayoutStats"
+            },
+            "type": "array"
+          },
+          "placed_area": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "required": [
+          "consumed_area",
+          "placed_area",
+          "density",
+          "layouts"
+        ],
+        "type": "object"
+      },
+      "Termination": {
+        "anyOf": [
+          {
+            "enum": [
+              "time_limit",
+              "auto_terminated",
+              "stopped"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "What ended the search."
+      },
+      "Transformation": {
+        "description": "Maps a part's original geometry onto its sheet:\np_sheet = R(`rotation`) · F(`reflection`) · p_geometry + `translation`,\nabout the geometry's own origin, which need not lie on or inside the shape. Every placement,\nincluding a part inside another part's hole, is in sheet coordinates.",
+        "properties": {
+          "reflection": {
+            "$ref": "#/components/schemas/Reflection"
+          },
+          "rotation": {
+            "description": "Degrees, counterclockwise.",
+            "format": "double",
+            "type": "number"
+          },
+          "translation": {
+            "items": {
+              "format": "double",
+              "type": "number"
+            },
+            "maxItems": 2,
+            "minItems": 2,
+            "type": "array"
+          }
+        },
+        "required": [
+          "reflection",
+          "rotation",
+          "translation"
+        ],
+        "type": "object"
+      },
+      "Unplaced": {
+        "description": "Copies of a part that were not placed.",
+        "properties": {
+          "part_id": {
+            "type": "string"
+          },
+          "quantity": {
+            "format": "uint32",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "part_id",
+          "quantity"
+        ],
+        "type": "object"
+      }
+    },
+    "securitySchemes": {
+      "bearer": {
+        "description": "An API key, a studio sign-in token, or an assistant's OAuth access token.",
+        "scheme": "bearer",
+        "type": "http"
+      }
+    }
+  },
+  "info": {
+    "description": "The job API of Sparrow Pro: submit nesting jobs, follow them live, and fetch their results; store projects for clients. Bodies are JSON, and requests may be gzip-compressed. Requests are read strictly: unknown fields and explicit nulls are refused, although these schemas do not say so. Responses are read tolerantly: clients ignore fields they do not know, and treat unknown values of open enumerations, such as error codes, diagnostic kinds, and termination reasons, as unknown. Every response carries an X-Request-Id header. See docs/job_api_contract.md and docs/io_format.md.",
+    "title": "Sparrow Pro API",
+    "version": "1"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/jobs": {
+      "get": {
+        "operationId": "listJobs",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "From 1 to 100; 20 when absent.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Only jobs with this status.",
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/JobStatus"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobList"
+                }
+              }
+            },
+            "description": "One page of jobs, without their diagnostics."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "malformed_request or invalid_job_input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List the account's jobs, newest first"
+      },
+      "post": {
+        "operationId": "submitJob",
+        "parameters": [
+          {
+            "description": "Makes retries safe: a repeated key with the same body returns the original resource; with another body, 409 idempotency_conflict.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "The job as it is now, for a repeated idempotency key."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "The job, created."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "malformed_request or invalid_job_input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "insufficient_credits: the available balance does not cover the job's hold."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "idempotency_conflict: the key was used for a different request."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "request_too_large: the body exceeds 32 MiB uncompressed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "feature_unavailable or limit_exceeded."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Submit a job"
+      }
+    },
+    "/jobs/validate": {
+      "post": {
+        "operationId": "validateJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Submission would be accepted."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "malformed_request or invalid_job_input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "402": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "insufficient_credits: the available balance does not cover the job's hold."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "request_too_large: the body exceeds 32 MiB uncompressed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "feature_unavailable or limit_exceeded."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Check a submission without running it"
+      }
+    },
+    "/jobs/{job_id}": {
+      "get": {
+        "operationId": "getJob",
+        "parameters": [
+          {
+            "description": "The job's ID, such as `job_7Hq2…`.",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "The job."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a job"
+      }
+    },
+    "/jobs/{job_id}/events": {
+      "get": {
+        "operationId": "streamJobEvents",
+        "parameters": [
+          {
+            "description": "The job's ID, such as `job_7Hq2…`.",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Adds `Search` events to the stream; `false` when absent.",
+            "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "example": "event: snapshot\nid: 17\ndata: {\"sequence\":17,\"elapsed_seconds\":34.2,\"solution\":{\"layouts\":[]}}\n\n",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Server-Sent Events. `status` (data: Job) on connection and on every state change; `snapshot` (data: Snapshot) with the best feasible solution so far, at most about once per second; with `search=true`, `search` (data: Search) with the layout being worked on, at most a few times per second. The stream ends after a final state."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Follow a job live"
+      }
+    },
+    "/jobs/{job_id}/full": {
+      "get": {
+        "operationId": "getJobDocument",
+        "parameters": [
+          {
+            "description": "The job's ID, such as `job_7Hq2…`.",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDocument"
+                }
+              }
+            },
+            "description": "The job document; its outcome is filled once the job completes."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "410": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "expired: the job document was deleted at its document_expires_at."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a job's full document"
+      }
+    },
+    "/jobs/{job_id}/stop": {
+      "post": {
+        "operationId": "stopJob",
+        "parameters": [
+          {
+            "description": "The job's ID, such as `job_7Hq2…`.",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Job"
+                }
+              }
+            },
+            "description": "The job as it is now: a queued job is cancelled, a running one asked to end its search."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Stop a job"
+      }
+    },
+    "/limits": {
+      "get": {
+        "operationId": "getLimits",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Limits"
+                }
+              }
+            },
+            "description": "The limits."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get the account's current limits"
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenApi",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The specification."
+          }
+        },
+        "security": [],
+        "summary": "This specification"
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "parameters": [
+          {
+            "description": "A cursor from the previous page of the same list, with the same filters.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "From 1 to 100; 20 when absent.",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "uint32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSummaryList"
+                }
+              }
+            },
+            "description": "One page of projects, without their documents."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "malformed_request or invalid_job_input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "List the account's projects, most recently updated first"
+      },
+      "post": {
+        "operationId": "createProject",
+        "parameters": [
+          {
+            "description": "Makes retries safe: a repeated key with the same body returns the original resource; with another body, 409 idempotency_conflict.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": false,
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "The project as it is now, for a repeated idempotency key.",
+            "headers": {
+              "ETag": {
+                "description": "The project's version.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "The project, created.",
+            "headers": {
+              "ETag": {
+                "description": "The project's version.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "malformed_request or invalid_job_input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "idempotency_conflict: the key was used for a different request."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "request_too_large: the body exceeds 32 MiB uncompressed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "feature_unavailable or limit_exceeded."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Create a project"
+      }
+    },
+    "/projects/{project_id}": {
+      "delete": {
+        "operationId": "deleteProject",
+        "parameters": [
+          {
+            "description": "The project's ID, such as `prj_…`.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The project's version, as its ETag gave it; `*` does not count.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "The project was deleted."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "version_conflict: the project changed since the version in If-Match."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "precondition_required: a project save or deletion without If-Match."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete a project"
+      },
+      "get": {
+        "operationId": "getProject",
+        "parameters": [
+          {
+            "description": "The project's ID, such as `prj_…`.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "The project.",
+            "headers": {
+              "ETag": {
+                "description": "The project's version.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a project with its document"
+      },
+      "put": {
+        "operationId": "saveProject",
+        "parameters": [
+          {
+            "description": "The project's ID, such as `prj_…`.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The project's version, as its ETag gave it; `*` does not count.",
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Project"
+                }
+              }
+            },
+            "description": "The project, saved.",
+            "headers": {
+              "ETag": {
+                "description": "The project's version.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "malformed_request or invalid_job_input."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "version_conflict: the project changed since the version in If-Match."
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "request_too_large: the body exceeds 32 MiB uncompressed."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "feature_unavailable or limit_exceeded."
+          },
+          "428": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "precondition_required: a project save or deletion without If-Match."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Replace a project's name and document"
+      }
+    }
+  },
+  "security": [
+    {
+      "bearer": []
+    }
+  ],
+  "servers": [
+    {
+      "url": "https://api.sparrownesting.com/v1"
+    }
+  ]
+}
