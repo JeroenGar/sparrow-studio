@@ -22,9 +22,9 @@
   --bar-line: #e0d4c0;
   --bar-control: rgba(255, 255, 255, 0.45);
   --sheet: #fffdf9;
-  --cloud: #9a3412;
-  --cloud-soft: #fbe8d6;
-  --cloud-line: #c2410c;
+  --pro: #9a3412;
+  --pro-soft: #fbe8d6;
+  --pro-line: #c2410c;
   --danger: #b42318;
   --good: #14532d;
   --good-soft: #e3efdc;
@@ -64,9 +64,9 @@
   --bar-line: #3e3730;
   --bar-control: rgba(243, 227, 195, 0.08);
   --sheet: #322c26;
-  --cloud: #fdba74;
-  --cloud-soft: #3a2b1d;
-  --cloud-line: #c2610c;
+  --pro: #fdba74;
+  --pro-soft: #3a2b1d;
+  --pro-line: #c2610c;
   --danger: #ff8a80;
   --good: #9be0b2;
   --good-soft: #1f2a21;
@@ -266,31 +266,31 @@ input[aria-invalid='true'] {
 .notice {
   margin: 4px 0 0;
   font-size: 12px;
-  color: var(--cloud);
-  background: var(--cloud-soft);
+  color: var(--pro);
+  background: var(--pro-soft);
   border-radius: 6px;
   padding: 6px 8px;
 }
 
-/* The sparrow cloud marker: visible, disabled-looking, and leads to signing in. */
-.cloud-tag {
+/* The sparrow pro marker: visible, disabled-looking, and leads to signing in. */
+.pro-tag {
   min-height: 0;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 11px;
   font-weight: 600;
-  color: var(--cloud);
-  background: var(--cloud-soft);
-  border: 1px dashed var(--cloud-line);
+  color: var(--pro);
+  background: var(--pro-soft);
+  border: 1px dashed var(--pro-line);
   border-radius: 10px;
   padding: 2px 8px;
 }
-.cloud-tag:hover:not(:disabled) {
-  background: var(--cloud-soft);
+.pro-tag:hover:not(:disabled) {
+  background: var(--pro-soft);
   border-style: solid;
 }
-.cloud-row {
+.pro-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -374,27 +374,21 @@ input[aria-invalid='true'] {
 .brand {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   border: 0;
   background: transparent;
   padding: 0 4px;
   margin-right: 6px;
-  font-size: 20px;
-  font-weight: 650;
 }
 .top-bar > .brand,
 .top-bar > .brand:hover:not(:disabled) {
   color: var(--bar-ink);
   background: transparent;
 }
-.brand-icon {
-  width: 30px;
-  height: 30px;
+/* The wordmark's SVG is drawn at top-bar size: 32px tall. */
+.brand-wordmark {
+  height: 32px;
+  width: auto;
   display: block;
-}
-.brand span {
-  font-weight: 400;
-  color: var(--bar-muted);
 }
 .save-state {
   font-size: 12px;
@@ -451,7 +445,7 @@ input[aria-invalid='true'] {
   gap: 12px;
   padding: 8px 16px;
   color: var(--danger);
-  background: var(--cloud-soft);
+  background: var(--pro-soft);
   border-bottom: 1px solid var(--line);
 }
 .main {
@@ -1216,9 +1210,10 @@ input[aria-invalid='true'] {
 }
 
 .about-logo {
-  width: 140px;
-  height: 140px;
+  height: 80px;
+  width: auto;
   align-self: center;
+  margin-block: 8px;
 }
 .about-links {
   margin: 0;

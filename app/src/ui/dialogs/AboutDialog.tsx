@@ -14,7 +14,7 @@ export function AboutDialog({ onClose }: { onClose: () => void }) {
       onClose={onClose}
       actions={<button onClick={onClose}>Close</button>}
     >
-      <Logo name="sparrow-studio" className="about-logo" alt="sparrow studio" />
+      <Logo name="sparrow-studio-wordmark-below" className="about-logo" alt="sparrow studio" />
       <p>
         Nest parts to use less material, with the open-source sparrow algorithm running in your
         browser.

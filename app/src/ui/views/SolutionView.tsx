@@ -4,7 +4,7 @@ import { geometryTask } from '../../engine/workers/geometryTask';
 import { projectFileName } from '../../project/file';
 import { jobKey, projectJob, utilization } from '../../project/model';
 import { Canvas } from '../Canvas';
-import { CloudRow } from '../CloudTag';
+import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
 import { download } from '../download';
 import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
@@ -190,8 +190,8 @@ export function SolutionView() {
             </button>
           ))}
           <div className="pad stack">
-            <CloudRow>Lock placements and nest the rest again</CloudRow>
-            <CloudRow>Compare several solutions</CloudRow>
+            <ProRow>Lock placements and nest the rest again</ProRow>
+            <ProRow>Compare several solutions</ProRow>
             <button className="small" onClick={() => void diagnostics()}>
               Download diagnostics
             </button>

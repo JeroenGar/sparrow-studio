@@ -16,8 +16,8 @@ export type Studio = {
   preferences: Preferences;
   setPreferences: (change: Partial<Preferences>) => void;
   setTab: (tab: Tab) => void;
-  /** Open the dialog explaining that sparrow cloud needs signing in. */
-  openCloud: () => void;
+  /** Open the dialog explaining that sparrow pro needs signing in. */
+  openPro: () => void;
   /** Open an import dialog for one kind of project content. */
   openImport: (kind: 'parts' | 'sheets' | 'machines', source: 'files' | 'project') => void;
   showError: (message: string) => void;

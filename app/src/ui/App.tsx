@@ -10,7 +10,7 @@ import { browserStore, VersionConflict, type StoredProject } from '../project/st
 import { StudioContext, type Studio, type Tab } from './context';
 import { AboutDialog } from './dialogs/AboutDialog';
 import { Logo } from './Logo';
-import { CloudDialog } from './dialogs/CloudDialog';
+import { ProDialog } from './dialogs/ProDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
 import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
@@ -121,7 +121,7 @@ type Dialogs =
   | { type: 'rename' }
   | { type: 'projects' }
   | { type: 'examples' }
-  | { type: 'cloud' }
+  | { type: 'pro' }
   | { type: 'preferences' }
   | { type: 'about' }
   | { type: 'import-files' }
@@ -341,7 +341,7 @@ function StudioShell({
       preferences,
       setPreferences,
       setTab,
-      openCloud: () => setDialog({ type: 'cloud' }),
+      openPro: () => setDialog({ type: 'pro' }),
       openImport: (kind, source) =>
         setDialog(
           source === 'files' && kind === 'parts'
@@ -374,8 +374,7 @@ function StudioShell({
             title="About sparrow studio"
             onClick={() => setDialog({ type: 'about' })}
           >
-            <Logo name="sparrow-icon" className="brand-icon" />
-            sparrow <span>studio</span>
+            <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
           </button>
           <ProjectMenu
             name={project.name}
@@ -414,7 +413,7 @@ function StudioShell({
           >
             <Gear />
           </button>
-          <button onClick={() => setDialog({ type: 'cloud' })}>Sign in</button>
+          <button onClick={() => setDialog({ type: 'pro' })}>Sign in</button>
           <input
             ref={fileInput}
             hidden
@@ -510,7 +509,7 @@ function StudioShell({
           }
         />
       )}
-      {dialog?.type === 'cloud' && <CloudDialog onClose={() => setDialog(undefined)} />}
+      {dialog?.type === 'pro' && <ProDialog onClose={() => setDialog(undefined)} />}
       {dialog?.type === 'about' && <AboutDialog onClose={() => setDialog(undefined)} />}
       {dialog?.type === 'preferences' && (
         <PreferencesDialog
