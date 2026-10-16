@@ -55,9 +55,18 @@ export function moveEnds(path: Path, start: Point, last: Point): Path {
 
 /** A closed contour from a path; a path of straight lines is a polygon, the format's compact form. */
 export function contour(path: Path, ring: Ring): Contour {
-  return path.segments.every((s) => s.type === 'line' || (s.type === 'arc' && s.bulge === 0))
+  // Segments that go nowhere, such as an arc between coincident points, are left out.
+  let at = path.start;
+  const segments = path.segments.filter((segment) => {
+    const to = end(segment);
+    const points = [to, ...(segment.type === 'quadratic' ? [segment.control] : segment.type === 'cubic' ? [segment.control1, segment.control2] : segment.type === 'nurbs' ? segment.control_points : [])];
+    const empty = points.every(([x, y]) => x === at[0] && y === at[1]);
+    at = to;
+    return !empty;
+  });
+  return segments.every((s) => s.type === 'line' || (s.type === 'arc' && s.bulge === 0))
     ? polygon(ring)
-    : { type: 'path', start: path.start, segments: path.segments };
+    : { type: 'path', start: path.start, segments };
 }
 
 /** Whether a transformation keeps circles circles: a rotation, a uniform scale, maybe a mirror. */

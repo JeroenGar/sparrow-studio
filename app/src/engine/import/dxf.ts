@@ -5,7 +5,7 @@ import {apply,multiply,append,bulge,ellipse,nurbs,type Matrix} from '../geometry
 import {bounds,normalizeJob,normalizeRing,ringCrosses} from '../geometry/normalize';
 import {contoursToParts} from './svg';
 import {polygon,type Contour as FormatContour} from '../geometry/contour';
-import {contour,lines,moveEnds,reverse,transformPath,type Path} from './paths';
+import {contour,lines,moveEnds,reverse,similar,transformPath,type Path} from './paths';
 import type {ImportReview} from './sparrow';
 
 type DxfPoint={x:number;y:number;z?:number;bulge?:number};
@@ -125,7 +125,9 @@ function join(chains:Chain[],issues:string[],keep:boolean):{contours:Contour[];g
       curved ||= chain.curved;current=neighbors[exitIndex][0];
     }while(current!==i*2);
     if(walked.size!==component.size)throw Error('DXF component did not form a single closed chain.');
-    contours.push({ring,entityId:[...component].map(e=>chains[e].id).join(' + '),curved:curved||componentAdjustment>0,contour:keep?contour(path,ring):polygon(ring)});
+    // Closing a gap moves a curve's ends, and with them all of a large arc: contours with gaps over
+    // a micrometre keep their approximation.
+    contours.push({ring,entityId:[...component].map(e=>chains[e].id).join(' + '),curved:curved||componentAdjustment>0,contour:keep&&componentAdjustment<=1e-6?contour(path,ring):polygon(ring)});
   }
   return {contours,gaps,adjustment};
 }
@@ -176,7 +178,9 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
       let ring:Ring,closed=false,curved=false,local:Path|undefined,circle:{center:Point;radius:number}|undefined;
       if(entity.type==='LINE'){ring=[point(entity.start),point(entity.end)];local={start:ring[0],segments:[{type:'line',to:ring[1]}]};}
       else if(entity.type==='SPLINE'){const points=(entity.controlPoints??[]).map(point);ring=nurbs({points,knots:entity.knots??[],degree:entity.degree??0,weights:entity.weights},tolerance);curved=true;
-        local={start:points[0],segments:[{type:'nurbs',degree:entity.degree!,control_points:points.slice(1),knots:entity.knots!,...(entity.weights&&{weights:entity.weights})}]};}
+        // The job format takes clamped curves only, whose ends are their first and last control points.
+        const knots=entity.knots!,degree=entity.degree!,clamped=knots.slice(0,degree+1).every(k=>k===knots[0])&&knots.slice(-degree-1).every(k=>k===knots[knots.length-1]);
+        if(clamped)local={start:points[0],segments:[{type:'nurbs',degree,control_points:points.slice(1),knots,...(entity.weights&&{weights:entity.weights})}]};}
       else if(['ARC','CIRCLE','ELLIPSE'].includes(entity.type)) {
         const center=point({x:entity.x!,y:entity.y!});let u:Point,v:Point;
         if(entity.type==='ELLIPSE') {
@@ -209,7 +213,7 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
       const piece=local&&kept?kept:lines(ring);
       const exact=!!kept&&!!local;
       const scale=Math.hypot(matrix[0],matrix[1]);
-      const keptCircle=options.curves==='keep'&&circle&&Math.abs(scale-Math.hypot(matrix[2],matrix[3]))<=1e-9*scale?{type:'circle' as const,center:apply(matrix,circle.center),radius:circle.radius*scale}:undefined;
+      const keptCircle=options.curves==='keep'&&circle&&similar(matrix)?{type:'circle' as const,center:apply(matrix,circle.center),radius:circle.radius*scale}:undefined;
       if(ring.some(p=>!p.every(v=>Number.isFinite(v)&&Math.abs(v)<=100_000)))throw Error('Coordinates exceed the 100,000 mm limit.');
       totalVertices+=ring.length;if(totalVertices>100_000)throw Error('DXF exceeds 100,000 vertices.');
       if(closed)contours.push({ring,entityId:r.id,curved:curved&&!exact&&!keptCircle,contour:keptCircle??(exact?contour(piece,ring):polygon(ring))});

@@ -22,23 +22,31 @@ export function arcOf(from:Point,to:Point,bulge:number) {
 
 /** Closed SVG path data for a shape, its curves kept: arcs, Béziers, and NURBS as fine polylines. */
 export function shapePath(shape:Shape):string {
-  const d=path();
+  const parts:string[]=[];
+  const xy=([x,y]:number[])=>`${x},${y}`;
   const contour=(c:Contour)=>{
-    if(c.type==='polygon'||c.type==='rectangle'){flattenContour(c,0).forEach(([x,y],i)=>i?d.lineTo(x,y):d.moveTo(x,y));d.closePath();return;}
-    if(c.type==='circle'){const [x,y]=c.center;d.moveTo(x+c.radius,y);d.arc(x,y,c.radius,0,2*Math.PI);d.closePath();return;}
-    let at=c.start as Point;d.moveTo(at[0],at[1]);
+    if(c.type==='polygon'||c.type==='rectangle'){flattenContour(c,0).forEach((p,i)=>parts.push(`${i?'L':'M'}${xy(p)}`));parts.push('Z');return;}
+    if(c.type==='circle'){
+      // Two half circles: one arc command cannot end where it starts.
+      const [x,y]=c.center,r=c.radius;
+      parts.push(`M${xy([x+r,y])}A${r},${r},0,1,1,${xy([x-r,y])}A${r},${r},0,1,1,${xy([x+r,y])}Z`);
+      return;
+    }
+    let at=c.start as Point;parts.push(`M${xy(at)}`);
     for(const s of c.segments) {
-      if(s.type==='nurbs'){const ring=flattenContour({type:'path',start:at,segments:[s]},.001);for(const [x,y] of ring.slice(1))d.lineTo(x,y);at=s.control_points.at(-1) as Point;d.lineTo(at[0],at[1]);continue;}
+      if(s.type==='nurbs'){const ring=flattenContour({type:'path',start:at,segments:[s]},.001);for(const p of ring.slice(1))parts.push(`L${xy(p)}`);at=s.control_points.at(-1) as Point;parts.push(`L${xy(at)}`);continue;}
       const to=s.to as Point;
-      if(s.type==='line'||(s.type==='arc'&&s.bulge===0))d.lineTo(to[0],to[1]);
-      else if(s.type==='arc'){const a=arcOf(at,to,s.bulge);d.arc(a.center[0],a.center[1],a.radius,a.start,a.end,s.bulge<0);}
-      else if(s.type==='quadratic')d.quadraticCurveTo(s.control[0],s.control[1],to[0],to[1]);
-      else d.bezierCurveTo(s.control1[0],s.control1[1],s.control2[0],s.control2[1],to[0],to[1]);
+      if(s.type==='line'||(s.type==='arc'&&s.bulge===0))parts.push(`L${xy(to)}`);
+      // An arc by its end, radius and flags: large when it sweeps more than half a turn, and sweeping
+      // in the positive angle direction when it runs counterclockwise.
+      else if(s.type==='arc'){const {radius}=arcOf(at,to,s.bulge);parts.push(`A${radius},${radius},0,${Math.abs(s.bulge)>1?1:0},${s.bulge>0?1:0},${xy(to)}`);}
+      else if(s.type==='quadratic')parts.push(`Q${xy(s.control)},${xy(to)}`);
+      else parts.push(`C${xy(s.control1)},${xy(s.control2)},${xy(to)}`);
       at=to;
     }
-    d.closePath();
+    parts.push('Z');
   };
   contour(shape.outer);
   for(const hole of shape.holes??[])contour(hole);
-  return d.toString();
+  return parts.join('');
 }

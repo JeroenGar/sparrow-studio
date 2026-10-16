@@ -14,7 +14,9 @@ import { importSVG } from '../src/engine/import/svg';
 import { area,bounds } from '../src/engine/geometry/normalize';
 import { pathData } from '../src/engine/geometry/path';
 import parseString from 'dxf/lib/parseString';
-import { outline, polygonShape } from '../src/engine/geometry/contour';
+import { flattenContour, outline, polygonShape } from '../src/engine/geometry/contour';
+import { shapePath } from '../src/engine/geometry/path';
+import { contour } from '../src/engine/import/paths';
 
 function fixture() {
   const part={...newPart(polygonShape([[0,0],[1,0],[1,1],[0,1]])),id:'square',quantity:2};
@@ -132,4 +134,15 @@ it('writes kept curves as curves: SVG arcs, DXF bulges and circles',()=>{
   expect(entities.map(e=>e.type).sort()).toEqual(['CIRCLE','LWPOLYLINE']);
   expect(entities.find(e=>e.type==='CIRCLE')?.r).toBe(5);
   expect(entities.find(e=>e.type==='LWPOLYLINE')?.vertices?.map(v=>v.bulge??0)).toEqual([0,1]);
+});
+
+it('writes even an almost straight arc, and NURBS far from the origin',()=>{
+  const shallow=shapePath({outer:{type:'path',start:[0,0],segments:[{type:'arc',to:[100,0],bulge:1e-8},{type:'line',to:[100,100]},{type:'line',to:[0,100]}]}});
+  expect(shallow).toMatch(/^M0,0A[^A-Z]*,100,0L100,100L0,100Z$/);
+  const far=flattenContour({type:'path',start:[10000,0],segments:[{type:'nurbs',degree:2,control_points:[[10010,10],[10020,0]],knots:[0,0,0,1,1,1]}]},.001);
+  expect(far.length).toBeGreaterThan(3);
+});
+it('leaves out segments that go nowhere',()=>{
+  const kept=contour({start:[0,0],segments:[{type:'arc',to:[0,0],bulge:1},{type:'line',to:[10,0]},{type:'arc',to:[0,10],bulge:.4}]},[[0,0],[10,0],[0,10]]);
+  expect(kept.type==='path'&&kept.segments.map(s=>s.type)).toEqual(['line','arc']);
 });

@@ -38,8 +38,16 @@ export function bulge(from:Point,to:Point,b:number,tolerance:number,output:Ring)
   ellipse(center,[radius,0],[0,radius],Math.atan2(from[1]-center[1],from[0]-center[0]),4*Math.atan(b),tolerance,output);
   output[output.length-1]=to;
 }
-/** A clamped NURBS curve, as DXF SPLINE and the job format describe it, flattened within `tolerance`. */
-export function nurbs({points,knots,degree,weights:given}:{points:Point[];knots:number[];degree:number;weights?:number[]},tolerance:number):Ring {
+/**
+ * A NURBS curve, as DXF SPLINE and the job format describe it, flattened within `tolerance`. It is
+ * evaluated relative to its first control point: evaluation precision depends on the size of the
+ * coordinates, not only of the curve.
+ */
+export function nurbs(curve:{points:Point[];knots:number[];degree:number;weights?:number[]},tolerance:number):Ring {
+  const [ox,oy]=curve.points[0]??[0,0];
+  return relativeNurbs({...curve,points:curve.points.map(([x,y])=>[x-ox,y-oy])},tolerance).map(([x,y])=>[x+ox,y+oy]);
+}
+function relativeNurbs({points,knots,degree,weights:given}:{points:Point[];knots:number[];degree:number;weights?:number[]},tolerance:number):Ring {
   if(!Number.isInteger(degree)||degree<1||degree>3||points.length<=degree||points.length>5000)throw Error('SPLINE needs degree 1–3 and a valid control-point count.');
   const weights=given??points.map(()=>1);
   if(weights.length!==points.length||weights.some(w=>!Number.isFinite(w)||w<=0))throw Error('SPLINE weights must be finite and positive.');
