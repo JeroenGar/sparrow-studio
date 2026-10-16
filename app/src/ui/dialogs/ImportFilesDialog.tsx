@@ -6,6 +6,7 @@ import { defaultDXFLayers, type Part } from '../../engine/model';
 import type { ImportFile } from '../../engine/workers/protocol';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { ringsPath } from '../Canvas';
+import { usesSparrowPro } from '../client';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength, inputLength, parseLength } from '../format';
@@ -84,6 +85,8 @@ export function ImportFilesDialog({
         documentRevision: 1,
         files: list,
         ...chosen,
+        // Sparrow Pro nests curves as they are; open-source sparrow nests polygons.
+        curves: usesSparrowPro ? 'keep' : 'flatten',
       });
       if (request !== latest.current) return;
       if (reply.type !== 'import-review') throw Error('Could not read these files.');
@@ -180,7 +183,7 @@ export function ImportFilesDialog({
             </select>
             <span className="muted">Used when a file has no units of its own.</span>
           </label>
-          {hasDrawings && (
+          {hasDrawings && !usesSparrowPro && (
             <label className="field">
               Curve accuracy, {unit}
               <input

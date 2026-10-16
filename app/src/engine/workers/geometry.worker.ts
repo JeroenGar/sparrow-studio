@@ -16,9 +16,9 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         if(data.files.some(f=>f.text.trimStart().startsWith('<')))await initializeSVG();
         const reviews=data.files.map(f=>{
           const text=f.text.trimStart();
-          if(text.startsWith('<'))return importSVG(f.text,f.name,{scale:data.scale,tolerance:data.tolerance??.01});
+          if(text.startsWith('<'))return importSVG(f.text,f.name,{scale:data.scale,tolerance:data.tolerance??.01,curves:data.curves});
           if(text.startsWith('{'))return importSparrow(f.text,f.name,data.scale);
-          if(/^0[ \t]*(?:\r\n|\n|\r)[ \t]*SECTION\b/.test(text)||text.startsWith('AutoCAD Binary DXF'))return importDXF(f.text,f.name,{scale:data.scale,tolerance:data.tolerance??.01,enclosed:data.enclosed??'holes',layers:data.layers});
+          if(/^0[ \t]*(?:\r\n|\n|\r)[ \t]*SECTION\b/.test(text)||text.startsWith('AutoCAD Binary DXF'))return importDXF(f.text,f.name,{scale:data.scale,tolerance:data.tolerance??.01,enclosed:data.enclosed??'holes',layers:data.layers,curves:data.curves});
           throw Error(`${f.name}: unsupported file content. Export a closed-contour SVG, supported ASCII DXF, or sparrow instance JSON. Images need tracing and 3D files need projection first.`);
         });
         const combined={...reviews[0].document,parts:reviews.flatMap(r=>r.document.parts)};
