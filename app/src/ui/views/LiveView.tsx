@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Input, Schemas } from '../../api/client';
-import { worldParts } from '../../engine/geometry/validate';
+import { worldParts } from '../../engine/geometry/world';
 import type { LiveGeometry } from '../../engine/geometry/live';
 import type { GeometryReply } from '../../engine/workers/protocol';
 import { activeMachine, copyCount } from '../../project/model';

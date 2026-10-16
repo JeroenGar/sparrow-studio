@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { worldParts, type WorldPart } from '../../engine/geometry/validate';
+import { worldParts, type WorldPart } from '../../engine/geometry/world';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { projectFileName } from '../../project/file';
 import { drawable, isStale } from '../../project/solution';
@@ -75,6 +75,7 @@ export function SolutionView() {
         documentRevision: 1,
         document: { ...job, name: project.name },
         result,
+        utilization: stats.density * 100,
       });
       if (reply.type !== 'export-result') throw Error('Could not export the layout.');
       const name = projectFileName(project.name, format);

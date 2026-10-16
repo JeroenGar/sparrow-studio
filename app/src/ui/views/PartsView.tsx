@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { bounds } from '../../engine/geometry/normalize';
-import { netArea } from '../../engine/geometry/validate';
+import { netArea } from '../../engine/geometry/world';
 import { colors, shades } from '../../engine/colors';
 import { LIMITS, type Part, type RotationRule } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';

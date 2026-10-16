@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { netArea } from '../../engine/geometry/validate';
+import { netArea } from '../../engine/geometry/world';
 import { LIMITS } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
 import { Canvas } from '../Canvas';

@@ -2,7 +2,7 @@ import './svg-wasm';
 import {it,expect} from 'vitest';
 import {importSVG} from '../src/engine/import/svg';
 import {bounds,area} from '../src/engine/geometry/normalize';
-import {pointSegmentDistance} from '../src/engine/geometry/validate';
+import {pointSegmentDistance} from '../src/engine/geometry/world';
 import {bezier} from '../src/engine/geometry/flatten';
 import type {Ring} from '../src/engine/model';
 

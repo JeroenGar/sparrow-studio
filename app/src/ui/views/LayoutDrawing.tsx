@@ -1,6 +1,6 @@
 import { memo, type MouseEvent } from 'react';
 import { colors } from '../../engine/colors';
-import type { WorldPart } from '../../engine/geometry/validate';
+import type { WorldPart } from '../../engine/geometry/world';
 import type { Job, Ring } from '../../engine/model';
 import { ringsPath } from '../Canvas';
 

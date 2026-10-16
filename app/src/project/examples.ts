@@ -1,5 +1,5 @@
 import { scalePart } from '../engine/geometry/normalize';
-import { netArea } from '../engine/geometry/validate';
+import { netArea } from '../engine/geometry/world';
 import type { Job } from '../engine/model';
 import { geometryTask } from '../engine/workers/geometryTask';
 import {

@@ -1,6 +1,6 @@
 import parseString from 'dxf/lib/parseString';
 import bSpline from 'dxf/lib/util/bSpline';
-import {pointSegmentDistance} from '../geometry/validate';
+import {pointSegmentDistance} from '../geometry/world';
 import {DEFAULT_SETTINGS,SHEET_LAYER,type Point,type Ring} from '../model';
 import {apply,multiply,append,ellipse,type Matrix} from '../geometry/flatten';
 import {bounds,normalizeJob,normalizeRing,ringCrosses} from '../geometry/normalize';

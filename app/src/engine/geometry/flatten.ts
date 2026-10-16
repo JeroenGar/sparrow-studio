@@ -1,5 +1,5 @@
 import type { Point, Ring } from '../model';
-import { pointSegmentDistance } from './validate';
+import { pointSegmentDistance } from './world';
 
 export type Matrix=[number,number,number,number,number,number];
 export const IDENTITY:Matrix=[1,0,0,1,0,0];

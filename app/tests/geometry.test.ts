@@ -2,13 +2,13 @@ import './svg-wasm';
 import { describe,it,expect } from 'vitest';
 import { newPart,DEFAULT_SETTINGS,SHEET_LAYER,defaultDXFLayers,type Job,type Result } from '../src/engine/model';
 import { normalizePart,normalizeRing } from '../src/engine/geometry/normalize';
-import { validate,worldParts } from '../src/engine/geometry/validate';
+import { worldParts } from '../src/engine/geometry/world';
 import { importSparrow } from '../src/engine/import/sparrow';
 import { exportSVG } from '../src/engine/export/svg';
 import { exportDXF } from '../src/engine/export/dxf';
 import { DOMParser } from '@xmldom/xmldom';
 import { importDXF } from '../src/engine/import/dxf';
-import type { WorldPart } from '../src/engine/geometry/validate';
+import type { WorldPart } from '../src/engine/geometry/world';
 import { colors } from '../src/engine/colors';
 import { importSVG } from '../src/engine/import/svg';
 import { bounds } from '../src/engine/geometry/normalize';
@@ -16,16 +16,14 @@ import { bounds } from '../src/engine/geometry/normalize';
 function fixture() {
   const part={...newPart([[0,0],[1,0],[1,1],[0,1]]),id:'square',quantity:2};
   const doc:Job={name:'test',parts:[part],settings:{...DEFAULT_SETTINGS,materialWidthMm:2}};
-  const result:Result={documentRevision:1,solverRevision:'test',seed:'42',elapsedSeconds:1,usedLengthMm:2,
-    placements:[{partId:part.id,copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:part.id,copyIndex:1,xMm:1,yMm:0,angleDeg:0}],
-    validation:{status:'pending',overlapAreaMm2:0,maxBoundaryViolationMm:0,minClearanceMm:null,errors:[]}};
+  const result:Result={usedLengthMm:2,
+    placements:[{partId:part.id,copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:part.id,copyIndex:1,xMm:1,yMm:0,angleDeg:0}]};
   return {doc,result};
 }
-describe('independent layout validation',()=>{
-  it('allows touching at zero clearance and serializes the checked coordinates',()=>{
-    const {doc,result}=fixture();result.validation=validate(doc,result);
-    expect(result.validation.status).toBe('passed');
-    const exported=exportSVG(doc,result);expect(exported.svg).toContain('width="2.2mm"');
+describe('layout exports',()=>{
+  it('writes the placed coordinates with the credit',()=>{
+    const {doc,result}=fixture();
+    const exported=exportSVG(doc,result,50);expect(exported.svg).toContain('width="2.2mm"');
     expect(exported.svg).toContain('nested with sparrow studio · https://sparrowstudio.app');
     expect(exported.svg).toContain('<a href="https://sparrowstudio.app"');
     expect(exported.dxf).toContain('nested with sparrow studio');
@@ -36,8 +34,7 @@ describe('independent layout validation',()=>{
   it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
     const {doc,result}=fixture();doc.name='Plate <script> & "test"';
     doc.parts[0].quantity=1;result.placements.pop();
-    result.validation=validate(doc,result);
-    const {svg}=exportSVG(doc,result);
+    const {svg}=exportSVG(doc,result,25);
     expect(svg).toContain('viewBox="-0.1 -0.1 2.2 2.2"');
     expect(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('title')[0].textContent).toBe('Plate <script> & "test" — sparrow studio');
     expect(svg).toContain('25.00% used');
@@ -50,41 +47,6 @@ describe('independent layout validation',()=>{
       expect(box[2]-box[0]).toBeCloseTo(1,6);
       expect(box[3]-box[1]).toBeCloseTo(1,6);
     }
-  });
-  it.each(['missing','duplicate','unknown','reflection','wrong-angle','non-finite','out-of-bounds'] as const)('rejects %s',kind=>{
-    const {doc,result}=fixture();
-    switch(kind) {
-      case 'missing':result.placements.pop();break;
-      case 'duplicate':result.placements[1].copyIndex=0;break;
-      case 'unknown':result.placements[1].partId='other';break;
-      case 'reflection':Object.assign(result.placements[1],{scaleX:-1});break;
-      case 'wrong-angle':result.placements[1].angleDeg=90;break;
-      case 'non-finite':result.placements[1].xMm=NaN;break;
-      case 'out-of-bounds':result.placements[1].xMm=1.00001;break;
-    }
-    expect(validate(doc,result).status).toBe('failed');
-  });
-  it('rejects sliver overlap at the specified 1e-8 mm² threshold',()=>{
-    const {doc,result}=fixture();result.placements[1].xMm=1-1e-7;
-    const check=validate(doc,result);expect(check.status).toBe('failed');expect(check.overlapAreaMm2).toBeGreaterThan(1e-8);
-  });
-  it('rejects a serialized contour that changes the part even if it still fits',()=>{
-    const {doc,result}=fixture(),serialized=worldParts(doc,result);
-    serialized[0].outer[1][0]=.9;
-    expect(validate(doc,result,serialized)).toMatchObject({status:'failed',errors:['Serialized contours differ from the rigidly transformed input geometry.']});
-  });
-  it('rejects containment and coincidence, including placement inside a retained hole',()=>{
-    const {doc,result}=fixture();result.placements[1].xMm=0;
-    expect(validate(doc,result).status).toBe('failed');
-    const large={...newPart([[0,0],[10,0],[10,10],[0,10]]),id:'large',holes:[[[2,2],[2,8],[8,8],[8,2]] as [number,number][]]};
-    doc.parts[0].quantity=1;doc.parts.push(large);doc.settings.materialWidthMm=10;result.usedLengthMm=10;
-    result.placements[0].xMm=4;result.placements[0].yMm=4;result.placements[1]={partId:'large',copyIndex:0,xMm:0,yMm:0,angleDeg:0};
-    expect(validate(doc,result).status).toBe('failed');
-  });
-  it('measures clearance without doubling it',()=>{
-    const {doc,result}=fixture();result.usedLengthMm=3;result.placements[1].xMm=2;doc.settings.clearanceMm=1;
-    expect(validate(doc,result)).toMatchObject({status:'passed',minClearanceMm:1});
-    result.placements[1].xMm=1.9;expect(validate(doc,result).status).toBe('failed');
   });
   it('rejects self-crossing contours and invalid holes',()=>{
     expect(()=>normalizeRing([[0,0],[2,2],[0,2],[2,0]])).toThrow();
@@ -99,8 +61,8 @@ it('JSON preserves rotation semantics, scales geometry and rejects empty orienta
 });
 
 it('writes a DXF in millimetres with the sheet, parts and credit on their own layers',()=>{
-  const {doc,result}=fixture();result.validation=validate(doc,result);
-  const text=exportSVG(doc,result).dxf;
+  const {doc,result}=fixture();
+  const text=exportSVG(doc,result,50).dxf;
   expect(text.split('$INSUNITS\n70\n')[1].split('\n')[0].trim()).toBe('4');
   const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
   expect(entities.match(/\nLWPOLYLINE\n/g)).toHaveLength(3);

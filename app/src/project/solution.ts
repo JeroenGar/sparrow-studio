@@ -1,6 +1,6 @@
 import type { Input, JobDocument, JobRequest, Schemas } from '../api/client';
-import { netArea, worldParts } from '../engine/geometry/validate';
-import { SOLVER_REVISION, type Job, type Part, type Result, type Ring } from '../engine/model';
+import { netArea, worldParts } from '../engine/geometry/world';
+import type { Job, Part, Result, Ring } from '../engine/model';
 import { activeMachine, resolvedParts, type ProjectDocument } from './model';
 
 /**
@@ -130,21 +130,9 @@ export function drawable(
     0,
   );
   const result: Result = {
-    documentRevision: 0,
-    solverRevision: SOLVER_REVISION,
-    seed: '',
-    elapsedSeconds: 0,
     usedLengthMm:
       cutX ?? (placements.length ? right + input.minimum_separation_distance.boundary : 0),
     placements,
-    validation: {
-      status: 'passed',
-      source: 'solver',
-      overlapAreaMm2: null,
-      maxBoundaryViolationMm: null,
-      minClearanceMm: null,
-      errors: [],
-    },
   };
   return { job, result };
 }

@@ -1,6 +1,5 @@
-import parseString from 'dxf/lib/parseString';
 import {DxfWriter,LWPolylineFlags,Units,point2d,point3d} from '@tarikjabiri/dxf';
-import type {WorldPart} from '../geometry/validate';
+import type {WorldPart} from '../geometry/world';
 import {SHEET_LAYER,type Job,type Ring} from '../model';
 
 export const STUDIO_CREDIT='nested with sparrow studio · https://sparrowstudio.app';
@@ -30,20 +29,5 @@ export function exportDXF(doc:Job,world:WorldPart[],sheetLengthMm:number):string
   polyline(sheet,SHEET_LAYER);
   for(const p of world){polyline(p.outer,'PARTS');for(const hole of p.holes)polyline(hole,'HOLES');}
   dxf.addText(point3d(minX,textY),textHeight,credit,{layerName:'SPARROW_INFO'});
-  const text=dxf.stringify();
-
-  const parsed=parseString(text) as {header:{insUnits:number};entities:{type:string;closed:boolean;layer:string;string?:string;vertices:{x:number;y:number}[]}[]};
-  if(parsed.header.insUnits!==4)throw Error('Serialized DXF lost its millimeter units.');
-  let at=0;
-  const ring=(layer:string):Ring=>{
-    const entity=parsed.entities[at++];
-    if(entity?.type!=='LWPOLYLINE'||!entity.closed||entity.layer!==layer)throw Error('Serialized DXF lost a closed contour or layer.');
-    return entity.vertices.map(p=>[p.x,p.y]);
-  };
-  if(JSON.stringify(ring(SHEET_LAYER))!==JSON.stringify(sheet))throw Error('Serialized DXF changed the sheet.');
-  const reparsed=world.map(p=>({...p,outer:ring('PARTS'),holes:p.holes.map(()=>ring('HOLES'))}));
-  const note=parsed.entities[at++];
-  if(note?.type!=='TEXT'||note.layer!=='SPARROW_INFO'||note.string!==credit)throw Error('Serialized DXF lost its attribution.');
-  if(at!==parsed.entities.length||JSON.stringify(reparsed)!==JSON.stringify(world))throw Error('Serialized DXF changed layout coordinates.');
-  return text;
+  return dxf.stringify();
 }
