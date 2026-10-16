@@ -22,11 +22,14 @@ rayon = { version = "1.11", optional = true }
 sparrow = { git = "https://github.com/JeroenGar/sparrow.git", rev = "7f0e10f946f70a86138d3938548a13ee46464f39" }
 jagua-rs = { version = "=0.8.3", features = ["spp"] }
 rand = "0.10"
+serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 wasm-bindgen = "0.2"
 js-sys = "0.3"
 console_error_panic_hook = "0.1"
 usvg = { version = "=0.48.1", default-features = false }
+# The job format, vendored from Sparrow Pro; the local backend reads and writes it.
+sparrow-pro-schema = { path = "../../vendor/sparrow-pro-schema" }
 
 [profile.release]
 lto = true

@@ -1,25 +1,12 @@
 // Runs the client against a real Sparrow Pro API, such as the local Docker Compose stack, when
-// SPARROW_API_URL (with /v1) and SPARROW_API_KEY are set; skipped otherwise. Each run submits one
-// job, and every completed job costs at least 60 credits, so grant the key's account enough.
+// SPARROW_API_URL (with /v1) and SPARROW_API_KEY are set; skipped otherwise. Each run submits a few
+// jobs, and every completed job costs at least 60 credits, so grant the key's account enough.
 import { describe, expect, it } from 'vitest';
-import { ApiError, createClient, withCode, type Job } from '../src/api/client';
-import { stripInput } from './fixtures/api-input';
+import { createClient, withCode } from '../src/api/client';
+import { backendContract, refusal } from './backend.contract';
 
 const url = process.env.SPARROW_API_URL;
 const key = process.env.SPARROW_API_KEY;
-const FINAL = ['completed', 'cancelled', 'failed'];
-
-/** The API's refusal of a request that must fail. */
-async function refusal(request: Promise<unknown>): Promise<ApiError> {
-  try {
-    await request;
-  } catch (reason) {
-    if (reason instanceof ApiError) return reason;
-    throw reason;
-  }
-  throw new Error('The API accepted a request it should refuse.');
-}
-
 describe.skipIf(!url || !key)('the API', () => {
   const client = createClient({
     baseUrl: url!,
@@ -30,43 +17,7 @@ describe.skipIf(!url || !key)('the API', () => {
     },
   });
 
-  it('validates, runs and streams a job', { timeout: 90_000 }, async () => {
-    const request = { settings: { time_limit_seconds: 2, seed: 7 }, input: stripInput };
-    await expect(client.validateJob(request)).resolves.toBeUndefined();
-    const invalid = await refusal(
-      client.validateJob({ ...request, input: { ...stripInput, parts: [] } }),
-    );
-    expect(withCode(invalid.error, 'invalid_job_input')?.field_errors.length).toBeGreaterThan(0);
-
-    const submitted = await client.submitJob(request, crypto.randomUUID());
-    let last: Job = submitted;
-    let statuses = 0;
-    const deadline = AbortSignal.timeout(60_000);
-    try {
-      for await (const event of client.streamJobEvents(submitted.id, {
-        search: true,
-        signal: deadline,
-      }))
-        if (event.type === 'status') {
-          expect(event.data.id).toBe(submitted.id);
-          last = event.data;
-          statuses++;
-        }
-      // The stream sends the job's status on connection, at least.
-      expect(statuses).toBeGreaterThan(0);
-      // The stream may end early; then the job itself says whether it ended.
-      if (!FINAL.includes(last.state.status)) last = await client.getJob(submitted.id);
-      expect(last.state.status, 'the stream ended before the job').toBe('completed');
-
-      const document = await client.getJobDocument(submitted.id);
-      expect(document.outcome?.solution.layouts.map((layout) => layout.sheet_id)).toEqual([
-        'strip',
-      ]);
-      expect(document.outcome?.solution.layouts[0].placements).toHaveLength(5);
-    } finally {
-      if (!FINAL.includes(last.state.status)) await client.stopJob(submitted.id).catch(() => {});
-    }
-  });
+  backendContract(() => client, { timeout: 90_000 });
 
   it('refuses a save over a stale version', { timeout: 30_000 }, async () => {
     const created = await client.createProject(
