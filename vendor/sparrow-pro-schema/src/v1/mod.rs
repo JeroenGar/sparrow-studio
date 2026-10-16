@@ -15,10 +15,12 @@
 mod document;
 mod geometry;
 mod input;
+mod validate;
 
 pub use document::*;
 pub use geometry::*;
 pub use input::*;
+pub use validate::*;
 
 /// The schema version of this module.
 pub const SCHEMA_VERSION: u32 = 1;

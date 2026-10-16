@@ -157,6 +157,47 @@ pub enum JobErrorCode {
     Unknown,
 }
 
+impl JobError {
+    /// The public error for `code`, with its message, the first field error's path as `param`,
+    /// and its documentation link.
+    pub fn new(code: JobErrorCode) -> Self {
+        let message = match &code {
+            JobErrorCode::InvalidJobInput { .. } => {
+                "The input cannot be used as given, and the job asked to fail instead of taking \
+                 a fallback."
+            }
+            JobErrorCode::NoFeasibleSolution { .. } => {
+                "The search ended before it found a feasible solution."
+            }
+            JobErrorCode::ImportTimeout => {
+                "The time limit ran out during import, before any search."
+            }
+            JobErrorCode::WorkerLost => {
+                "The worker running the job stopped responding; the job is not retried."
+            }
+            JobErrorCode::InternalError => "The service failed while running this job.",
+            JobErrorCode::Unknown => "The job failed.",
+        };
+        let param = match &code {
+            JobErrorCode::InvalidJobInput { field_errors } => {
+                field_errors.first().map(|error| error.param.clone())
+            }
+            JobErrorCode::NoFeasibleSolution { .. }
+            | JobErrorCode::ImportTimeout
+            | JobErrorCode::WorkerLost
+            | JobErrorCode::InternalError
+            | JobErrorCode::Unknown => None,
+        };
+        let doc_url = format!("https://sparrownesting.com/docs/errors#{}", code.as_str());
+        JobError {
+            code,
+            message: message.to_owned(),
+            param,
+            doc_url: Some(doc_url),
+        }
+    }
+}
+
 impl JobErrorCode {
     /// The code as it appears in JSON.
     pub fn as_str(&self) -> &'static str {

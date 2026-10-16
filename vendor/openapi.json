@@ -139,10 +139,36 @@
                 "type": "object"
               },
               {
+                "description": "405: the path exists, but not with this method; `Allow` lists the methods it takes.",
+                "properties": {
+                  "code": {
+                    "const": "method_not_allowed",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
                 "description": "409: the idempotency key was used for a different request.",
                 "properties": {
                   "code": {
                     "const": "idempotency_conflict",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "code"
+                ],
+                "type": "object"
+              },
+              {
+                "description": "409: the job has not ended yet; stop it first.",
+                "properties": {
+                  "code": {
+                    "const": "job_not_ended",
                     "type": "string"
                   }
                 },
@@ -1287,7 +1313,7 @@
             "type": "object"
           },
           {
-            "description": "One strip, from y = 0 to `height` and from x = 0 to the right without end. Every copy of every\npart is placed, and the solver minimizes the length used,\n`LayoutStats::cut_x`. The solution has one layout, whose\n`sheet_id` is `\"strip\"`. The boundary separation applies to the strip's bottom, top, and left\nedges.",
+            "description": "One strip, from y = 0 to `height` and from x = 0 to the right without end. Every copy of every\npart is placed, and the solver minimizes the length used,\n`LayoutStats::cut_x`. The solution has one layout, whose\n`sheet_id` is `\"strip\"`, or none when no part is placed. The boundary separation applies as for\na sheet, at the cut too.",
             "properties": {
               "height": {
                 "description": "Greater than 0.",
@@ -2241,7 +2267,7 @@
                 }
               }
             },
-            "description": "idempotency_conflict: the key was used for a different request."
+            "description": "idempotency_conflict: the key was used for a different request; job_not_ended: the job has not ended yet."
           },
           "413": {
             "content": {
@@ -2535,6 +2561,104 @@
         "summary": "Get a job"
       }
     },
+    "/jobs/{job_id}/document": {
+      "delete": {
+        "operationId": "deleteJobDocument",
+        "parameters": [
+          {
+            "description": "The job's ID, such as `job_7Hq2…`.",
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted; the job resource remains."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "idempotency_conflict: the key was used for a different request; job_not_ended: the job has not ended yet."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Delete a job's document, input, and results now"
+      }
+    },
     "/jobs/{job_id}/events": {
       "get": {
         "operationId": "streamJobEvents",
@@ -2693,7 +2817,7 @@
                 }
               }
             },
-            "description": "expired: the job document was deleted at its document_expires_at."
+            "description": "expired: the job document was deleted, at its document_expires_at or on request."
           },
           "429": {
             "content": {
@@ -3158,7 +3282,7 @@
                 }
               }
             },
-            "description": "idempotency_conflict: the key was used for a different request."
+            "description": "idempotency_conflict: the key was used for a different request; job_not_ended: the job has not ended yet."
           },
           "413": {
             "content": {
