@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { browserStore, type ProjectSummary } from '../../project/store';
+import { backend, usesSparrowPro } from '../client';
+import { deleteProject, listProjects, projectVersion, type ProjectSummary } from '../projects';
 import { Dialog } from '../Dialog';
 import { Trash } from '../icons';
 
-/** The projects saved in this browser. */
+/** The saved projects. */
 export function ProjectsDialog({
   currentId,
   onOpen,
@@ -17,15 +18,18 @@ export function ProjectsDialog({
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>();
   const [error, setError] = useState('');
-  const [confirming, setConfirming] = useState<string>();
+  // The project to delete, with its version when asked: a deletion removes only what was seen.
+  const [confirming, setConfirming] = useState<{ id: string; version: string }>();
+  const [deleting, setDeleting] = useState(false);
+  const fail = (reason: unknown) =>
+    setError(reason instanceof Error ? reason.message : String(reason));
   const refresh = () =>
-    browserStore
-      .list()
+    listProjects()
       .then(setProjects)
       .catch((reason: Error) => setError(reason.message));
   useEffect(() => void refresh(), []);
   return (
-    <Dialog title="Projects in this browser" onClose={onClose} wide>
+    <Dialog title={`Projects ${backend.saves}`} onClose={onClose} wide>
       {error && <p className="field-error">{error}</p>}
       {!projects && !error && <p className="muted">Loading…</p>}
       <ul className="project-list">
@@ -40,19 +44,30 @@ export function ProjectsDialog({
                 <span>{project.name}</span>
                 <span className="muted">
                   {project.id === currentId ? 'Open now · ' : ''}Changed{' '}
-                  {new Date(project.updatedAt).toLocaleString()}
+                  {new Date(project.updated_at).toLocaleString()}
                 </span>
               </span>
             </button>
-            {confirming === project.id ? (
+            {confirming?.id === project.id ? (
               <span className="row-actions">
                 <button
                   className="small danger"
+                  disabled={deleting}
                   onClick={async () => {
-                    await browserStore.remove(project.id);
-                    setConfirming(undefined);
-                    if (project.id === currentId) onDeleted();
-                    else void refresh();
+                    setDeleting(true);
+                    try {
+                      await deleteProject(confirming.id, confirming.version);
+                      setConfirming(undefined);
+                      if (project.id === currentId) onDeleted();
+                      else void refresh();
+                    } catch (reason) {
+                      // Such as a project changed since: it stays, and the list shows it as it is now.
+                      fail(reason);
+                      setConfirming(undefined);
+                      void refresh();
+                    } finally {
+                      setDeleting(false);
+                    }
                   }}
                 >
                   Delete
@@ -65,7 +80,12 @@ export function ProjectsDialog({
               <button
                 className="icon-button"
                 aria-label={`Delete ${project.name}`}
-                onClick={() => setConfirming(project.id)}
+                onClick={() =>
+                  projectVersion(project.id).then(
+                    (version) => setConfirming({ id: project.id, version }),
+                    fail,
+                  )
+                }
               >
                 <Trash />
               </button>
@@ -73,9 +93,11 @@ export function ProjectsDialog({
           </li>
         ))}
       </ul>
-      <p className="muted">
-        Projects are saved in this browser only. Export a project file to keep a copy elsewhere.
-      </p>
+      {!usesSparrowPro && (
+        <p className="muted">
+          Projects are saved in this browser only. Export a project file to keep a copy elsewhere.
+        </p>
+      )}
     </Dialog>
   );
 }

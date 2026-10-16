@@ -1,9 +1,8 @@
 import { createContext, useContext } from 'react';
-import type { Job } from '../engine/model';
 import type { DisplayUnit } from '../engine/units';
-import type { useSolver } from '../engine/workers/useSolver';
 import type { ProjectDocument } from '../project/model';
 import type { Preferences } from '../project/preferences';
+import type { Run } from './useJob';
 
 export type Tab = 'parts' | 'sheets' | 'machine' | 'settings' | 'live' | 'solution';
 
@@ -21,9 +20,8 @@ export type Studio = {
   /** Open an import dialog for one kind of project content. */
   openImport: (kind: 'parts' | 'sheets' | 'machines', source: 'files' | 'project') => void;
   showError: (message: string) => void;
-  solver: ReturnType<typeof useSolver>;
-  /** The job of the current or last run in this session. */
-  runJob?: Job;
+  /** The current or last run of this session. */
+  run?: Run;
   running: boolean;
   startRun: () => void;
   stopRun: () => void;

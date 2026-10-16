@@ -6,25 +6,27 @@ import {
   addParts,
   commonRotations,
   differsFromDefaults,
-  jobKey,
   newMachine,
   newProject,
-  projectJob,
   resolvedParts,
   setDefaultRotations,
   setPartRotations,
   startBlockers,
 } from '../src/project/model';
+import { drawable, isStale, projectInput, projectRequest } from '../src/project/solution';
 import { historyReducer, initialHistory } from '../src/ui/history';
 import { parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
+import { outline, polygonShape } from '../src/engine/geometry/contour';
 
 const square = (size: number, quantity = 1): Part => ({
-  ...newPart([
-    [0, 0],
-    [size, 0],
-    [size, size],
-    [0, size],
-  ]),
+  ...newPart(
+    polygonShape([
+      [0, 0],
+      [size, 0],
+      [size, size],
+      [0, size],
+    ]),
+  ),
   quantity,
 });
 
@@ -37,27 +39,90 @@ describe('project document', () => {
   it('rejects other formats and versions', () => {
     const project = newProject('Shop job');
     expect(() => parseProject({ ...project, format: 'other' })).toThrow('unknown format');
-    expect(() => parseProject({ ...project, version: 2 })).toThrow('version 2');
+    expect(() => parseProject({ ...project, version: 4 })).toThrow('version 4');
   });
 
-  it('builds the solver job from the strip, the active machine and the settings', () => {
+  it('upgrades version 2, whose parts store polygons as outer and holes', () => {
+    const project = addParts(newProject('Shop job'), [square(10)]);
+    const { shape, ...part } = project.parts[0];
+    const old = {
+      ...project,
+      version: 2,
+      parts: [{ ...part, outer: outline(shape).outer, holes: [] }],
+    };
+    expect(parseProject(old)).toEqual(project);
+  });
+
+  it('upgrades version 1, keeping its time limit and dropping its solutions', () => {
+    const project = newProject('Shop job');
+    const old = {
+      ...project,
+      version: 1,
+      settings: { solveWith: 'local', timeLimitSeconds: 30, preset: 'fast', threads: 2 },
+      solutions: [{ job: {}, result: {} }],
+    };
+    expect(parseProject(old)).toEqual({
+      ...project,
+      settings: { timeLimitSeconds: 30, autoTermination: true },
+      solutions: [],
+    });
+    const unlimited = { ...old, settings: { ...old.settings, timeLimitSeconds: null } };
+    expect(parseProject(unlimited).settings.timeLimitSeconds).toBe(600);
+  });
+
+  it('builds the job request from the strip, the active machine and the settings', () => {
     const machine = newMachine('Laser', 0.5);
-    const project = addParts(newProject('Job', machine), [square(10)]);
-    const job = projectJob(project);
-    expect(job.settings.materialWidthMm).toBe(1000);
-    expect(job.settings.clearanceMm).toBe(0.5);
+    const project = addParts(newProject('Job', machine), [square(10, 2), square(20, 0)]);
+    const { input, settings } = projectRequest(project);
+    expect(input.problem).toEqual({ type: 'minimize_strip_length', height: 1000 });
+    expect(input.minimum_separation_distance).toEqual({ parts: 0.5, boundary: 0.5 });
+    // A part without copies is left out; the format counts copies from one.
+    expect(input.parts).toEqual([
+      {
+        id: project.parts[0].id,
+        geometry_id: project.parts[0].id,
+        quantity: 2,
+        orientation: { rotation: { type: 'discrete', angles: [0, 180] } },
+        hole_mode: 'solid',
+      },
+    ]);
+    expect(input.geometries.map((geometry) => geometry.id)).toEqual([project.parts[0].id]);
+    expect(settings).toEqual({ time_limit_seconds: 120, auto_termination: true, seed: 0 });
     expect(project.machines[0].id).not.toBe(machine.id);
   });
 
   it('treats renamed projects and parts as the same job, and a quantity change as a new one', () => {
     const project = addParts(newProject('Job'), [square(10)]);
-    const key = jobKey(projectJob(project));
-    expect(jobKey(projectJob({ ...project, name: 'Renamed' }))).toBe(key);
-    const renamedPart = { ...project, parts: [{ ...project.parts[0], name: 'Bracket' }] };
-    expect(jobKey(projectJob(renamedPart))).toBe(key);
+    const document = { input: projectInput(project) } as Parameters<typeof isStale>[1];
+    expect(isStale({ ...project, name: 'Renamed' }, document)).toBe(false);
     expect(
-      jobKey(projectJob({ ...project, parts: [{ ...project.parts[0], quantity: 2 }] })),
-    ).not.toBe(key);
+      isStale({ ...project, parts: [{ ...project.parts[0], name: 'Bracket' }] }, document),
+    ).toBe(false);
+    expect(isStale({ ...project, parts: [{ ...project.parts[0], quantity: 2 }] }, document)).toBe(
+      true,
+    );
+  });
+
+  it('draws a layout in the format as copies of the project parts', () => {
+    const project = addParts(newProject('Job'), [{ ...square(10, 2), name: 'Plate' }]);
+    const input = projectInput(project);
+    const id = project.parts[0].id;
+    const at = (x: number) => ({
+      part_id: id,
+      transformation: { reflection: 'none' as const, rotation: 90, translation: [x, 0] },
+    });
+    const { job, result } = drawable(
+      input,
+      { layouts: [{ sheet_id: 'strip', placements: [at(10), at(30)] }] },
+      new Map([[id, 'Plate']]),
+    );
+    expect(job.parts.map((part) => part.name)).toEqual(['Plate']);
+    expect(result.placements.map((p) => [p.copyIndex, p.xMm, p.angleDeg])).toEqual([
+      [0, 10, 90],
+      [1, 30, 90],
+    ]);
+    // Turned a quarter, the second copy reaches from x = 20 to 30.
+    expect(result.usedLengthMm).toBeCloseTo(30);
   });
 
   it('explains why a job cannot start', () => {
@@ -119,13 +184,7 @@ describe('undo history', () => {
     state = historyReducer(state, { type: 'edit', project: named('A'), key: 'name', at: 1000 });
     state = historyReducer(state, { type: 'edit', project: named('AB'), key: 'name', at: 1500 });
     expect(state.past).toHaveLength(1);
-    const solution = {
-      id: 's',
-      createdAt: '',
-      job: projectJob(start),
-      result: {} as never,
-      stopReason: 'Complete' as const,
-    };
+    const solution = { id: 's', createdAt: '', document: {} as never };
     state = historyReducer(state, { type: 'solutions', solutions: [solution] });
     state = historyReducer(state, { type: 'undo' });
     expect(state.present.name).toBe('Job');
@@ -147,7 +206,10 @@ describe('part defaults', () => {
     expect(project.parts[0].rotations).toBeUndefined();
     project = setDefaultRotations(project, { kind: 'discrete', degrees: [0] });
     expect(rules(project)).toEqual([{ kind: 'discrete', degrees: [0] }, free]);
-    expect(projectJob(project).parts.map((part) => part.rotations)).toEqual(rules(project));
+    expect(projectInput(project).parts.map((part) => part.orientation.rotation)).toEqual([
+      { type: 'discrete', angles: [0] },
+      { type: 'continuous' },
+    ]);
   });
 
   it('can give a part its own rule and take it back', () => {

@@ -1,6 +1,6 @@
-import type { MouseEvent } from 'react';
+import { memo, type MouseEvent } from 'react';
 import { colors } from '../../engine/colors';
-import type { WorldPart } from '../../engine/geometry/validate';
+import type { WorldPart } from '../../engine/geometry/world';
 import type { Job, Ring } from '../../engine/model';
 import { ringsPath } from '../Canvas';
 
@@ -11,7 +11,8 @@ export const placementKey = (part: { partId: string; copyIndex: number }) =>
  * A layout on its strip: the parts as placed, optional overlaps in red, and the used length.
  * With `highlight`, the copies of that part type stand out and the others fade.
  */
-export function LayoutDrawing({
+// Memoized: the Live tab redraws it only when the layout or the zoom changes.
+export const LayoutDrawing = memo(function LayoutDrawing({
   job,
   world,
   usedLength,
@@ -82,4 +83,4 @@ export function LayoutDrawing({
       ))}
     </>
   );
-}
+});

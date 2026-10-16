@@ -1,10 +1,10 @@
 import polygonClipping from 'polygon-clipping';
 import type {Job,Result,Ring} from '../model';
 import {bounds} from './normalize';
-import {worldParts,type WorldPart} from './validate';
+import {worldParts,type WorldPart} from './world';
 
 export type LiveGeometry={world:WorldPart[];overlaps:Ring[][];errors:string[]};
-// Display only: a live frame never grants validation or export authority.
+// The overlaps of a layout the search is working on, to draw them in red.
 export function liveGeometry(doc:Job,result:Result):LiveGeometry {
   const world=worldParts(doc,result),boxes=world.map(p=>bounds(p.outer)),overlaps:Ring[][]=[],errors:string[]=[];
   for(let i=0;i<world.length;i++)for(let j=0;j<i;j++) {

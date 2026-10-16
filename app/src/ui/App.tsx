@@ -1,12 +1,23 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { newId } from '../engine/model';
-import { useSolver } from '../engine/workers/useSolver';
-import { geometryTask } from '../engine/workers/geometryTask';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
-import { addParts, newProject, projectJob, type ProjectDocument } from '../project/model';
+import { addParts, newProject, startBlockers, type ProjectDocument } from '../project/model';
+import { projectRequest } from '../project/solution';
+import { clearBrowserRecords } from '../backend/projects';
+import { backend, client, usesSparrowPro } from './client';
+import { useJob } from './useJob';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
-import { browserStore, VersionConflict, type StoredProject } from '../project/store';
+import {
+  createProject,
+  isConflict,
+  isProjectLimit,
+  isUnreadable,
+  listProjects,
+  openProject,
+  saveProject,
+  type StoredProject,
+} from './projects';
 import { StudioContext, type Studio, type Tab } from './context';
 import { AboutDialog } from './dialogs/AboutDialog';
 import { Logo } from './Logo';
@@ -56,8 +67,7 @@ export default function App() {
 
   const open = useCallback(
     async (id: string) => {
-      const project = await browserStore.get(id);
-      if (!project) throw Error('This project no longer exists in this browser.');
+      const project = await openProject(id);
       setStored(project);
       setPreferences({ lastProjectId: id });
     },
@@ -65,19 +75,19 @@ export default function App() {
   );
   const create = useCallback(
     async (document: ProjectDocument) => {
-      const project = await browserStore.create(document);
+      const project = await createProject(document);
       setStored(project);
       setPreferences({ lastProjectId: project.id });
     },
     [setPreferences],
   );
   const openLatest = useCallback(async () => {
-    // Open the most recent project that still reads; a draft-format project is skipped.
-    for (const project of await browserStore.list()) {
+    // Open the most recent project that still reads; one in a format studio cannot read is skipped.
+    for (const project of await listProjects()) {
       try {
         return await open(project.id);
-      } catch {
-        continue;
+      } catch (reason) {
+        if (!isUnreadable(reason)) throw reason;
       }
     }
     await create(
@@ -89,9 +99,16 @@ export default function App() {
 
   useEffect(() => {
     const last = readPreferences().lastProjectId;
-    (last ? open(last).catch(openLatest) : openLatest()).catch((reason: Error) =>
-      setError(reason.message),
-    );
+    const fallBack = (reason: unknown) =>
+      isUnreadable(reason) ? openLatest() : Promise.reject(reason);
+    // In this browser, projects stored by an earlier version may not open; they are deleted
+    // and studio starts afresh rather than not at all.
+    const start = () => (last ? open(last).catch(fallBack) : openLatest());
+    start()
+      .catch((reason) =>
+        usesSparrowPro ? Promise.reject(reason) : clearBrowserRecords().then(openLatest),
+      )
+      .catch((reason: Error) => setError(reason.message));
     // Load once, at startup.
   }, []);
 
@@ -159,14 +176,17 @@ function StudioShell({
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error' | 'conflict'>('saved');
   const version = useRef(stored.version);
   const saved = useRef(stored.document);
-  const solver = useSolver();
-  const [preparing, setPreparing] = useState(false);
-  const preparation = useRef(0);
-  const recording = useRef(false);
-  const revision = useRef(0);
   const fileInput = useRef<HTMLInputElement>(null);
-  const running = preparing || solver.state === 'Initializing' || solver.state === 'Running';
-  const runJob = solver.job;
+  // A finished job becomes the project's solution when it completed with a layout.
+  const job = useJob(client, (document) => {
+    if (document.state.status !== 'completed' || !document.outcome) return;
+    dispatch({
+      type: 'solutions',
+      solutions: [{ id: newId(), createdAt: new Date().toISOString(), document }],
+    });
+    setTab((current) => (current === 'live' ? 'solution' : current));
+  });
+  const running = job.running;
 
   const showError = useCallback((message: string) => setError(message), []);
   const edit = useCallback(
@@ -182,28 +202,41 @@ function StudioShell({
   const historyRef = useRef(history);
   historyRef.current = history;
 
-  // Save to browser storage shortly after each change, one save at a time, and when the page is hidden.
+  // Save shortly after each change, one save at a time, and when the page is hidden.
   const latest = useRef(project);
   latest.current = project;
-  const saving = useRef(false);
-  const flush = useCallback(async () => {
-    if (saving.current || latest.current === saved.current) return;
-    saving.current = true;
-    const document = latest.current;
-    try {
-      const next = await browserStore.save(stored.id, document, version.current);
-      version.current = next.version;
-      saved.current = document;
-    } catch (reason) {
-      setSaveState(reason instanceof VersionConflict ? 'conflict' : 'error');
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return;
-    } finally {
-      saving.current = false;
-    }
-    if (latest.current !== saved.current) void flush();
-    else setSaveState('saved');
+  const pending = useRef(Promise.resolve(true));
+  /** Saves the latest document after any save in progress; resolves to whether it is saved. */
+  const flush = useCallback(() => {
+    pending.current = pending.current.then(async () => {
+      while (latest.current !== saved.current) {
+        const document = latest.current;
+        try {
+          version.current = await saveProject(stored.id, document, version.current);
+          saved.current = document;
+        } catch (reason) {
+          setSaveState(isConflict(reason) ? 'conflict' : 'error');
+          setError(reason instanceof Error ? reason.message : String(reason));
+          return false;
+        }
+      }
+      setSaveState('saved');
+      return true;
+    });
+    return pending.current;
   }, [stored.id]);
+  /** Shows why a project could not be opened or made; a full account opens its projects to make room. */
+  const failed = (reason: unknown) => {
+    if (isProjectLimit(reason)) {
+      setError('You have as many projects as your plan allows. Delete one to make room.');
+      setDialog({ type: 'projects' });
+    } else setError(reason instanceof Error ? reason.message : String(reason));
+  };
+  /** Goes to another project once this one is saved; a project that does not save stays open. */
+  const leave = async (go: () => Promise<void>) => {
+    if (!(await flush())) throw Error('This project is not saved, so it stays open.');
+    await go();
+  };
   useEffect(() => {
     if (project === saved.current) return;
     setSaveState((state) => (state === 'conflict' ? state : 'saving'));
@@ -222,74 +255,21 @@ function StudioShell({
     };
   }, [flush]);
 
-  async function startRun() {
-    if (running) return;
-    const attempt = ++preparation.current;
-    setPreparing(true);
-    try {
-      const reply = await geometryTask({
-        type: 'normalize',
-        runId: attempt,
-        documentRevision: 1,
-        document: projectJob(project),
-      });
-      // Stopped, or the studio closed, while the job was being prepared.
-      if (attempt !== preparation.current) return;
-      if (reply.type !== 'normalized') throw Error('Could not prepare the job.');
-      revision.current += 1;
-      recording.current = true;
-      setError('');
-      solver.start(reply.document, revision.current, project.settings.threads || undefined);
-      setTab('live');
-    } catch (reason) {
-      if (attempt === preparation.current)
-        setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      if (attempt === preparation.current) setPreparing(false);
-    }
+  function startRun() {
+    if (running || startBlockers(project).length) return;
+    setError('');
+    void job.start(projectRequest(project));
+    setTab('live');
   }
-  function stopRun() {
-    if (preparing) {
-      preparation.current += 1;
-      setPreparing(false);
-    } else solver.stop();
-  }
-  useEffect(
-    () => () => {
-      preparation.current += 1;
-    },
-    [],
-  );
 
-  // When a run ends with a valid layout, it becomes the project's solution.
+  // Leaving the page cancels a save on its way, and a running job; ask first.
+  const unsaved = saveState !== 'saved';
   useEffect(() => {
-    if (!recording.current || running || !runJob) return;
-    if (solver.state !== 'Complete' && solver.state !== 'Stopped' && solver.state !== 'Error')
-      return;
-    recording.current = false;
-    const result = solver.result;
-    if (!result || solver.state === 'Error') return;
-    dispatch({
-      type: 'solutions',
-      solutions: [
-        {
-          id: newId(),
-          createdAt: new Date().toISOString(),
-          job: runJob,
-          result,
-          stopReason: solver.state === 'Complete' ? 'Complete' : 'Stopped',
-        },
-      ],
-    });
-    setTab((current) => (current === 'live' ? 'solution' : current));
-  }, [solver.state, solver.result, running, runJob]);
-
-  useEffect(() => {
-    if (!running) return;
-    const leave = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', leave);
-    return () => window.removeEventListener('beforeunload', leave);
-  }, [running]);
+    if (!running && !unsaved) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [running, unsaved]);
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -349,18 +329,17 @@ function StudioShell({
             : { type: 'import-project', kind },
         ),
       showError,
-      solver,
-      runJob,
+      run: job.run,
       running,
-      startRun: () => void startRun(),
-      stopRun,
+      startRun,
+      stopRun: job.stop,
     }),
     // startRun reads the current project; it is recreated with it.
-    [project, edit, preferences, setPreferences, showError, solver, runJob, running, preparing],
+    [project, edit, preferences, setPreferences, showError, job.run, running, job.stop],
   );
 
   const saveLabel = {
-    saved: 'Saved in this browser',
+    saved: `Saved ${backend.saves}`,
     saving: 'Saving…',
     error: 'Not saved',
     conflict: 'Changed in another tab',
@@ -390,8 +369,8 @@ function StudioShell({
                 );
               else if (action === 'open-file') fileInput.current?.click();
               else if (action === 'duplicate')
-                void create({ ...project, name: `${project.name} copy` }).catch((reason: Error) =>
-                  setError(reason.message),
+                void leave(() => create({ ...project, name: `${project.name} copy` })).catch(
+                  failed,
                 );
               else setDialog({ type: action });
             }}
@@ -424,9 +403,10 @@ function StudioShell({
               event.target.value = '';
               if (!file) return;
               try {
-                await create(parseProject(JSON.parse(await file.text())));
+                const document = parseProject(JSON.parse(await file.text()));
+                await leave(() => create(document));
               } catch (reason) {
-                setError(reason instanceof Error ? reason.message : String(reason));
+                failed(reason);
               }
             }}
           />
@@ -473,9 +453,7 @@ function StudioShell({
           confirm="Create project"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) =>
-            void create(newProject(name, preferences.defaultMachine)).catch((reason: Error) =>
-              setError(reason.message),
-            )
+            void leave(() => create(newProject(name, preferences.defaultMachine))).catch(failed)
           }
         />
       )}
@@ -495,7 +473,9 @@ function StudioShell({
         <ProjectsDialog
           currentId={stored.id}
           onClose={() => setDialog(undefined)}
-          onOpen={(id) => void open(id).catch((reason: Error) => setError(reason.message))}
+          onOpen={(id) =>
+            void leave(() => open(id)).catch((reason: Error) => setError(reason.message))
+          }
           onDeleted={() => void openLatest().catch((reason: Error) => setError(reason.message))}
         />
       )}
@@ -504,8 +484,8 @@ function StudioShell({
           onClose={() => setDialog(undefined)}
           onChoose={(file) =>
             void loadExample(file, preferences.defaultMachine)
-              .then(create)
-              .catch((reason: Error) => setError(reason.message))
+              .then((example) => leave(() => create(example)))
+              .catch(failed)
           }
         />
       )}
@@ -600,7 +580,7 @@ function ProjectMenu({
       </summary>
       <div className="menu-list">
         {item('new', 'New project…')}
-        {item('projects', 'Open project…')}
+        {item('projects', 'Projects…')}
         {item('examples', 'Open example…')}
         <hr />
         {item('rename', 'Rename…')}

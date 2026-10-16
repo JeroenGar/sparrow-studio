@@ -1,8 +1,13 @@
 import { normalizePart } from '../engine/geometry/normalize';
+import { polygonShape } from '../engine/geometry/contour';
+import type { Ring } from '../engine/model';
 import { TIME_LIMITS, PROJECT_FORMAT, PROJECT_VERSION, type ProjectDocument } from './model';
 
+/** A document that is not a sparrow studio project studio can read. */
+export class InvalidProject extends Error {}
+
 const fail = (message: string): never => {
-  throw Error(`Not a valid sparrow studio project: ${message}`);
+  throw new InvalidProject(`Not a valid sparrow studio project: ${message}`);
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
@@ -12,9 +17,10 @@ const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(
  * Check a project document from a file or from storage. Part geometry goes through the same
  * normalization as imports. Solutions are kept as they are: they carry their own job.
  */
-export function parseProject(value: unknown): ProjectDocument {
-  if (!isRecord(value)) return fail('expected an object.');
-  if (value.format !== PROJECT_FORMAT) return fail('unknown format.');
+export function parseProject(stored: unknown): ProjectDocument {
+  if (!isRecord(stored)) return fail('expected an object.');
+  if (stored.format !== PROJECT_FORMAT) return fail('unknown format.');
+  const value = upgrade(stored);
   if (value.version !== PROJECT_VERSION)
     return fail(`version ${String(value.version)} is not supported.`);
   if (typeof value.name !== 'string' || !value.name.trim()) return fail('missing name.');
@@ -39,13 +45,15 @@ export function parseProject(value: unknown): ProjectDocument {
   const settings = value.settings;
   if (
     !isRecord(settings) ||
-    settings.solveWith !== 'local' ||
-    !TIME_LIMITS.includes(settings.timeLimitSeconds as never) ||
-    !['standard', 'fast'].includes(settings.preset as string) ||
-    ![0, 1, 2, 3].includes(settings.threads as number)
+    !TIME_LIMITS.includes(settings.timeLimitSeconds as number) ||
+    typeof settings.autoTermination !== 'boolean'
   )
     return fail('invalid solver settings.');
-  if (!Array.isArray(value.solutions)) return fail('solutions must be a list.');
+  if (
+    !Array.isArray(value.solutions) ||
+    !value.solutions.every((solution) => isRecord(solution) && isRecord(solution.document))
+  )
+    return fail('invalid solutions.');
   const defaults = value.partDefaults;
   const rule = isRecord(defaults) ? defaults.rotations : undefined;
   const validRule =
@@ -66,6 +74,38 @@ export function parseProject(value: unknown): ProjectDocument {
     return part.rotations ? { ...checked, rotations } : checked;
   });
   return { ...project, parts };
+}
+
+/**
+ * Older versions, upgraded one step at a time. Version 1 had settings for the browser's solver
+ * alone, and solutions in studio's own format: its runs stopped once the search stalled, without
+ * a time limit or within the one chosen, and its solutions are dropped. Version 2 stored a part's
+ * outline as `outer` and `holes` polygons, which become its shape.
+ */
+function upgrade(project: Record<string, unknown>): Record<string, unknown> {
+  if (project.version === 1) {
+    const settings = isRecord(project.settings) ? project.settings : {};
+    const limit = settings.timeLimitSeconds;
+    return upgrade({
+      ...project,
+      version: 2,
+      settings: {
+        timeLimitSeconds: TIME_LIMITS.includes(limit as number) ? limit : 600,
+        autoTermination: true,
+      },
+      solutions: [],
+    });
+  }
+  if (project.version === 2 && Array.isArray(project.parts))
+    return {
+      ...project,
+      version: 3,
+      parts: project.parts.map((part: Record<string, unknown>) => {
+        const { outer, holes, ...rest } = part;
+        return { ...rest, shape: polygonShape(outer as Ring, (holes as Ring[]) ?? []) };
+      }),
+    };
+  return project;
 }
 
 export const serializeProject = (project: ProjectDocument) => JSON.stringify(project, null, 2);

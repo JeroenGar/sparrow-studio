@@ -1,5 +1,6 @@
 import { orient2d } from 'robust-predicates';
 import { LIMITS, type Job, type Point, type Ring, type Part } from '../model';
+import { moveShape, outline, polygon, type Contour } from './contour';
 
 export const area = (ring: Ring) => ring.reduce((sum, p, i) => {
   const q = ring[(i + 1) % ring.length]; return sum + p[0] * q[1] - q[0] * p[1];
@@ -55,20 +56,23 @@ export function normalizePart(part: Part): Part {
   if (!Number.isInteger(part.quantity) || part.quantity < 0 || part.quantity > LIMITS.copies) throw Error('Quantity must be a whole number from 0 to 500.');
   if (!Number.isFinite(part.approximationToleranceMm) || part.approximationToleranceMm < 0 || part.approximationToleranceMm > 100) throw Error('Invalid approximation tolerance.');
   if (!part.rotations || (part.rotations.kind !== 'continuous' && (part.rotations.kind !== 'discrete' || !Array.isArray(part.rotations.degrees) || !part.rotations.degrees.length || !part.rotations.degrees.every(Number.isFinite)))) throw Error('Discrete rotations require a nonempty list of finite degrees.');
-  const outer = normalizeRing(part.outer);
-  if (!Array.isArray(part.holes)) throw Error('Holes must be an array.');
-  const holes = part.holes.map(normalizeRing);
+  // Checked as drawn: polygons as they are, curves through their outline.
+  const drawn = outline(part.shape);
+  const outer = normalizeRing(drawn.outer);
+  const holes = drawn.holes.map(normalizeRing);
   if (outer.length + holes.reduce((n,h) => n+h.length,0) > LIMITS.verticesPerPart) throw Error('Part exceeds 5,000 vertices including holes.');
   for (let i=0;i<holes.length;i++) {
     if (!inside(holes[i][0],outer) || ringCrosses(outer,holes[i])) throw Error('Hole must be strictly inside its outer contour.');
     for(let j=0;j<i;j++) if (ringCrosses(holes[i],holes[j]) || inside(holes[i][0],holes[j]) || inside(holes[j][0],holes[i])) throw Error('Holes overlap or contain each other.');
   }
-  return { ...part, outer, holes: holes.map(h => [...h].reverse()) };
+  // Polygons are kept as checked: counterclockwise outside, clockwise holes. Curves stay as given.
+  const kept = (contour: Contour, ring: Ring) => contour.type === 'polygon' ? polygon(ring) : contour;
+  const shapeHoles = part.shape.holes ?? [];
+  return { ...part, shape: { outer: kept(part.shape.outer, outer), ...(shapeHoles.length && { holes: shapeHoles.map((hole, i) => kept(hole, [...holes[i]].reverse())) }) } };
 }
 export function scalePart(part:Part,factor:number):Part {
   if(!Number.isFinite(factor)||factor<=0)throw Error('Scale must be finite and positive.');
-  const scale=(ring:Ring):Ring=>ring.map(([x,y])=>[x*factor,y*factor]);
-  return normalizePart({...part,outer:scale(part.outer),holes:part.holes.map(scale),approximationToleranceMm:part.approximationToleranceMm*factor});
+  return normalizePart({...part,shape:moveShape(part.shape,[0,0],factor),approximationToleranceMm:part.approximationToleranceMm*factor});
 }
 export function normalizeJob(doc: Job, allowEmpty=false): Job {
   if (typeof doc.name !== 'string' || !doc.name.trim() || !Array.isArray(doc.parts) || (!allowEmpty&&!doc.parts.length) || doc.parts.length > 500) throw Error('Project needs 1–500 part types.');
@@ -77,6 +81,6 @@ export function normalizeJob(doc: Job, allowEmpty=false): Job {
   if(!['standard','fast'].includes(s.solverPreset))throw Error('Invalid solver preset.');
   const parts = doc.parts.map(normalizePart);
   if (new Set(parts.map(p=>p.id)).size !== parts.length) throw Error('Part IDs must be unique.');
-  if (parts.reduce((n,p)=>n+p.quantity,0) > LIMITS.copies || parts.reduce((n,p)=>n+p.quantity*(p.outer.length+p.holes.reduce((m,h)=>m+h.length,0)),0) > LIMITS.verticesTotal) throw Error('Project exceeds 500 copies or 100,000 demanded vertices.');
+  if (parts.reduce((n,p)=>n+p.quantity,0) > LIMITS.copies || parts.reduce((n,p)=>{const o=outline(p.shape);return n+p.quantity*(o.outer.length+o.holes.reduce((m,h)=>m+h.length,0));},0) > LIMITS.verticesTotal) throw Error('Project exceeds 500 copies or 100,000 demanded vertices.');
   return { ...doc, parts };
 }

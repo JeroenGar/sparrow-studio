@@ -1,107 +1,191 @@
-import { useMemo, useRef, useState } from 'react';
-import { netArea, worldParts } from '../../engine/geometry/validate';
-import type { Job } from '../../engine/model';
-import type { DisplayUnit } from '../../engine/units';
-import type { Timing } from '../../engine/workers/useSolver';
-import { activeMachine, copyCount, utilization } from '../../project/model';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import type { Input, Schemas } from '../../api/client';
+import { worldParts } from '../../engine/geometry/world';
+import type { LiveGeometry } from '../../engine/geometry/live';
+import type { GeometryReply } from '../../engine/workers/protocol';
+import { activeMachine, copyCount } from '../../project/model';
+import { drawable, utilization } from '../../project/solution';
 import { Canvas } from '../Canvas';
+import { backend, usesSparrowPro } from '../client';
 import { useStudio } from '../context';
 import { formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
+import { elapsed, useNow, type Run } from '../useJob';
 import { LayoutDrawing } from './LayoutDrawing';
 
-export function LiveView() {
-  const { solver, runJob, unit, running, project, setTab } = useStudio();
-  const [mode, setMode] = useState<'live' | 'best'>('live');
-  const best = solver.result;
-  const frame = solver.live;
-  const showLive = mode === 'live' && !!frame;
-  const bestWorld = useMemo(() => (runJob && best ? worldParts(runJob, best) : []), [runJob, best]);
-  const history = (solver.diagnostics.current?.history ?? []).filter(
-    (entry) => entry.validation === 'passed',
+/**
+ * The overlaps of the layout the search is working on, worked out off the main thread for one
+ * run's input. One frame is in progress at a time; layouts that arrive meanwhile are skipped for
+ * the newest, and each frame is shown at the next animation frame.
+ */
+function useSearchFrame(
+  input: Input | undefined,
+  search: Schemas['Search'] | undefined,
+  names: Map<string, string>,
+) {
+  const [frame, setFrame] = useState<LiveGeometry>();
+  const latest = useRef(search);
+  latest.current = search;
+  const next = useRef<() => void>(undefined);
+  const busy = useRef(false);
+  useEffect(() => {
+    setFrame(undefined);
+    busy.current = false;
+    if (!input) return;
+    const worker = new Worker(new URL('../../engine/workers/geometry.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    let shown = -1;
+    next.current = () => {
+      const search = latest.current;
+      busy.current = !!search && search.sequence !== shown;
+      if (!busy.current || !search) return;
+      const { job, result } = drawable(input, search.solution, names);
+      worker.postMessage({
+        type: 'live-preview',
+        runId: 0,
+        documentRevision: 0,
+        sequence: search.sequence,
+        document: job,
+        result,
+      });
+    };
+    worker.onmessage = ({ data }: MessageEvent<GeometryReply>) => {
+      if (data.type === 'live-frame') {
+        shown = data.sequence;
+        requestAnimationFrame(() => setFrame(data.geometry));
+      }
+      next.current?.();
+    };
+    return () => {
+      next.current = undefined;
+      worker.terminate();
+    };
+  }, [input, names]);
+  useEffect(() => {
+    if (!busy.current) next.current?.();
+  }, [search]);
+  return frame;
+}
+
+/** The run's time, and how much of its time limit it used, read every animation frame. */
+function RunClock({ run, running }: { run: Run; running: boolean }) {
+  const seconds = elapsed(run, useNow(running));
+  const limit = run.request.settings.time_limit_seconds;
+  return (
+    <div className="stack">
+      <span className="muted">
+        {formatSeconds(seconds)} of up to {formatSeconds(limit)}
+        {run.request.settings.auto_termination ? ' · stops early once it stops improving' : ''}
+      </span>
+      <div className="progress" aria-hidden="true">
+        <span style={{ width: `${Math.min(100, (seconds / limit) * 100)}%` }} />
+      </div>
+    </div>
   );
-  const width = runJob?.settings.materialWidthMm ?? project.stock.strip.widthMm;
-  const shownLength = (showLive ? frame?.result.usedLengthMm : best?.usedLengthMm) ?? width * 2;
+}
+
+/** The improvement chart, running on with the clock between improvements. */
+function LiveChart({ run, running }: { run: Run; running: boolean }) {
+  const seconds = elapsed(run, useNow(running));
+  return <ImprovementChart history={run.history} elapsed={seconds} />;
+}
+
+function status(run: Run) {
+  if (run.error) return 'The run failed';
+  const state = run.job?.state;
+  switch (state?.status) {
+    case undefined:
+    case 'queued':
+      return 'Starting the solver…';
+    case 'running':
+      return 'Searching';
+    case 'completed':
+      return state.termination === 'stopped' ? 'Stopped' : 'Finished';
+    case 'cancelled':
+      return 'Cancelled';
+    case 'failed':
+      return 'The run failed';
+  }
+}
+
+export function LiveView() {
+  const { run, unit, running, project, setTab } = useStudio();
+  const [mode, setMode] = useState<'live' | 'best'>('live');
+  const names = useMemo(
+    () => new Map(project.parts.map((part) => [part.id, part.name])),
+    [project.parts],
+  );
+  const input = run?.request.input;
+  const best = useMemo(
+    () => (input && run?.best ? drawable(input, run.best.solution, names) : undefined),
+    [input, run?.best, names],
+  );
+  const frame = useSearchFrame(running ? input : undefined, run?.search, names);
+  const showLive = mode === 'live' && !!frame && running;
+  const bestWorld = useMemo(() => (best ? worldParts(best.job, best.result) : []), [best]);
+  const strip =
+    input?.problem.type === 'minimize_strip_length'
+      ? input.problem.height
+      : project.stock.strip.widthMm;
+  const liveLength = frame
+    ? Math.max(0, ...frame.world.flatMap((part) => part.outer.map(([x]) => x)))
+    : 0;
+  const shownLength = (showLive ? liveLength : best?.result.usedLengthMm) || strip * 2;
   // Keep the view still while the layout shrinks: fit to the longest layout of this run.
-  const longest = useRef({ job: runJob, length: 0 });
-  if (longest.current.job !== runJob) longest.current = { job: runJob, length: 0 };
+  const longest = useRef({ run, length: 0 });
+  if (longest.current.run?.request !== run?.request) longest.current = { run, length: 0 };
   longest.current.length = Math.max(longest.current.length, shownLength);
 
-  const limit = runJob?.settings.timeLimitSeconds ?? null;
-  const status =
-    solver.state === 'Initializing'
-      ? 'Starting the solver…'
-      : solver.state === 'Running'
-        ? 'Searching'
-        : solver.state === 'Complete'
-          ? 'Finished'
-          : solver.state === 'Stopped'
-            ? 'Stopped'
-            : solver.state === 'Error'
-              ? 'The run failed'
-              : 'Ready';
+  const state = run?.job?.state;
+  const failure = run?.error ?? (state?.status === 'failed' ? state.error.message : undefined);
+  const reduced = run?.job?.diagnostics?.find(
+    (diagnostic) => diagnostic.kind === 'threads_reduced',
+  ) as { used: number; reason: string } | undefined;
 
   return (
     <div className="view">
       <section className="list-panel" aria-label="Run progress">
         <div className="list-head">
-          <span className="label">{runJob ? status : 'Next run'}</span>
-          {running && <span className="muted">in this browser</span>}
+          <span className="label">{run ? status(run) : 'Next run'}</span>
+          {running && <span className="muted">{backend.solves}</span>}
         </div>
         <div className="list-scroll">
-          {!runJob ? (
+          {!run ? (
             <NextRun onSolution={project.solutions.length ? () => setTab('solution') : undefined} />
           ) : (
             <div className="summary">
               <div className="metrics">
                 <div className="metric">
                   <span className="metric-value">
-                    {best && runJob ? formatPercent(utilization(runJob, best, netArea)) : '—'}
+                    {best ? formatPercent(utilization(best)) : '—'}
                   </span>
                   <span className="muted">utilization</span>
                 </div>
                 <div className="metric">
                   <span className="metric-value">
-                    {best ? formatLength(best.usedLengthMm, unit) : '—'} <small>{unit}</small>
+                    {best ? formatLength(best.result.usedLengthMm, unit) : '—'}{' '}
+                    <small>{unit}</small>
                   </span>
                   <span className="muted">length used</span>
                 </div>
               </div>
               <span className="muted">Of the best valid layout so far.</span>
-              <div className="stack">
-                <span className="muted">
-                  {formatSeconds(solver.elapsed)}
-                  {limit ? ` of up to ${formatSeconds(limit)}` : ' · stops when the search stalls'}
-                </span>
-                {limit && (
-                  <div className="progress" aria-hidden="true">
-                    <span style={{ width: `${Math.min(100, (solver.elapsed / limit) * 100)}%` }} />
-                  </div>
-                )}
-              </div>
-              {history.length > 1 && (
-                <ImprovementChart history={history} job={runJob} elapsed={solver.elapsed} />
-              )}
-              {solver.error && <p className="field-error">{solver.error}</p>}
-              {!running && best && (
+              <RunClock run={run} running={running} />
+              {run.history.length > 1 && <LiveChart run={run} running={running} />}
+              {failure && <p className="field-error">{failure}</p>}
+              {!running && best && project.solutions.length > 0 && (
                 <button className="primary" onClick={() => setTab('solution')}>
                   Show the solution
                 </button>
               )}
-              {running && solver.canSkip && solver.phase === 'Exploration' && (
-                <button
-                  className="small"
-                  disabled={!best || solver.skipping}
-                  onClick={solver.skipToCompression}
-                >
-                  Skip to compression
-                </button>
-              )}
               <p className="muted">
-                {solver.phase ? `${solver.phase} · ` : ''}
-                {solver.workers ? `${solver.workers.actual} solver threads` : 'Preparing threads'}
-                {running ? ' · keep this tab visible for the best speed.' : ''}
+                Solved {backend.solves}
+                {reduced
+                  ? ` · ${reduced.used} solver thread${reduced.used === 1 ? '' : 's'}: ${reduced.reason}`
+                  : ''}
+                {running && !usesSparrowPro ? ' · keep this tab visible for the best speed.' : ''}
               </p>
             </div>
           )}
@@ -110,12 +194,16 @@ export function LiveView() {
       </section>
       <Canvas
         label="Live layout"
-        extent={[0, -width * 0.1, longest.current.length * 1.05, width * 1.1]}
+        extent={[0, -strip * 0.1, longest.current.length * 1.05, strip * 1.1]}
         toolbar={
-          runJob && (
+          run && (
             <>
               <div className="segmented" role="group" aria-label="Layout shown">
-                <button aria-pressed={showLive} disabled={!frame} onClick={() => setMode('live')}>
+                <button
+                  aria-pressed={showLive}
+                  disabled={!frame || !running}
+                  onClick={() => setMode('live')}
+                >
                   Live search
                 </button>
                 <button aria-pressed={!showLive} disabled={!best} onClick={() => setMode('best')}>
@@ -133,14 +221,16 @@ export function LiveView() {
         }
       >
         {({ upp }) =>
-          runJob && (showLive ? frame : best) ? (
+          showLive && best ? (
             <LayoutDrawing
-              job={runJob}
-              world={showLive ? frame!.world : bestWorld}
-              overlaps={showLive ? frame!.overlaps : []}
+              job={best.job}
+              world={frame!.world}
+              overlaps={frame!.overlaps}
               usedLength={shownLength}
               upp={upp}
             />
+          ) : best ? (
+            <LayoutDrawing job={best.job} world={bestWorld} usedLength={shownLength} upp={upp} />
           ) : null
         }
       </Canvas>
@@ -171,12 +261,9 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
         </dd>
         <dt>Stops</dt>
         <dd>
-          {settings.timeLimitSeconds
-            ? `after ${formatSeconds(settings.timeLimitSeconds)} at most`
-            : 'when the search stalls'}
+          after {formatSeconds(settings.timeLimitSeconds)} at most
+          {settings.autoTermination ? ', or once it stops improving' : ''}
         </dd>
-        <dt>Search</dt>
-        <dd>{settings.preset === 'fast' ? 'Fast' : 'Standard'}</dd>
       </dl>
       {onSolution && <button onClick={onSolution}>Show the saved solution</button>}
     </div>
@@ -188,24 +275,14 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
  * the next. Utilization is plotted by its distance below the current best on a log scale, so even
  * small late improvements show; time runs linearly.
  */
-function ImprovementChart({
-  history,
-  job,
-  elapsed,
-}: {
-  history: Timing[];
-  job: Job;
-  elapsed: number;
-}) {
+function ImprovementChart({ history, elapsed }: { history: Run['history']; elapsed: number }) {
   const W = 300;
   const H = 110;
   const pad = { left: 44, right: 6, top: 8, bottom: 16 };
-  const area = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
-  const percent = (lengthMm: number) => (area / (job.settings.materialWidthMm * lengthMm)) * 100;
-  const values = history.map((entry) => percent(entry.lengthMm));
+  const values = history.map((entry) => entry.utilization);
   const low = Math.min(...values);
   const high = Math.max(...values);
-  const end = Math.max(elapsed * 1000, history.at(-1)!.elapsedMs, 1);
+  const end = Math.max(elapsed * 1000, history.at(-1)!.seconds * 1000, 1);
   const x = (ms: number) => pad.left + (ms / end) * (W - pad.left - pad.right);
   // The best sits at the top and the first layout at the bottom; in between, the log distance.
   const floor = Math.max((high - low) * 0.01, 1e-6);
@@ -214,10 +291,10 @@ function ImprovementChart({
     high === low
       ? (H - pad.bottom + pad.top) / 2
       : pad.top + (depth(value) / depth(low)) * (H - pad.top - pad.bottom);
-  let d = `M${x(history[0].elapsedMs)},${y(values[0])}`;
-  history.slice(1).forEach((entry, i) => (d += `H${x(entry.elapsedMs)}V${y(values[i + 1])}`));
+  let d = `M${x(history[0].seconds * 1000)},${y(values[0])}`;
+  history.slice(1).forEach((entry, i) => (d += `H${x(entry.seconds * 1000)}V${y(values[i + 1])}`));
   d += `H${x(end)}`;
-  const fill = `${d}V${H - pad.bottom}H${x(history[0].elapsedMs)}Z`;
+  const fill = `${d}V${H - pad.bottom}H${x(history[0].seconds * 1000)}Z`;
   // Utilization ticks at round distances below the best, kept at least 11 px apart.
   const yTicks: number[] = [];
   for (const value of [high, high - 0.1, high - 1, high - 10, low])

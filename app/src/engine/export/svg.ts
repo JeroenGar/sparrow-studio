@@ -1,13 +1,13 @@
-import type { Job, Result, Ring } from '../model';
-import { worldParts, netArea, type WorldPart } from '../geometry/validate';
+import type { Job, Result } from '../model';
+import { worldParts, type WorldPart } from '../geometry/world';
 import { exportDXF, STUDIO_CREDIT } from './dxf';
-import {DOMImplementation,DOMParser,XMLSerializer,type Element} from '@xmldom/xmldom';
-import {pathData} from '../geometry/path';
+import {DOMImplementation,XMLSerializer,type Element} from '@xmldom/xmldom';
+import {shapePath} from '../geometry/path';
 import {colors} from '../colors';
 const SVG_NS='http://www.w3.org/2000/svg';
 export type ExportBundle = { svg: string; dxf:string; world: WorldPart[] };
-export function exportSVG(doc: Job,result: Result): ExportBundle {
-  if(result.validation.status!=='passed') throw Error('Only a valid result can be exported.');
+/** The layout as SVG and DXF; `utilization` is the backend's, in percent. */
+export function exportSVG(doc: Job,result: Result,utilization: number): ExportBundle {
   // JS's shortest round-trip decimal preserves each f64 exactly. Both formats
   // consume these same numbers, including every hole, without display rounding.
   const world=JSON.parse(JSON.stringify(worldParts(doc,result))) as WorldPart[];
@@ -17,7 +17,6 @@ export function exportSVG(doc: Job,result: Result): ExportBundle {
   const left=0,top=0,frameWidth=width,frameHeight=height;
   const padX=frameWidth*.05,padY=frameHeight*.05,pageWidth=frameWidth+2*padX,pageHeight=frameHeight+2*padY;
   const viewBox=`${left-padX} ${top-padY} ${pageWidth} ${pageHeight}`;
-  const utilization=doc.parts.reduce((sum,part)=>sum+netArea(part)*part.quantity,0)/(width*height)*100;
   const summary=`${doc.name} · ${Number(width.toFixed(2))} × ${Number(height.toFixed(2))} mm · ${utilization.toFixed(2)}% used`;
   const fontSize=Math.min(padY*.3,frameWidth/(summary.length*.65));
   const creditFontSize=Math.min(padY*.3,frameWidth/(STUDIO_CREDIT.length*.65));
@@ -43,20 +42,9 @@ export function exportSVG(doc: Job,result: Result): ExportBundle {
   const parts=add(root,'g',{id:'parts',transform:`translate(0 ${height}) scale(1 -1)`,stroke:'#334155','stroke-width':Math.min(width,height)*.0015,'stroke-linejoin':'round'});
   world.forEach((p,i)=>{
     const index=partIndex.get(p.partId)!,part=doc.parts[index];
-    const path=add(parts,'path',{id:`part-${i}`,fill:colors[index%colors.length],'fill-rule':'evenodd',d:pathData([p.outer,...p.holes])});
+    const path=add(parts,'path',{id:`part-${i}`,fill:colors[index%colors.length],'fill-rule':'evenodd',d:shapePath(p.shape)});
     add(path,'title',{},`${part.name} · copy ${p.copyIndex+1}`);
   });
   const svg=new XMLSerializer().serializeToString(svgDocument)+'\n';
-
-  const xml=new DOMParser({onError:(_level,message)=>{throw Error(message);}}).parseFromString(svg,'image/svg+xml');
-  const parsedRoot=xml.documentElement!,group=Array.from(parsedRoot.getElementsByTagName('g')).find(g=>g.getAttribute('id')==='parts'),elements=Array.from(parsedRoot.getElementsByTagName('path'));
-  if(parsedRoot.getAttribute('width')!==`${pageWidth}mm`||parsedRoot.getAttribute('height')!==`${pageHeight}mm`||parsedRoot.getAttribute('viewBox')!==viewBox||!group||group.getAttribute('transform')!==`translate(0 ${doc.settings.materialWidthMm}) scale(1 -1)`||elements.length!==world.length)throw Error('Serialized SVG dimensions, axes or copy count changed.');
-  const reparsed=elements.map((element,i)=>{
-    const d=element.getAttribute('d')??'',commands=d.match(/M[^MZ]+Z/g)??[];
-    if(commands.join('')!==d||element.getAttribute('fill-rule')!=='evenodd')throw Error('Serialized SVG lost its closed contour structure.');
-    const rings=commands.map(command=>command.slice(1,-1).split('L').map(point=>point.split(',').map(Number)) as Ring);
-    return {...world[i],outer:rings[0],holes:rings.slice(1)};
-  });
-  if(JSON.stringify(reparsed)!==JSON.stringify(world))throw Error('Serialized SVG changed layout coordinates.');
   return {world,dxf:exportDXF(doc,world,width),svg};
 }

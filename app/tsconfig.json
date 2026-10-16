@@ -6,9 +6,17 @@
     "strict": true,
     "noEmit": true,
     "jsx": "react-jsx",
-    "lib": ["ES2022", "DOM", "WebWorker"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "WebWorker"
+    ],
     "skipLibCheck": true,
-    "types": ["vite/client"]
+    "types": [
+      "vite/client"
+    ]
   },
-  "include": ["src"]
+  "include": [
+    "src"
+  ]
 }

@@ -2,42 +2,48 @@ import './svg-wasm';
 import { describe,it,expect } from 'vitest';
 import { newPart,DEFAULT_SETTINGS,SHEET_LAYER,defaultDXFLayers,type Job,type Result } from '../src/engine/model';
 import { normalizePart,normalizeRing } from '../src/engine/geometry/normalize';
-import { validate,worldParts } from '../src/engine/geometry/validate';
+import { worldParts } from '../src/engine/geometry/world';
 import { importSparrow } from '../src/engine/import/sparrow';
 import { exportSVG } from '../src/engine/export/svg';
 import { exportDXF } from '../src/engine/export/dxf';
 import { DOMParser } from '@xmldom/xmldom';
 import { importDXF } from '../src/engine/import/dxf';
-import type { WorldPart } from '../src/engine/geometry/validate';
+import type { WorldPart } from '../src/engine/geometry/world';
 import { colors } from '../src/engine/colors';
 import { importSVG } from '../src/engine/import/svg';
-import { bounds } from '../src/engine/geometry/normalize';
+import { area,bounds } from '../src/engine/geometry/normalize';
+import { pathData } from '../src/engine/geometry/path';
+import parseString from 'dxf/lib/parseString';
+import { flattenContour, outline, polygonShape } from '../src/engine/geometry/contour';
+import { shapePath } from '../src/engine/geometry/path';
+import { contour } from '../src/engine/import/paths';
 
 function fixture() {
-  const part={...newPart([[0,0],[1,0],[1,1],[0,1]]),id:'square',quantity:2};
+  const part={...newPart(polygonShape([[0,0],[1,0],[1,1],[0,1]])),id:'square',quantity:2};
   const doc:Job={name:'test',parts:[part],settings:{...DEFAULT_SETTINGS,materialWidthMm:2}};
-  const result:Result={documentRevision:1,solverRevision:'test',seed:'42',elapsedSeconds:1,usedLengthMm:2,
-    placements:[{partId:part.id,copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:part.id,copyIndex:1,xMm:1,yMm:0,angleDeg:0}],
-    validation:{status:'pending',overlapAreaMm2:0,maxBoundaryViolationMm:0,minClearanceMm:null,errors:[]}};
+  const result:Result={usedLengthMm:2,
+    placements:[{partId:part.id,copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:part.id,copyIndex:1,xMm:1,yMm:0,angleDeg:0}]};
   return {doc,result};
 }
-describe('independent layout validation',()=>{
-  it('allows touching at zero clearance and serializes the checked coordinates',()=>{
-    const {doc,result}=fixture();result.validation=validate(doc,result);
-    expect(result.validation.status).toBe('passed');
-    const exported=exportSVG(doc,result);expect(exported.svg).toContain('width="2.2mm"');
+describe('layout exports',()=>{
+  it('writes the placed coordinates with the credit',()=>{
+    const {doc,result}=fixture();
+    const exported=exportSVG(doc,result,50);expect(exported.svg).toContain('width="2.2mm"');
     expect(exported.svg).toContain('nested with sparrow studio · https://sparrowstudio.app');
     expect(exported.svg).toContain('<a href="https://sparrowstudio.app"');
     expect(exported.dxf).toContain('nested with sparrow studio');
     expect(exported.dxf).toContain('https://sparrowstudio.app');
     expect(exported.dxf).toContain('SPARROW_INFO');
-    expect(exported.world[1].outer).toEqual([[1,0],[2,0],[2,1],[1,1]]);
+    // The written files hold each copy where it was placed.
+    const paths=new DOMParser().parseFromString(exported.svg,'image/svg+xml').getElementsByTagName('path');
+    expect(Array.from(paths).map(path=>path.getAttribute('d'))).toEqual([pathData([[[0,0],[1,0],[1,1],[0,1]]]),pathData([[[1,0],[2,0],[2,1],[1,1]]])]);
+    const entities=(parseString(exported.dxf) as {entities:{layer:string;vertices?:{x:number;y:number}[]}[]}).entities;
+    expect(entities.filter(entity=>entity.layer==='PARTS').map(entity=>entity.vertices!.map(({x,y})=>[x,y]))).toEqual([[[0,0],[1,0],[1,1],[0,1]],[[1,0],[2,0],[2,1],[1,1]]]);
   });
   it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
     const {doc,result}=fixture();doc.name='Plate <script> & "test"';
     doc.parts[0].quantity=1;result.placements.pop();
-    result.validation=validate(doc,result);
-    const {svg}=exportSVG(doc,result);
+    const {svg}=exportSVG(doc,result,25);
     expect(svg).toContain('viewBox="-0.1 -0.1 2.2 2.2"');
     expect(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('title')[0].textContent).toBe('Plate <script> & "test" — sparrow studio');
     expect(svg).toContain('25.00% used');
@@ -46,61 +52,26 @@ describe('independent layout validation',()=>{
     expect(imported.issues??[]).toEqual([]);
     expect(imported.document.parts).toHaveLength(1);
     for(const part of imported.document.parts){
-      const box=bounds(part.outer);
+      const box=bounds(outline(part.shape).outer);
       expect(box[2]-box[0]).toBeCloseTo(1,6);
       expect(box[3]-box[1]).toBeCloseTo(1,6);
     }
   });
-  it.each(['missing','duplicate','unknown','reflection','wrong-angle','non-finite','out-of-bounds'] as const)('rejects %s',kind=>{
-    const {doc,result}=fixture();
-    switch(kind) {
-      case 'missing':result.placements.pop();break;
-      case 'duplicate':result.placements[1].copyIndex=0;break;
-      case 'unknown':result.placements[1].partId='other';break;
-      case 'reflection':Object.assign(result.placements[1],{scaleX:-1});break;
-      case 'wrong-angle':result.placements[1].angleDeg=90;break;
-      case 'non-finite':result.placements[1].xMm=NaN;break;
-      case 'out-of-bounds':result.placements[1].xMm=1.00001;break;
-    }
-    expect(validate(doc,result).status).toBe('failed');
-  });
-  it('rejects sliver overlap at the specified 1e-8 mm² threshold',()=>{
-    const {doc,result}=fixture();result.placements[1].xMm=1-1e-7;
-    const check=validate(doc,result);expect(check.status).toBe('failed');expect(check.overlapAreaMm2).toBeGreaterThan(1e-8);
-  });
-  it('rejects a serialized contour that changes the part even if it still fits',()=>{
-    const {doc,result}=fixture(),serialized=worldParts(doc,result);
-    serialized[0].outer[1][0]=.9;
-    expect(validate(doc,result,serialized)).toMatchObject({status:'failed',errors:['Serialized contours differ from the rigidly transformed input geometry.']});
-  });
-  it('rejects containment and coincidence, including placement inside a retained hole',()=>{
-    const {doc,result}=fixture();result.placements[1].xMm=0;
-    expect(validate(doc,result).status).toBe('failed');
-    const large={...newPart([[0,0],[10,0],[10,10],[0,10]]),id:'large',holes:[[[2,2],[2,8],[8,8],[8,2]] as [number,number][]]};
-    doc.parts[0].quantity=1;doc.parts.push(large);doc.settings.materialWidthMm=10;result.usedLengthMm=10;
-    result.placements[0].xMm=4;result.placements[0].yMm=4;result.placements[1]={partId:'large',copyIndex:0,xMm:0,yMm:0,angleDeg:0};
-    expect(validate(doc,result).status).toBe('failed');
-  });
-  it('measures clearance without doubling it',()=>{
-    const {doc,result}=fixture();result.usedLengthMm=3;result.placements[1].xMm=2;doc.settings.clearanceMm=1;
-    expect(validate(doc,result)).toMatchObject({status:'passed',minClearanceMm:1});
-    result.placements[1].xMm=1.9;expect(validate(doc,result).status).toBe('failed');
-  });
   it('rejects self-crossing contours and invalid holes',()=>{
     expect(()=>normalizeRing([[0,0],[2,2],[0,2],[2,0]])).toThrow();
-    const {doc}=fixture();expect(()=>normalizePart({...doc.parts[0],holes:[[[0,0],[.5,0],[.5,.5]]]})).toThrow();
+    const {doc}=fixture();expect(()=>normalizePart({...doc.parts[0],shape:polygonShape(outline(doc.parts[0].shape).outer,[[[0,0],[.5,0],[.5,.5]]])})).toThrow();
   });
 });
 it('JSON preserves rotation semantics, scales geometry and rejects empty orientations',()=>{
   const data={name:'input',strip_height:10,items:[{id:19,demand:2,shape:{type:'rectangle',data:{x_min:10,y_min:20,width:1,height:2}}}]};
   const part=importSparrow(JSON.stringify(data),'input.json',25.4).document.parts[0];
-  expect(part.rotations).toEqual({kind:'continuous'});expect(part.outer[2][0]).toBeCloseTo(25.4);expect(part.outer[2][1]).toBeCloseTo(50.8);
+  expect(part.rotations).toEqual({kind:'continuous'});expect(outline(part.shape).outer[2][0]).toBeCloseTo(25.4);expect(outline(part.shape).outer[2][1]).toBeCloseTo(50.8);
   Object.assign(data.items[0],{allowed_orientations:[]});expect(()=>importSparrow(JSON.stringify(data),'input.json',1)).toThrow('nonempty');
 });
 
 it('writes a DXF in millimetres with the sheet, parts and credit on their own layers',()=>{
-  const {doc,result}=fixture();result.validation=validate(doc,result);
-  const text=exportSVG(doc,result).dxf;
+  const {doc,result}=fixture();
+  const text=exportSVG(doc,result,50).dxf;
   expect(text.split('$INSUNITS\n70\n')[1].split('\n')[0].trim()).toBe('4');
   const entities=text.split('2\nENTITIES\n')[1].split('0\nENDSEC')[0];
   expect(entities.match(/\nLWPOLYLINE\n/g)).toHaveLength(3);
@@ -117,7 +88,7 @@ function record(text:string,type:string,name:string){
   const starts=pairs.flatMap(([code,value],i)=>code==='0'&&value===type?[i]:[]);
   for(const start of starts){
     const end=pairs.findIndex(([code],i)=>i>start&&code==='0'),body=pairs.slice(start+1,end);
-    if(body.some(([code,value])=>code==='2'&&value===name))return new Map(body.reverse());
+    if(body.some(([code,value])=>code==='2'&&value===name))return new Map(body.reverse().map(([code,value])=>[code,value]));
   }
   throw Error(`No ${type} ${name}`);
 }
@@ -135,7 +106,7 @@ function framing(text:string){
 
 it('frames wide layouts with negative coordinates and reimports exports as their parts',()=>{
   const doc:Job={name:'wide',parts:[],settings:{...DEFAULT_SETTINGS,materialWidthMm:100}};
-  const world=[{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as WorldPart[];
+  const world=([{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as Omit<WorldPart,'shape'>[]).map(p=>({...p,shape:polygonShape(p.outer,p.holes)}));
   const text=exportDXF(doc,world,1000),{extents,view}=framing(text);
   expect(extents.slice(0,3)).toEqual([-50,0,1000]);
   expect(extents[2]-extents[0]).toBeGreaterThan(5*(extents[3]-extents[1]));
@@ -143,8 +114,35 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   const options={scale:1,tolerance:.01,enclosed:'holes' as const};
   const review=importDXF(text,'wide.dxf',options);
   expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
-  expect(review.document.parts.map(part=>[bounds(part.outer),part.holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
-  expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers)}).document.parts).toHaveLength(2);
+  expect(review.document.parts.map(part=>[bounds(outline(part.shape).outer),outline(part.shape).holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
+  expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers!)}).document.parts).toHaveLength(2);
   // Choosing the sheet layer too makes the sheet enclose and cross the parts.
   expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
+});
+
+it('writes kept curves as curves: SVG arcs, DXF bulges and circles',()=>{
+  const semicircle={...newPart({outer:{type:'path',start:[0,0],segments:[{type:'line',to:[20,0]},{type:'arc',to:[0,0],bulge:1}]}}),id:'half',quantity:1};
+  const disc={...newPart({outer:{type:'circle',center:[5,5],radius:5}}),id:'disc',quantity:1};
+  const doc:Job={name:'curves',parts:[semicircle,disc],settings:{...DEFAULT_SETTINGS,materialWidthMm:20}};
+  const result:Result={usedLengthMm:40,placements:[{partId:'half',copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:'disc',copyIndex:0,xMm:25,yMm:0,angleDeg:90}]};
+  const {svg,dxf:text}=exportSVG(doc,result,50);
+  const paths=Array.from(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('path')).map(p=>p.getAttribute('d')!);
+  expect(paths.every(d=>d.includes('A'))).toBe(true);
+  const fromSVG=importSVG(svg,'curves.svg',{scale:1,tolerance:.01}).document.parts.map(p=>Math.abs(area(outline(p.shape).outer))).sort((a,b)=>a-b);
+  expect(fromSVG).toEqual([expect.closeTo(25*Math.PI,0),expect.closeTo(50*Math.PI,0)]);
+  const entities=(parseString(text) as {entities:{type:string;layer:string;r?:number;vertices?:{bulge?:number}[]}[]}).entities.filter(e=>e.layer==='PARTS');
+  expect(entities.map(e=>e.type).sort()).toEqual(['CIRCLE','LWPOLYLINE']);
+  expect(entities.find(e=>e.type==='CIRCLE')?.r).toBe(5);
+  expect(entities.find(e=>e.type==='LWPOLYLINE')?.vertices?.map(v=>v.bulge??0)).toEqual([0,1]);
+});
+
+it('writes even an almost straight arc, and NURBS far from the origin',()=>{
+  const shallow=shapePath({outer:{type:'path',start:[0,0],segments:[{type:'arc',to:[100,0],bulge:1e-8},{type:'line',to:[100,100]},{type:'line',to:[0,100]}]}});
+  expect(shallow).toMatch(/^M0,0A[^A-Z]*,100,0L100,100L0,100Z$/);
+  const far=flattenContour({type:'path',start:[10000,0],segments:[{type:'nurbs',degree:2,control_points:[[10010,10],[10020,0]],knots:[0,0,0,1,1,1]}]},.001);
+  expect(far.length).toBeGreaterThan(3);
+});
+it('leaves out segments that go nowhere',()=>{
+  const kept=contour({start:[0,0],segments:[{type:'arc',to:[0,0],bulge:1},{type:'line',to:[10,0]},{type:'arc',to:[0,10],bulge:.4}]},[[0,0],[10,0],[0,10]]);
+  expect(kept.type==='path'&&kept.segments.map(s=>s.type)).toEqual(['line','arc']);
 });
