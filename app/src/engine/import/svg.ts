@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS,newPart,type Part,type Point,type Ring } from '../mode
 import { area,bounds,inside,normalizeJob,normalizeRing,ringCrosses } from '../geometry/normalize';
 import { apply,multiply,append,bezier,type Matrix } from '../geometry/flatten';
 import { localize,type ImportReview } from './sparrow';
+import { polygonShape } from '../geometry/contour';
 
 // Initialized only for SVG imports, not other geometry-worker tasks.
 let svg_paths: typeof import('../../../../web/wasm/pkg/sparrow_web').svg_paths;
@@ -37,7 +38,7 @@ export function contoursToParts(contours:Contour[],fileName:string,format:'svg'|
   return contours.flatMap((c,i)=>{
     if(enclosed==='holes'&&depth[i]%2===1)return [];
     const holes=enclosed==='holes'?contours.filter((_,j)=>parent[j]===i).map(h=>h.ring):[];
-    const part=localize({...newPart(c.ring,c.entityId),holes,source:{format,fileName,entityId:c.entityId},
+    const part=localize({...newPart(polygonShape(c.ring,holes),c.entityId),source:{format,fileName,entityId:c.entityId},
       approximationToleranceMm:c.curved||contours.some((h,j)=>parent[j]===i&&h.curved)?tolerance:0});
     return [part];
   });
@@ -104,7 +105,7 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
   warnings.push('Closed contour interpretation: closed stroke-only outlines count; stroke thickness is not part size or kerf.');
   const parts=entities.flatMap(contours=>contoursToParts(contours,fileName,'svg',options.tolerance,'holes'));
   if(entities.some(e=>e.length>1))warnings.push('Compound contours may produce separate part types. Holes follow the source fill rule.');
-  if(parts.some(p=>p.holes.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
+  if(parts.some(p=>p.shape.holes?.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
   if(!parts.length)throw Error('No visible closed vector outlines found.');
   return {document:normalizeJob({name:fileName.replace(/\.svg$/i,''),parts,settings:{...DEFAULT_SETTINGS}}),warnings};
 }

@@ -1,6 +1,6 @@
 import type { Input, JobDocument, JobRequest, Schemas } from '../api/client';
 import { netArea, worldParts } from '../engine/geometry/world';
-import type { Job, Part, Result, Ring } from '../engine/model';
+import type { Job, Part, Result } from '../engine/model';
 import { activeMachine, resolvedParts, type ProjectDocument } from './model';
 
 /**
@@ -15,12 +15,7 @@ export function projectInput(project: ProjectDocument): Input {
     schema_version: 1,
     geometries: parts.map((part) => ({
       id: part.id,
-      shape: {
-        outer: { type: 'polygon', points: part.outer },
-        ...(part.holes.length && {
-          holes: part.holes.map((hole) => ({ type: 'polygon' as const, points: hole })),
-        }),
-      },
+      shape: part.shape,
     })),
     parts: parts.map((part) => ({
       id: part.id,
@@ -59,25 +54,6 @@ export function projectRequest(project: ProjectDocument): JobRequest {
 export const isStale = (project: ProjectDocument, document: JobDocument) =>
   JSON.stringify(projectInput(project)) !== JSON.stringify(document.input);
 
-function ring(contour: Schemas['Contour']): Ring {
-  switch (contour.type) {
-    case 'polygon':
-      return contour.points as Ring;
-    case 'rectangle': {
-      const { x_min: x, y_min: y, width: w, height: h } = contour;
-      return [
-        [x, y],
-        [x + w, y],
-        [x + w, y + h],
-        [x, y + h],
-      ];
-    }
-    default:
-      // Studio sends polygons only, until it keeps curves.
-      throw Error(`Studio cannot draw ${contour.type} contours yet.`);
-  }
-}
-
 /**
  * A layout in the format, as studio's drawings and exports read it: the job's parts with their
  * names from the project where it still has them, and each placement as a copy of its part.
@@ -97,8 +73,7 @@ export function drawable(
       id: part.id,
       name: names.get(part.id) ?? `Part ${index + 1}`,
       source: { format: 'sparrow' },
-      outer: ring(shape.outer),
-      holes: (shape.holes ?? []).map(ring),
+      shape,
       approximationToleranceMm: 0,
       quantity: part.quantity,
       rotations:

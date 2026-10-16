@@ -14,9 +14,10 @@ import { importSVG } from '../src/engine/import/svg';
 import { bounds } from '../src/engine/geometry/normalize';
 import { pathData } from '../src/engine/geometry/path';
 import parseString from 'dxf/lib/parseString';
+import { outline, polygonShape } from '../src/engine/geometry/contour';
 
 function fixture() {
-  const part={...newPart([[0,0],[1,0],[1,1],[0,1]]),id:'square',quantity:2};
+  const part={...newPart(polygonShape([[0,0],[1,0],[1,1],[0,1]])),id:'square',quantity:2};
   const doc:Job={name:'test',parts:[part],settings:{...DEFAULT_SETTINGS,materialWidthMm:2}};
   const result:Result={usedLengthMm:2,
     placements:[{partId:part.id,copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:part.id,copyIndex:1,xMm:1,yMm:0,angleDeg:0}]};
@@ -49,20 +50,20 @@ describe('layout exports',()=>{
     expect(imported.issues??[]).toEqual([]);
     expect(imported.document.parts).toHaveLength(1);
     for(const part of imported.document.parts){
-      const box=bounds(part.outer);
+      const box=bounds(outline(part.shape).outer);
       expect(box[2]-box[0]).toBeCloseTo(1,6);
       expect(box[3]-box[1]).toBeCloseTo(1,6);
     }
   });
   it('rejects self-crossing contours and invalid holes',()=>{
     expect(()=>normalizeRing([[0,0],[2,2],[0,2],[2,0]])).toThrow();
-    const {doc}=fixture();expect(()=>normalizePart({...doc.parts[0],holes:[[[0,0],[.5,0],[.5,.5]]]})).toThrow();
+    const {doc}=fixture();expect(()=>normalizePart({...doc.parts[0],shape:polygonShape(outline(doc.parts[0].shape).outer,[[[0,0],[.5,0],[.5,.5]]])})).toThrow();
   });
 });
 it('JSON preserves rotation semantics, scales geometry and rejects empty orientations',()=>{
   const data={name:'input',strip_height:10,items:[{id:19,demand:2,shape:{type:'rectangle',data:{x_min:10,y_min:20,width:1,height:2}}}]};
   const part=importSparrow(JSON.stringify(data),'input.json',25.4).document.parts[0];
-  expect(part.rotations).toEqual({kind:'continuous'});expect(part.outer[2][0]).toBeCloseTo(25.4);expect(part.outer[2][1]).toBeCloseTo(50.8);
+  expect(part.rotations).toEqual({kind:'continuous'});expect(outline(part.shape).outer[2][0]).toBeCloseTo(25.4);expect(outline(part.shape).outer[2][1]).toBeCloseTo(50.8);
   Object.assign(data.items[0],{allowed_orientations:[]});expect(()=>importSparrow(JSON.stringify(data),'input.json',1)).toThrow('nonempty');
 });
 
@@ -111,7 +112,7 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   const options={scale:1,tolerance:.01,enclosed:'holes' as const};
   const review=importDXF(text,'wide.dxf',options);
   expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
-  expect(review.document.parts.map(part=>[bounds(part.outer),part.holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
+  expect(review.document.parts.map(part=>[bounds(outline(part.shape).outer),outline(part.shape).holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
   expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers!)}).document.parts).toHaveLength(2);
   // Choosing the sheet layer too makes the sheet enclose and cross the parts.
   expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')

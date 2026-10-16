@@ -1,10 +1,13 @@
+import type { Shape } from './geometry/contour';
+
 export type Point = [number, number];
 export type Ring = Point[];
 export type RotationRule = { kind: 'discrete'; degrees: number[] } | { kind: 'continuous' };
 export type Part = {
   id: string; name: string;
   source: { format: 'svg' | 'dxf' | 'sparrow'; fileName?: string; entityId?: string };
-  outer: Ring; holes: Ring[]; approximationToleranceMm: number; quantity: number;
+  /** In the job format: polygons, or curves where the part keeps them. */
+  shape: Shape; approximationToleranceMm: number; quantity: number;
   rotations: RotationRule;
 };
 export type Preset = 'standard' | 'fast';
@@ -26,7 +29,7 @@ export const defaultDXFLayers = (layers: string[]) => layers.filter((layer) => l
 export function newId(): string {
   return Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
 }
-export function newPart(outer: Ring, name = 'Part'): Part {
-  return { id: newId(), name, source: { format: 'svg' }, outer, holes: [],
+export function newPart(shape: Shape, name = 'Part'): Part {
+  return { id: newId(), name, source: { format: 'svg' }, shape,
     approximationToleranceMm: 0, quantity: 1, rotations: { kind: 'discrete', degrees: [0, 180] } };
 }

@@ -1,5 +1,6 @@
 import { bounds } from '../engine/geometry/normalize';
 import type { Part } from '../engine/model';
+import { outline } from '../engine/geometry/contour';
 
 export type Box = [minX: number, minY: number, maxX: number, maxY: number];
 /** Where each part type is drawn on the Parts canvas, as an offset added to its own coordinates. */
@@ -18,7 +19,7 @@ export function arrangeParts(parts: Part[]): Arrangement {
   const boxes = new Map<string, Box>();
   if (!parts.length) return { offsets, boxes, extent: [0, 0, 100, 100] };
   const sizes = parts.map((part) => {
-    const b = bounds(part.outer);
+    const b = bounds(outline(part.shape).outer);
     return { part, b, w: b[2] - b[0], h: b[3] - b[1] };
   });
   const dimensions = sizes.flatMap(({ w, h }) => [w, h]).sort((a, b) => a - b);

@@ -1,4 +1,6 @@
 import { normalizePart } from '../engine/geometry/normalize';
+import { polygonShape } from '../engine/geometry/contour';
+import type { Ring } from '../engine/model';
 import { TIME_LIMITS, PROJECT_FORMAT, PROJECT_VERSION, type ProjectDocument } from './model';
 
 /** A document that is not a sparrow studio project studio can read. */
@@ -18,7 +20,7 @@ const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(
 export function parseProject(stored: unknown): ProjectDocument {
   if (!isRecord(stored)) return fail('expected an object.');
   if (stored.format !== PROJECT_FORMAT) return fail('unknown format.');
-  const value = stored.version === 1 ? upgrade(stored) : stored;
+  const value = upgrade(stored);
   if (value.version !== PROJECT_VERSION)
     return fail(`version ${String(value.version)} is not supported.`);
   if (typeof value.name !== 'string' || !value.name.trim()) return fail('missing name.');
@@ -75,22 +77,35 @@ export function parseProject(stored: unknown): ProjectDocument {
 }
 
 /**
- * Version 1 had settings for the browser's solver alone, and solutions in studio's own format.
- * Its runs always stopped once the search stalled, without a time limit or within the one chosen.
- * Its solutions are dropped: running the job again gives one in the API's format.
+ * Older versions, upgraded one step at a time. Version 1 had settings for the browser's solver
+ * alone, and solutions in studio's own format: its runs stopped once the search stalled, without
+ * a time limit or within the one chosen, and its solutions are dropped. Version 2 stored a part's
+ * outline as `outer` and `holes` polygons, which become its shape.
  */
 function upgrade(project: Record<string, unknown>): Record<string, unknown> {
-  const settings = isRecord(project.settings) ? project.settings : {};
-  const limit = settings.timeLimitSeconds;
-  return {
-    ...project,
-    version: PROJECT_VERSION,
-    settings: {
-      timeLimitSeconds: TIME_LIMITS.includes(limit as number) ? limit : 600,
-      autoTermination: true,
-    },
-    solutions: [],
-  };
+  if (project.version === 1) {
+    const settings = isRecord(project.settings) ? project.settings : {};
+    const limit = settings.timeLimitSeconds;
+    return upgrade({
+      ...project,
+      version: 2,
+      settings: {
+        timeLimitSeconds: TIME_LIMITS.includes(limit as number) ? limit : 600,
+        autoTermination: true,
+      },
+      solutions: [],
+    });
+  }
+  if (project.version === 2 && Array.isArray(project.parts))
+    return {
+      ...project,
+      version: 3,
+      parts: project.parts.map((part: Record<string, unknown>) => {
+        const { outer, holes, ...rest } = part;
+        return { ...rest, shape: polygonShape(outer as Ring, (holes as Ring[]) ?? []) };
+      }),
+    };
+  return project;
 }
 
 export const serializeProject = (project: ProjectDocument) => JSON.stringify(project, null, 2);

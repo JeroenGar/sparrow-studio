@@ -1,6 +1,7 @@
 import {it,expect} from 'vitest';
 import {importDXF} from '../src/engine/import/dxf';
 import {area,bounds} from '../src/engine/geometry/normalize';
+import { outline } from '../src/engine/geometry/contour';
 
 const options={scale:1,tolerance:.01,enclosed:'holes' as const};
 export const dxf=(entities:string,units=4)=>`0\nSECTION\n2\nHEADER\n9\n$INSUNITS\n70\n${units}\n0\nENDSEC\n0\nSECTION\n2\nENTITIES\n${entities}0\nENDSEC\n0\nEOF\n`;
@@ -9,20 +10,20 @@ const line=(x:number,y:number,u:number,v:number)=>`0\nLINE\n10\n${x}\n20\n${y}\n
 it('flattens a bulged semicircle and assembles a LINE/ARC loop',()=>{
   const bulged=importDXF(dxf(poly([[0,0,1],[20,0]])),'bulge.dxf',options);
   expect(bulged.issues).toEqual([]);
-  expect(Math.abs(area(bulged.document.parts[0].outer))).toBeCloseTo(50*Math.PI,0);
+  expect(Math.abs(area(outline(bulged.document.parts[0].shape).outer))).toBeCloseTo(50*Math.PI,0);
   const arc='0\nARC\n10\n0\n20\n0\n40\n10\n50\n0\n51\n180\n';
   const joined=importDXF(dxf(arc+line(-10,0,10,0)),'arc.dxf',options);
   expect(joined.issues).toEqual([]);expect(joined.document.parts).toHaveLength(1);
-  expect(Math.abs(area(joined.document.parts[0].outer))).toBeCloseTo(50*Math.PI,0);
+  expect(Math.abs(area(outline(joined.document.parts[0].shape).outer))).toBeCloseTo(50*Math.PI,0);
 });
 it('honors units, layer selection, and nested holes',()=>{
   const outer=poly([[0,0],[4,0],[4,4],[0,4]]),hole=poly([[1,1],[2,1],[2,2],[1,2]],'holes');
   const text=dxf(outer+hole,1),review=importDXF(text,'inch.dxf',options);
-  expect(bounds(review.document.parts[0].outer)[2]).toBeCloseTo(101.6);
-  expect(review.document.parts[0].holes).toHaveLength(1);expect(review.layers).toEqual(['cut','holes']);
-  expect(importDXF(text,'inch.dxf',{...options,layers:['cut']}).document.parts[0].holes).toHaveLength(0);
+  expect(bounds(outline(review.document.parts[0].shape).outer)[2]).toBeCloseTo(101.6);
+  expect(outline(review.document.parts[0].shape).holes).toHaveLength(1);expect(review.layers).toEqual(['cut','holes']);
+  expect(importDXF(text,'inch.dxf',{...options,layers:['cut']}).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(0);
   const unitless=importDXF(dxf(outer,0),'unitless.dxf',{...options,scale:25.4});
-  expect(unitless.warnings.join(' ')).toContain('selected 25.4');expect(bounds(unitless.document.parts[0].outer)[2]).toBeCloseTo(101.6);
+  expect(unitless.warnings.join(' ')).toContain('selected 25.4');expect(bounds(outline(unitless.document.parts[0].shape).outer)[2]).toBeCloseTo(101.6);
 });
 it('joins only unambiguous endpoints and reports adjustments and blocked contours',()=>{
   const edges=line(0,0,10,0)+line(10.006,0,10,10)+line(10,10,0,10)+line(0,10,0,0);
@@ -55,27 +56,27 @@ it('expands nested blocks, base points, arrays and nonuniform transforms',()=>{
   const input=insert('nested','8\nCUT\n41\n2\n42\n3\n50\n90\n70\n2\n44\n40\n');
   const result=importDXF(withBlocks(input,blocks),'blocks.dxf',options);
   expect(result.issues).toEqual([]);expect(result.document.parts).toHaveLength(2);
-  for(const part of result.document.parts){const b=bounds(part.outer);expect(b[2]).toBeCloseTo(15);expect(b[3]).toBeCloseTo(20);}
+  for(const part of result.document.parts){const b=bounds(outline(part.shape).outer);expect(b[2]).toBeCloseTo(15);expect(b[3]).toBeCloseTo(20);}
   expect(result.layers).toContain('CUT');
 });
 it('preserves explicit block-child layers and rejects cyclic block expansion',()=>{
   const shapes=poly([[0,0],[10,0],[10,10],[0,10]],'0')+poly([[2,2],[4,2],[4,4],[2,4]],'holes');
   const text=withBlocks(insert('part','8\nCUT\n'),block('part',shapes));
-  expect(importDXF(text,'layers.dxf',options).document.parts[0].holes).toHaveLength(1);
-  expect(importDXF(text,'layers.dxf',{...options,layers:['CUT']}).document.parts[0].holes).toHaveLength(0);
+  expect(importDXF(text,'layers.dxf',options).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(1);
+  expect(importDXF(text,'layers.dxf',{...options,layers:['CUT']}).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(0);
   const cycle=importDXF(withBlocks(insert('cycle'),block('cycle',insert('cycle'))),'cycle.dxf',options);
   expect(cycle.document.parts).toHaveLength(0);expect(cycle.issues?.join(' ')).toContain('cyclic');
 });
 it('imports complete ellipses and closed rational quadratic splines',()=>{
   const ellipse='0\nELLIPSE\n10\n0\n20\n0\n11\n10\n21\n0\n40\n0.5\n41\n0\n42\n'+2*Math.PI+'\n';
   const e=importDXF(dxf(ellipse),'ellipse.dxf',options);expect(e.issues).toEqual([]);
-  expect(Math.abs(area(e.document.parts[0].outer))).toBeCloseTo(50*Math.PI,0);
+  expect(Math.abs(area(outline(e.document.parts[0].shape).outer))).toBeCloseTo(50*Math.PI,0);
   // Rational quadratic quarter circle closed by two lines, radius 10.
   const spline='0\nSPLINE\n70\n4\n71\n2\n72\n6\n73\n3\n'+[0,0,0,1,1,1].map(k=>`40\n${k}\n`).join('')+
     [1,Math.SQRT1_2,1].map(w=>`41\n${w}\n`).join('')+[[10,0],[10,10],[0,10]].map(([x,y])=>`10\n${x}\n20\n${y}\n`).join('');
   const curve=importDXF(dxf(spline+line(0,10,0,0)+line(0,0,10,0)),'spline.dxf',options);
-  expect(curve.issues).toEqual([]);expect(Math.abs(area(curve.document.parts[0].outer))).toBeCloseTo(25*Math.PI,0);
-  for(const [x,y] of curve.document.parts[0].outer)if(x>0&&y>0)expect(Math.hypot(x,y)).toBeCloseTo(10,6);
+  expect(curve.issues).toEqual([]);expect(Math.abs(area(outline(curve.document.parts[0].shape).outer))).toBeCloseTo(25*Math.PI,0);
+  for(const [x,y] of outline(curve.document.parts[0].shape).outer)if(x>0&&y>0)expect(Math.hypot(x,y)).toBeCloseTo(10,6);
 });
 
 it('bounds nested INSERT expansion before allocating large arrays',()=>{

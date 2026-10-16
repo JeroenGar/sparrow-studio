@@ -16,14 +16,17 @@ import {
 import { drawable, isStale, projectInput, projectRequest } from '../src/project/solution';
 import { historyReducer, initialHistory } from '../src/ui/history';
 import { parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
+import { outline, polygonShape } from '../src/engine/geometry/contour';
 
 const square = (size: number, quantity = 1): Part => ({
-  ...newPart([
-    [0, 0],
-    [size, 0],
-    [size, size],
-    [0, size],
-  ]),
+  ...newPart(
+    polygonShape([
+      [0, 0],
+      [size, 0],
+      [size, size],
+      [0, size],
+    ]),
+  ),
   quantity,
 });
 
@@ -36,7 +39,18 @@ describe('project document', () => {
   it('rejects other formats and versions', () => {
     const project = newProject('Shop job');
     expect(() => parseProject({ ...project, format: 'other' })).toThrow('unknown format');
-    expect(() => parseProject({ ...project, version: 3 })).toThrow('version 3');
+    expect(() => parseProject({ ...project, version: 4 })).toThrow('version 4');
+  });
+
+  it('upgrades version 2, whose parts store polygons as outer and holes', () => {
+    const project = addParts(newProject('Shop job'), [square(10)]);
+    const { shape, ...part } = project.parts[0];
+    const old = {
+      ...project,
+      version: 2,
+      parts: [{ ...part, outer: outline(shape).outer, holes: [] }],
+    };
+    expect(parseProject(old)).toEqual(project);
   });
 
   it('upgrades version 1, keeping its time limit and dropping its solutions', () => {

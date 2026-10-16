@@ -1,8 +1,7 @@
 import parseString from 'dxf/lib/parseString';
-import bSpline from 'dxf/lib/util/bSpline';
 import {pointSegmentDistance} from '../geometry/world';
 import {DEFAULT_SETTINGS,SHEET_LAYER,type Point,type Ring} from '../model';
-import {apply,multiply,append,ellipse,type Matrix} from '../geometry/flatten';
+import {apply,multiply,append,bulge,ellipse,nurbs,type Matrix} from '../geometry/flatten';
 import {bounds,normalizeJob,normalizeRing,ringCrosses} from '../geometry/normalize';
 import {contoursToParts} from './svg';
 import type {ImportReview} from './sparrow';
@@ -78,54 +77,6 @@ function guard(r:DxfRecord) {
     const count=finite(value(r,90));
     if(!Number.isInteger(count)||count<2||count>5000||count!==r.groups.filter(g=>g[0]===10).length)throw Error('Invalid LWPOLYLINE vertex count.');
   }
-}
-function bulge(from:Point,to:Point,b:number,tolerance:number,output:Ring) {
-  if(!Number.isFinite(b))throw Error('Non-finite polyline bulge.');
-  const dx=to[0]-from[0],dy=to[1]-from[1],chord=Math.hypot(dx,dy);
-  if(b===0||chord*Math.abs(b)/2<=tolerance) {append(output,to);return;}
-  if(chord===0)throw Error('A bulged edge has coincident endpoints.');
-  const k=(1-b*b)/(4*b),center:Point=[(from[0]+to[0])/2-dy*k,(from[1]+to[1])/2+dx*k],radius=chord*(1+b*b)/(4*Math.abs(b));
-  ellipse(center,[radius,0],[0,radius],Math.atan2(from[1]-center[1],from[0]-center[0]),4*Math.atan(b),tolerance,output);
-  output[output.length-1]=to;
-}
-function spline(entity:DxfEntity,tolerance:number):Ring {
-  const points=entity.controlPoints??[],knots=entity.knots??[],degree=entity.degree??0;
-  if(!Number.isInteger(degree)||degree<1||degree>3||points.length<=degree||points.length>5000)throw Error('SPLINE needs degree 1–3 and a valid control-point count.');
-  const weights=entity.weights??points.map(()=>1);
-  if(weights.length!==points.length||weights.some(w=>!Number.isFinite(w)||w<=0))throw Error('SPLINE weights must be finite and positive.');
-  if(knots.length!==points.length+degree+1||knots.some((v,i)=>!Number.isFinite(v)||i>0&&v<knots[i-1]))throw Error('Invalid SPLINE knot vector.');
-  if(points.some(p=>![p.x,p.y,p.z??0].every(Number.isFinite)||(p.z??0)!==0))throw Error('Invalid or nonplanar SPLINE control points.');
-  const low=knots[degree],high=knots[points.length];if(!(high>low))throw Error('Empty SPLINE parameter domain.');
-  const spans=[...new Set(knots.slice(degree,points.length+1))];
-  if(spans.slice(1,-1).some(k=>knots.filter(v=>v===k).length>degree))throw Error('Discontinuous SPLINE cannot form one contour.');
-  // Evaluate each polynomial knot span in homogeneous coordinates using dxf.
-  // Degrees 1–3 can all be represented exactly as cubic rational Beziers.
-  const homogeneous=points.map((p,i)=>[p.x*weights[i],p.y*weights[i],weights[i]]);
-  const project=(p:number[]):Point=>[p[0]/p[2],p[1]/p[2]];
-  const output:Ring=[];
-  const flatten=(control:number[][],budget:number,depth=0)=>{
-    if(depth>32)throw Error('SPLINE subdivision exceeded its depth limit.');
-    const projected=control.map(project);
-    if(projected.slice(1,-1).every(p=>pointSegmentDistance(p,projected[0],projected[3])<=budget)) {append(output,projected[3]);return;}
-    const left=[control[0]],right=[control[3]];let row=control;
-    while(row.length>1){row=row.slice(1).map((p,i)=>p.map((v,j)=>(v+row[i][j])/2));left.push(row[0]);right.unshift(row[row.length-1]);}
-    flatten(left,budget,depth+1);flatten(right,budget,depth+1);
-  };
-  for(let i=1;i<spans.length;i++) {
-    const samples=[0,1/3,2/3,1].map(t=>bSpline(Math.max(0,Math.min(1,(spans[i-1]+t*(spans[i]-spans[i-1])-low)/(high-low))),degree,homogeneous,knots));
-    const [p0,a,b,p3]=samples;
-    const p1=p0.map((v,j)=>(2*(27*a[j]-8*v-p3[j])-(27*b[j]-v-8*p3[j]))/18);
-    const p2=p0.map((v,j)=>(2*(27*b[j]-v-8*p3[j])-(27*a[j]-8*v-p3[j]))/18);
-    const control=[p0,p1,p2,p3];
-    if(control.some(p=>p.some(v=>!Number.isFinite(v))||p[2]<=0))throw Error('Invalid SPLINE span.');
-    // dxf rounds evaluations to nine decimal places; reserve an error budget
-    // before applying the rational Bezier convex-hull subdivision bound.
-    const precision=1e-7*(1+Math.max(...control.flatMap(p=>project(p).map(Math.abs))))/Math.min(...control.map(p=>p[2]));
-    if(precision>=tolerance)throw Error('Requested tolerance is below SPLINE evaluation precision.');
-    if(!output.length)append(output,project(p0));
-    flatten(control,tolerance-precision);
-  }
-  return output;
 }
 function join(chains:Chain[],issues:string[]):{contours:Contour[];gaps:number;adjustment:number} {
   const endpoints=chains.flatMap((c,i)=>[{p:c.points[0],edge:i,end:0},{p:c.points[c.points.length-1],edge:i,end:1}]);
@@ -213,7 +164,7 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
       };
       let ring:Ring,closed=false,curved=false;
       if(entity.type==='LINE')ring=[point(entity.start),point(entity.end)];
-      else if(entity.type==='SPLINE'){ring=spline(entity,tolerance);curved=true;}
+      else if(entity.type==='SPLINE'){ring=nurbs({points:(entity.controlPoints??[]).map(point),knots:entity.knots??[],degree:entity.degree??0,weights:entity.weights},tolerance);curved=true;}
       else if(['ARC','CIRCLE','ELLIPSE'].includes(entity.type)) {
         const center=point({x:entity.x!,y:entity.y!});let u:Point,v:Point;
         if(entity.type==='ELLIPSE') {
@@ -254,7 +205,7 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
   for(let i=0;i<valid.length;i++)for(let j=0;j<i;j++)if(ringCrosses(valid[i].ring,valid[j].ring)){rejected.add(i);rejected.add(j);issues.push(`${valid[i].entityId} and ${valid[j].entityId}: intersecting or duplicate loops.`);}
   const parts=contoursToParts(valid.filter((_,i)=>!rejected.has(i)),fileName,'dxf',options.tolerance+joined.adjustment,options.enclosed);
   for(const [type,count] of unsupported)warnings.push(`Excluded ${count} unsupported ${type} entities.`);
-  if(parts.some(p=>p.holes.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
+  if(parts.some(p=>p.shape.holes?.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
   const document={name:fileName.replace(/\.dxf$/i,''),parts,settings:{...DEFAULT_SETTINGS}};
   return {document:parts.length?normalizeJob(document):document,warnings,issues,layers};
 }

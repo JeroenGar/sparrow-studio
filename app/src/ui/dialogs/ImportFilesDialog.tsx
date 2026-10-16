@@ -9,6 +9,7 @@ import { ringsPath } from '../Canvas';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength, inputLength, parseLength } from '../format';
+import { outline } from '../../engine/geometry/contour';
 
 type Options = { scale: number; tolerance: number; enclosed: 'holes' | 'parts'; layers?: string[] };
 
@@ -237,11 +238,12 @@ export function ImportFilesDialog({
           <p>
             {parts.length} part {parts.length === 1 ? 'type' : 'types'} ·{' '}
             {parts.reduce((sum, part) => sum + part.quantity, 0)} copies ·{' '}
-            {parts.reduce((sum, part) => sum + part.holes.length, 0)} holes
+            {parts.reduce((sum, part) => sum + (part.shape.holes?.length ?? 0), 0)} holes
           </p>
           <div className="import-preview">
             {parts.map((part, index) => {
-              const b = bounds(part.outer);
+              const { outer, holes } = outline(part.shape);
+              const b = bounds(outer);
               const size = Math.max(b[2] - b[0], b[3] - b[1]);
               return (
                 <div key={part.id} className="import-part">
@@ -250,7 +252,7 @@ export function ImportFilesDialog({
                     aria-hidden="true"
                   >
                     <path
-                      d={ringsPath([part.outer, ...part.holes])}
+                      d={ringsPath([outer, ...holes])}
                       fillRule="evenodd"
                       fill={colors[index % colors.length]}
                       stroke="var(--ink)"

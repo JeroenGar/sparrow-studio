@@ -3,7 +3,7 @@ import { LIMITS, newId, type Part, type RotationRule } from '../engine/model';
 
 /** Identifies a sparrow studio project document, in browser storage and in files. */
 export const PROJECT_FORMAT = 'sparrow-studio-project';
-export const PROJECT_VERSION = 2;
+export const PROJECT_VERSION = 3;
 
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };

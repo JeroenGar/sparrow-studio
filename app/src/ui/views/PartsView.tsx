@@ -28,6 +28,7 @@ import {
   type RotationKind,
 } from '../rotations';
 import { RunBar } from '../RunBar';
+import { outline } from '../../engine/geometry/contour';
 
 type Menu = { partId: string; x: number; y: number };
 
@@ -218,7 +219,7 @@ function EmptyParts() {
 }
 
 export function PartThumb({ part, index }: { part: Part; index: number }) {
-  const b = bounds(part.outer);
+  const b = bounds(outline(part.shape).outer);
   const size = Math.max(b[2] - b[0], b[3] - b[1]);
   const pad = size * 0.08;
   return (
@@ -228,7 +229,7 @@ export function PartThumb({ part, index }: { part: Part; index: number }) {
       aria-hidden="true"
     >
       <path
-        d={ringsPath([part.outer, ...part.holes])}
+        d={ringsPath([outline(part.shape).outer, ...outline(part.shape).holes])}
         fillRule="evenodd"
         fill={colors[index % colors.length]}
         stroke="var(--ink)"
@@ -252,7 +253,7 @@ function PartRow({
   onSelect: () => void;
 }) {
   const { unit } = useStudio();
-  const b = bounds(part.outer);
+  const b = bounds(outline(part.shape).outer);
   return (
     <button
       className={selected ? 'row selected' : 'row'}
@@ -291,7 +292,7 @@ function PartProperties({
   onRemove: () => void;
 }) {
   const { unit } = useStudio();
-  const b = bounds(part.outer);
+  const b = bounds(outline(part.shape).outer);
   return (
     <div className="properties">
       <label className="field">
@@ -350,7 +351,7 @@ function PartProperties({
         <dt>Area</dt>
         <dd>{formatArea(netArea(part), unit)}</dd>
         <dt>Holes</dt>
-        <dd>{part.holes.length || 'none'}</dd>
+        <dd>{part.shape.holes?.length || 'none'}</dd>
         <dt>Source</dt>
         <dd>{part.source.fileName ?? part.source.format.toUpperCase()}</dd>
       </dl>
@@ -538,7 +539,8 @@ function PartsDrawing({
         const [dx, dy] = arrangement.offsets.get(part.id)!;
         const box = arrangement.boxes.get(part.id)!;
         const isSelected = part.id === selected;
-        const d = ringsPath([part.outer, ...part.holes], dx, dy);
+        const { outer, holes } = outline(part.shape);
+        const d = ringsPath([outer, ...holes], dx, dy);
         const size = Math.min(box[2] - box[0], box[3] - box[1]);
         // Only parts with their own rotations show a grain line, once large enough on screen:
         // it fades in from 30 px and is fully drawn at 60 px.

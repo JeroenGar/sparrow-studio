@@ -1,5 +1,6 @@
 import type { Job, Part, Placement, Point, Result, Ring } from '../model';
 import { area } from './normalize';
+import { outline, type Outline } from './contour';
 
 /** One placed copy of a part, in strip coordinates. */
 export type WorldPart = { partId: string; copyIndex: number; outer: Ring; holes: Ring[] };
@@ -12,7 +13,8 @@ export function worldParts(doc: Job, result: Pick<Result,'placements'>): WorldPa
   return result.placements.map(p => {
     const part = parts.get(p.partId);
     if (!part) throw Error(`Unknown part ${p.partId}.`);
-    return { partId: p.partId, copyIndex: p.copyIndex, outer: transform(part.outer,p), holes: part.holes.map(h=>transform(h,p)) };
+    const { outer, holes } = outline(part.shape);
+    return { partId: p.partId, copyIndex: p.copyIndex, outer: transform(outer,p), holes: holes.map(h=>transform(h,p)) };
   });
 }
 export function pointSegmentDistance(p: Point, a: Point, b: Point): number {
@@ -20,4 +22,8 @@ export function pointSegmentDistance(p: Point, a: Point, b: Point): number {
   const t=d === 0 ? 0 : Math.max(0,Math.min(1,((p[0]-a[0])*dx+(p[1]-a[1])*dy)/d));
   return Math.hypot(p[0]-a[0]-t*dx,p[1]-a[1]-t*dy);
 }
-export const netArea = (part: Pick<Part,'outer'|'holes'>) => Math.abs(area(part.outer))-part.holes.reduce((n,h)=>n+Math.abs(area(h)),0);
+/** The material area of a part, holes left out. */
+export const netArea = (part: Pick<Part,'shape'>) => {
+  const { outer, holes }: Outline = outline(part.shape);
+  return Math.abs(area(outer))-holes.reduce((n,h)=>n+Math.abs(area(h)),0);
+};
