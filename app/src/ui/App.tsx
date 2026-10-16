@@ -11,6 +11,7 @@ import { readPreferences, writePreferences, type Preferences } from '../project/
 import {
   createProject,
   isConflict,
+  isProjectLimit,
   isUnreadable,
   listProjects,
   openProject,
@@ -224,6 +225,13 @@ function StudioShell({
     });
     return pending.current;
   }, [stored.id]);
+  /** Shows why a project could not be opened or made; a full account opens its projects to make room. */
+  const failed = (reason: unknown) => {
+    if (isProjectLimit(reason)) {
+      setError('You have as many projects as your plan allows. Delete one to make room.');
+      setDialog({ type: 'projects' });
+    } else setError(reason instanceof Error ? reason.message : String(reason));
+  };
   /** Goes to another project once this one is saved; a project that does not save stays open. */
   const leave = async (go: () => Promise<void>) => {
     if (!(await flush())) throw Error('This project is not saved, so it stays open.');
@@ -362,7 +370,7 @@ function StudioShell({
               else if (action === 'open-file') fileInput.current?.click();
               else if (action === 'duplicate')
                 void leave(() => create({ ...project, name: `${project.name} copy` })).catch(
-                  (reason: Error) => setError(reason.message),
+                  failed,
                 );
               else setDialog({ type: action });
             }}
@@ -398,7 +406,7 @@ function StudioShell({
                 const document = parseProject(JSON.parse(await file.text()));
                 await leave(() => create(document));
               } catch (reason) {
-                setError(reason instanceof Error ? reason.message : String(reason));
+                failed(reason);
               }
             }}
           />
@@ -445,9 +453,7 @@ function StudioShell({
           confirm="Create project"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) =>
-            void leave(() => create(newProject(name, preferences.defaultMachine))).catch(
-              (reason: Error) => setError(reason.message),
-            )
+            void leave(() => create(newProject(name, preferences.defaultMachine))).catch(failed)
           }
         />
       )}
@@ -478,8 +484,8 @@ function StudioShell({
           onClose={() => setDialog(undefined)}
           onChoose={(file) =>
             void loadExample(file, preferences.defaultMachine)
-              .then(create)
-              .catch((reason: Error) => setError(reason.message))
+              .then((example) => leave(() => create(example)))
+              .catch(failed)
           }
         />
       )}
@@ -574,7 +580,7 @@ function ProjectMenu({
       </summary>
       <div className="menu-list">
         {item('new', 'New project…')}
-        {item('projects', 'Open project…')}
+        {item('projects', 'Projects…')}
         {item('examples', 'Open example…')}
         <hr />
         {item('rename', 'Rename…')}

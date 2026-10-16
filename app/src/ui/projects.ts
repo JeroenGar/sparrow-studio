@@ -56,3 +56,8 @@ export const isUnreadable = (reason: unknown) =>
 /** Whether a save failed because the project changed since, such as in another tab. */
 export const isConflict = (reason: unknown) =>
   reason instanceof ApiError && !!withCode(reason.error, 'version_conflict');
+
+/** Whether a new project was refused because the account holds as many as its plan allows. */
+export const isProjectLimit = (reason: unknown) =>
+  reason instanceof ApiError &&
+  withCode(reason.error, 'limit_exceeded')?.limit.name === 'max_projects';
