@@ -78,7 +78,17 @@ self.onmessage = ({ data }: MessageEvent<RuntimeStart | { type: 'stop' }>) => {
         self.postMessage({ ...message, fallbackReason });
         return;
       }
+      // A failure before the solver is ready may be the threads'; one thread may still work.
+      if (message.type === 'failed' && !ready) {
+        fail((message as { message?: string }).message ?? 'The solver could not start.');
+        return;
+      }
       self.postMessage(message);
+      // A job's last message ends its workers.
+      if (message.type === 'finished' || message.type === 'failed') {
+        dispose();
+        self.close();
+      }
     };
     runtime.onerror = (event) => {
       event.preventDefault();

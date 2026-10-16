@@ -59,7 +59,7 @@ describe('project document', () => {
   it('builds the job request from the strip, the active machine and the settings', () => {
     const machine = newMachine('Laser', 0.5);
     const project = addParts(newProject('Job', machine), [square(10, 2), square(20, 0)]);
-    const { input, settings } = projectRequest(project, 7);
+    const { input, settings } = projectRequest(project);
     expect(input.problem).toEqual({ type: 'minimize_strip_length', height: 1000 });
     expect(input.minimum_separation_distance).toEqual({ parts: 0.5, boundary: 0.5 });
     // A part without copies is left out; the format counts copies from one.
@@ -73,7 +73,7 @@ describe('project document', () => {
       },
     ]);
     expect(input.geometries.map((geometry) => geometry.id)).toEqual([project.parts[0].id]);
-    expect(settings).toEqual({ time_limit_seconds: 120, auto_termination: true, seed: 7 });
+    expect(settings).toEqual({ time_limit_seconds: 120, auto_termination: true, seed: 0 });
     expect(project.machines[0].id).not.toBe(machine.id);
   });
 

@@ -147,6 +147,9 @@ function limitExceeded(name: Schemas['LimitName'], value: number) {
 type LocalJob = {
   job: Job;
   document: JobDocument;
+  /** Ends the engine's work at once. */
+  dispose?: () => void;
+  /** Ends a running job with the best layout so far. */
   stop?: () => void;
   best?: {
     sequence: number;
@@ -206,6 +209,7 @@ export function createLocalBackend(engine: Engine): Fetch {
     local.document = { ...local.document, state, ...(outcome && { outcome }) };
     if (FINAL.includes(state.status)) {
       local.stop = undefined;
+      local.dispose = undefined;
       local.job = { ...local.job, finished_at: now() };
     }
     publish(local, 'status', local.job);
@@ -347,6 +351,7 @@ export function createLocalBackend(engine: Engine): Fetch {
           });
       }
     });
+    local.dispose = () => running?.stop();
     local.stop = () => {
       running?.stop();
       complete(local, 'stopped', elapsed());
@@ -478,8 +483,10 @@ export function createLocalBackend(engine: Engine): Fetch {
       if (request.method === 'GET' && parts[2] === 'events')
         return stream(local, url.searchParams.get('search') === 'true', request.signal);
       if (request.method === 'POST' && parts[2] === 'stop') {
-        if (local.job.state.status === 'queued') enter(local, { status: 'cancelled' });
-        else local.stop?.();
+        if (local.job.state.status === 'queued') {
+          local.dispose?.();
+          enter(local, { status: 'cancelled' });
+        } else local.stop?.();
         return respond(202, local.job);
       }
     }

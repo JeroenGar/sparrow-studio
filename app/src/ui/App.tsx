@@ -229,7 +229,7 @@ function StudioShell({
   function startRun() {
     if (running || startBlockers(project).length) return;
     setError('');
-    void job.start(projectRequest(project, Math.floor(Math.random() * 2 ** 53)));
+    void job.start(projectRequest(project));
     setTab('live');
   }
 

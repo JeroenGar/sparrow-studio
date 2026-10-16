@@ -40,14 +40,17 @@ export function projectInput(project: ProjectDocument): Input {
   };
 }
 
-/** The job request for a project. A run's seed is chosen once, so a retry submits the same job. */
-export function projectRequest(project: ProjectDocument, seed: number): JobRequest {
+/** Studio always sends the same seed, as the API's contract asks of it. */
+export const SEED = 0;
+
+/** The job request for a project. */
+export function projectRequest(project: ProjectDocument): JobRequest {
   return {
     input: projectInput(project),
     settings: {
       time_limit_seconds: project.settings.timeLimitSeconds,
       auto_termination: project.settings.autoTermination,
-      seed,
+      seed: SEED,
     },
   };
 }

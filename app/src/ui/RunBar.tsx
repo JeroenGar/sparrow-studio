@@ -6,7 +6,7 @@ import { client } from './client';
 import { useStudio } from './context';
 import { formatLength, formatSeconds } from './format';
 import { ProTag } from './ProTag';
-import { describeError } from './useJob';
+import { describeError, elapsed, useNow } from './useJob';
 
 /** Why the backend refuses the project's job: an error to fix, or a feature it does not have. */
 type Refusal = { message: string; unavailable: boolean };
@@ -14,7 +14,7 @@ type Refusal = { message: string; unavailable: boolean };
 /** Asks the backend whether it would accept the project's job, shortly after each change. */
 function useRefusal() {
   const { project } = useStudio();
-  const request = useMemo(() => projectRequest(project, 0), [project]);
+  const request = useMemo(() => projectRequest(project), [project]);
   const key = JSON.stringify(request);
   const [checked, setChecked] = useState<{ key: string; refusal?: Refusal }>();
   useEffect(() => {
@@ -47,24 +47,16 @@ function useRefusal() {
 export function RunBar() {
   const { project, unit, running, startRun, stopRun, run } = useStudio();
   const { checking, refusal } = useRefusal();
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setNow(Date.now()), 500);
-    return () => clearInterval(timer);
-  }, [running]);
+  const now = useNow(running);
 
   if (running) {
-    const started = run?.job?.started_at;
     return (
       <div className="run-bar">
         <button className="primary" onClick={stopRun}>
           Stop
         </button>
         <span className="muted">
-          {started
-            ? `Running · ${formatSeconds(Math.max(0, (now - Date.parse(started)) / 1000))}`
-            : 'Starting the solver…'}
+          {run?.clock ? `Running · ${formatSeconds(elapsed(run, now))}` : 'Starting the solver…'}
         </span>
       </div>
     );

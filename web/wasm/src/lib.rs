@@ -253,8 +253,8 @@ impl SolutionListener for JobListener {
     fn report(&mut self, report: ReportType, solution: &SPSolution, instance: &SPInstance) {
         let feasible = matches!(report, ReportType::ExplFeas | ReportType::CmprFeas | ReportType::Final);
         let now = Instant::now();
-        // The search moves many times a second; a few layouts a second show it at work.
-        if !feasible && self.last_search.is_some_and(|last| now.duration_since(last) < Duration::from_millis(250)) {
+        // The search moves many times a second; 20 layouts a second show it moving smoothly.
+        if !feasible && self.last_search.is_some_and(|last| now.duration_since(last) < Duration::from_millis(50)) {
             return;
         }
         let external = export(instance, solution, self.started_at);

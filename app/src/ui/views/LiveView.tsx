@@ -10,66 +10,85 @@ import { useStudio } from '../context';
 import { formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
-import type { Run } from '../useJob';
+import { elapsed, useNow, type Run } from '../useJob';
 import { LayoutDrawing } from './LayoutDrawing';
 
 /**
- * The overlaps of the layout the search is working on, worked out off the main thread. One frame
- * is in progress at a time; layouts that arrive meanwhile are skipped for the newest.
+ * The overlaps of the layout the search is working on, worked out off the main thread for one
+ * run's input. One frame is in progress at a time; layouts that arrive meanwhile are skipped for
+ * the newest, and each frame is shown at the next animation frame.
  */
 function useSearchFrame(
   input: Input | undefined,
   search: Schemas['Search'] | undefined,
   names: Map<string, string>,
 ) {
-  const [frame, setFrame] = useState<LiveGeometry & { sequence: number }>();
-  const worker = useRef<Worker | undefined>(undefined);
-  const busy = useRef(false);
+  const [frame, setFrame] = useState<LiveGeometry>();
   const latest = useRef(search);
   latest.current = search;
-  useEffect(() => () => worker.current?.terminate(), []);
+  const next = useRef<() => void>(undefined);
+  const busy = useRef(false);
   useEffect(() => {
-    if (!input || !search || busy.current) return;
-    const next = () => {
+    setFrame(undefined);
+    busy.current = false;
+    if (!input) return;
+    const worker = new Worker(new URL('../../engine/workers/geometry.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    let shown = -1;
+    next.current = () => {
       const search = latest.current;
-      if (!search) return;
-      busy.current = true;
+      busy.current = !!search && search.sequence !== shown;
+      if (!busy.current || !search) return;
       const { job, result } = drawable(input, search.solution, names);
-      worker.current ??= new Worker(
-        new URL('../../engine/workers/geometry.worker.ts', import.meta.url),
-        { type: 'module' },
-      );
-      worker.current.onmessage = ({ data }: MessageEvent<GeometryReply>) => {
-        busy.current = false;
-        if (data.type === 'live-frame') setFrame({ ...data.geometry, sequence: data.sequence });
-        if (latest.current && latest.current.sequence !== data.runId) next();
-      };
-      worker.current.postMessage({
+      worker.postMessage({
         type: 'live-preview',
-        runId: search.sequence,
+        runId: 0,
         documentRevision: 0,
         sequence: search.sequence,
         document: job,
         result,
       });
     };
-    next();
-  }, [input, search, names]);
-  return search ? frame : undefined;
+    worker.onmessage = ({ data }: MessageEvent<GeometryReply>) => {
+      if (data.type === 'live-frame') {
+        shown = data.sequence;
+        requestAnimationFrame(() => setFrame(data.geometry));
+      }
+      next.current?.();
+    };
+    return () => {
+      next.current = undefined;
+      worker.terminate();
+    };
+  }, [input, names]);
+  useEffect(() => {
+    if (!busy.current) next.current?.();
+  }, [search]);
+  return frame;
 }
 
-/** Seconds since the job started, ticking while it runs. */
-function useElapsed(run: Run | undefined, running: boolean) {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!running) return;
-    const timer = setInterval(() => setNow(Date.now()), 250);
-    return () => clearInterval(timer);
-  }, [running]);
-  const job = run?.job;
-  if (!job?.started_at) return 0;
-  const end = job.finished_at ? Date.parse(job.finished_at) : now;
-  return Math.max(0, (end - Date.parse(job.started_at)) / 1000);
+/** The run's time, and how much of its time limit it used, read every animation frame. */
+function RunClock({ run, running }: { run: Run; running: boolean }) {
+  const seconds = elapsed(run, useNow(running));
+  const limit = run.request.settings.time_limit_seconds;
+  return (
+    <div className="stack">
+      <span className="muted">
+        {formatSeconds(seconds)} of up to {formatSeconds(limit)}
+        {run.request.settings.auto_termination ? ' · stops early once it stops improving' : ''}
+      </span>
+      <div className="progress" aria-hidden="true">
+        <span style={{ width: `${Math.min(100, (seconds / limit) * 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** The improvement chart, running on with the clock between improvements. */
+function LiveChart({ run, running }: { run: Run; running: boolean }) {
+  const seconds = elapsed(run, useNow(running));
+  return <ImprovementChart history={run.history} elapsed={seconds} />;
 }
 
 function status(run: Run) {
@@ -105,7 +124,6 @@ export function LiveView() {
   const frame = useSearchFrame(running ? input : undefined, run?.search, names);
   const showLive = mode === 'live' && !!frame && running;
   const bestWorld = useMemo(() => (best ? worldParts(best.job, best.result) : []), [best]);
-  const elapsed = useElapsed(run, running);
   const strip =
     input?.problem.type === 'minimize_strip_length'
       ? input.problem.height
@@ -119,7 +137,6 @@ export function LiveView() {
   if (longest.current.run?.request !== run?.request) longest.current = { run, length: 0 };
   longest.current.length = Math.max(longest.current.length, shownLength);
 
-  const limit = run?.request.settings.time_limit_seconds;
   const state = run?.job?.state;
   const failure = run?.error ?? (state?.status === 'failed' ? state.error.message : undefined);
   const reduced = run?.job?.diagnostics?.find(
@@ -154,23 +171,8 @@ export function LiveView() {
                 </div>
               </div>
               <span className="muted">Of the best valid layout so far.</span>
-              <div className="stack">
-                <span className="muted">
-                  {formatSeconds(elapsed)}
-                  {limit ? ` of up to ${formatSeconds(limit)}` : ''}
-                  {run.request.settings.auto_termination
-                    ? ' · stops early once it stops improving'
-                    : ''}
-                </span>
-                {limit && (
-                  <div className="progress" aria-hidden="true">
-                    <span style={{ width: `${Math.min(100, (elapsed / limit) * 100)}%` }} />
-                  </div>
-                )}
-              </div>
-              {run.history.length > 1 && (
-                <ImprovementChart history={run.history} elapsed={elapsed} />
-              )}
+              <RunClock run={run} running={running} />
+              {run.history.length > 1 && <LiveChart run={run} running={running} />}
               {failure && <p className="field-error">{failure}</p>}
               {!running && best && project.solutions.length > 0 && (
                 <button className="primary" onClick={() => setTab('solution')}>

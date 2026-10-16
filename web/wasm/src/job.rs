@@ -89,7 +89,8 @@ pub struct Instance {
 /// Sparrow nests polygons, so curves become polygons whose points lie on the curve, at most
 /// `tolerance` apart from it. To keep the curves themselves apart, the separation grows by twice
 /// the tolerance whenever a part has curves, and the distance to the strip's edges by the
-/// tolerance. Parts are solid, so their holes play no part.
+/// tolerance. Open-source sparrow has no holes: every part is solid, its holes are left out, and
+/// its area is that of its outer contour.
 pub fn instance(input: &Input) -> Instance {
     let Problem::MinimizeStripLength(strip) = &input.problem else { unreachable!("checked input") };
     let geometry = |id: &str| &input.geometries.iter().find(|g| g.id == id).expect("checked input").shape;
@@ -120,11 +121,9 @@ pub fn instance(input: &Input) -> Instance {
             demand: part.quantity as u64,
         }
     }).collect();
-    let placed_area = input.parts.iter().map(|part| {
-        let shape = geometry(&part.geometry_id);
-        let holes: f64 = shape.holes.iter().map(|hole| area(&flatten(hole, tolerance))).sum();
-        part.quantity as f64 * (area(&flatten(&shape.outer, tolerance)) - holes)
-    }).sum();
+    let placed_area = input.parts.iter()
+        .map(|part| part.quantity as f64 * area(&flatten(&geometry(&part.geometry_id).outer, tolerance)))
+        .sum();
     Instance {
         instance: ExtSPInstance { name: "job".into(), items, strip_height: (strip.height - 2.0 * margin) as f32 },
         separation: separation as f32,
