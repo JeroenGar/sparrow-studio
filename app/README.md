@@ -26,10 +26,13 @@ npm run build
 
 GitHub Actions runs the same checks on every pull request.
 
+The API tests in `tests/api.integration.test.ts` also run against a real Sparrow Pro API when `SPARROW_API_URL` (including `/v1`) and `SPARROW_API_KEY` are set, and are skipped otherwise. Each run submits one job, which costs at least 60 credits.
+
 `src/engine` keeps the compact style of the code it came from; the rest is formatted with Prettier (`npm run format`).
 
 ## Layout
 
+- `src/api`: the client for the Sparrow Pro API. Its types are generated from `../vendor/openapi.json` into `src/api/schema.d.ts` by `npm run api:types`, which runs before `dev`, `typecheck` and `test`; the generated file is not committed.
 - `src/engine`: solver workers, geometry checks, import and export.
 - `src/project`: the project format, the browser project store, preferences and examples.
 - `src/ui`: the shell, the six views, dialogs and shared components.

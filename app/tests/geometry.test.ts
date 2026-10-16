@@ -117,7 +117,7 @@ function record(text:string,type:string,name:string){
   const starts=pairs.flatMap(([code,value],i)=>code==='0'&&value===type?[i]:[]);
   for(const start of starts){
     const end=pairs.findIndex(([code],i)=>i>start&&code==='0'),body=pairs.slice(start+1,end);
-    if(body.some(([code,value])=>code==='2'&&value===name))return new Map(body.reverse());
+    if(body.some(([code,value])=>code==='2'&&value===name))return new Map(body.reverse().map(([code,value])=>[code,value]));
   }
   throw Error(`No ${type} ${name}`);
 }
@@ -144,7 +144,7 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   const review=importDXF(text,'wide.dxf',options);
   expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
   expect(review.document.parts.map(part=>[bounds(part.outer),part.holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
-  expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers)}).document.parts).toHaveLength(2);
+  expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers!)}).document.parts).toHaveLength(2);
   // Choosing the sheet layer too makes the sheet enclose and cross the parts.
   expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
 });
