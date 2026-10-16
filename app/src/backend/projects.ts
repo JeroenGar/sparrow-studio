@@ -106,16 +106,17 @@ async function transaction<T>(
 
 /**
  * Records stored before the local backend kept the API's fields, as `{ id, updatedAt, version,
- * document }`, take their name from the document.
+ * document }` and sometimes a `name`, take what they lack from what they have.
  */
-function read(raw: Record<string, unknown> | undefined): ProjectRecord | undefined {
+export function read(raw: Record<string, unknown> | undefined): ProjectRecord | undefined {
   if (!raw) return undefined;
-  if (typeof raw.name === 'string') return raw as ProjectRecord;
+  if (typeof raw.updated_at === 'string') return raw as ProjectRecord;
   const document = raw.document as { name?: unknown } | undefined;
   const updated = String(raw.updatedAt ?? new Date(0).toISOString());
+  const name = typeof raw.name === 'string' ? raw.name : document?.name;
   return {
     id: String(raw.id),
-    name: typeof document?.name === 'string' ? document.name : 'Untitled project',
+    name: typeof name === 'string' ? name : 'Untitled project',
     created_at: updated,
     updated_at: updated,
     version: Number(raw.version) || 1,
