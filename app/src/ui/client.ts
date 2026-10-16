@@ -6,14 +6,16 @@ import { browserRecords } from '../backend/projects';
 /**
  * During development, studio can use a Sparrow Pro API, such as the local Docker Compose stack,
  * with an API key, instead of signing in: set VITE_SPARROW_API_URL (with /v1) and
- * VITE_SPARROW_API_KEY. Published builds never read them.
+ * VITE_SPARROW_API_KEY. Under the path /local it keeps using open-source sparrow in this browser,
+ * so both can be open side by side. Published builds never read any of this.
  */
-const developmentApi = import.meta.env.DEV
-  ? {
-      url: import.meta.env.VITE_SPARROW_API_URL as string | undefined,
-      key: import.meta.env.VITE_SPARROW_API_KEY as string | undefined,
-    }
-  : undefined;
+const developmentApi =
+  import.meta.env.DEV && !location.pathname.startsWith('/local')
+    ? {
+        url: import.meta.env.VITE_SPARROW_API_URL as string | undefined,
+        key: import.meta.env.VITE_SPARROW_API_KEY as string | undefined,
+      }
+    : undefined;
 
 function withKey(key: string): Fetch {
   return (request) => {
