@@ -40,13 +40,20 @@ describe.skipIf(!url || !key)('the API', () => {
 
     const submitted = await client.submitJob(request, crypto.randomUUID());
     let last: Job = submitted;
+    let statuses = 0;
     const deadline = AbortSignal.timeout(60_000);
     try {
       for await (const event of client.streamJobEvents(submitted.id, {
         search: true,
         signal: deadline,
       }))
-        if (event.type === 'status') last = event.data;
+        if (event.type === 'status') {
+          expect(event.data.id).toBe(submitted.id);
+          last = event.data;
+          statuses++;
+        }
+      // The stream sends the job's status on connection, at least.
+      expect(statuses).toBeGreaterThan(0);
       // The stream may end early; then the job itself says whether it ended.
       if (!FINAL.includes(last.state.status)) last = await client.getJob(submitted.id);
       expect(last.state.status, 'the stream ended before the job').toBe('completed');

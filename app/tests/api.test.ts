@@ -270,6 +270,26 @@ describe('the event stream reader', () => {
     expect(events).toEqual([{ event: 'message', data: 'café', id: undefined }]);
   });
 
+  it('yields an event ended by carriage returns without waiting for more', async () => {
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    const open = new ReadableStream<Uint8Array>({ start: (c) => void (controller = c) });
+    controller.enqueue(new TextEncoder().encode('data: ready\r\r'));
+    const events = readEvents(open);
+    expect((await events.next()).value).toEqual({ event: 'message', data: 'ready', id: undefined });
+    // The line feed that may follow belongs to the last line ending, not to a new, empty line.
+    controller.enqueue(new TextEncoder().encode('\ndata: next\n\n'));
+    expect((await events.next()).value).toEqual({ event: 'message', data: 'next', id: undefined });
+    await events.return(undefined);
+  });
+
+  it('yields nothing more once aborted, even events already received', async () => {
+    const controller = new AbortController();
+    const events = readEvents(chunks('data: one\n\ndata: two\n\n'), controller.signal);
+    expect((await events.next()).value?.data).toBe('one');
+    controller.abort(new Error('Stopped.'));
+    await expect(events.next()).rejects.toThrow('Stopped.');
+  });
+
   it('drops an event the stream did not finish', async () => {
     expect(await collect(readEvents(chunks('data: done\n\ndata: cut off')))).toEqual([
       { event: 'message', data: 'done', id: undefined },

@@ -19,17 +19,25 @@ export async function* readEvents(
   let event = '';
   let data: string[] = [];
   let id: string | undefined;
+  let skipLineFeed = false;
   try {
     for (;;) {
       signal?.throwIfAborted();
       const { done, value } = await reader.read();
       signal?.throwIfAborted();
       buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+      if (skipLineFeed && buffer) {
+        if (buffer.startsWith('\n')) buffer = buffer.slice(1);
+        skipLineFeed = false;
+      }
       for (;;) {
+        signal?.throwIfAborted();
         const end = buffer.search(/[\r\n]/);
-        // A carriage return at the end may be the first half of CRLF; wait for the next chunk.
-        if (end < 0 || (end === buffer.length - 1 && buffer[end] === '\r' && !done)) break;
+        if (end < 0) break;
         const line = buffer.slice(0, end);
+        // A carriage return ends the line at once; a line feed right after it, maybe in the next
+        // chunk, belongs to it.
+        skipLineFeed = buffer[end] === '\r' && end === buffer.length - 1;
         buffer = buffer.slice(buffer.startsWith('\r\n', end) ? end + 2 : end + 1);
         if (line === '') {
           if (data.length) yield { event: event || 'message', data: data.join('\n'), id };
