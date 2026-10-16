@@ -10,6 +10,7 @@ import { readPreferences, writePreferences, type Preferences } from '../project/
 import {
   createProject,
   isConflict,
+  isUnreadable,
   listProjects,
   openProject,
   saveProject,
@@ -79,12 +80,12 @@ export default function App() {
     [setPreferences],
   );
   const openLatest = useCallback(async () => {
-    // Open the most recent project that still reads; a draft-format project is skipped.
+    // Open the most recent project that still reads; one in a format studio cannot read is skipped.
     for (const project of await listProjects()) {
       try {
         return await open(project.id);
-      } catch {
-        continue;
+      } catch (reason) {
+        if (!isUnreadable(reason)) throw reason;
       }
     }
     await create(
@@ -96,7 +97,9 @@ export default function App() {
 
   useEffect(() => {
     const last = readPreferences().lastProjectId;
-    (last ? open(last).catch(openLatest) : openLatest()).catch((reason: Error) =>
+    const fallBack = (reason: unknown) =>
+      isUnreadable(reason) ? openLatest() : Promise.reject(reason);
+    (last ? open(last).catch(fallBack) : openLatest()).catch((reason: Error) =>
       setError(reason.message),
     );
     // Load once, at startup.
@@ -192,27 +195,34 @@ function StudioShell({
   const historyRef = useRef(history);
   historyRef.current = history;
 
-  // Save to browser storage shortly after each change, one save at a time, and when the page is hidden.
+  // Save shortly after each change, one save at a time, and when the page is hidden.
   const latest = useRef(project);
   latest.current = project;
-  const saving = useRef(false);
-  const flush = useCallback(async () => {
-    if (saving.current || latest.current === saved.current) return;
-    saving.current = true;
-    const document = latest.current;
-    try {
-      version.current = await saveProject(stored.id, document, version.current);
-      saved.current = document;
-    } catch (reason) {
-      setSaveState(isConflict(reason) ? 'conflict' : 'error');
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return;
-    } finally {
-      saving.current = false;
-    }
-    if (latest.current !== saved.current) void flush();
-    else setSaveState('saved');
+  const pending = useRef(Promise.resolve(true));
+  /** Saves the latest document after any save in progress; resolves to whether it is saved. */
+  const flush = useCallback(() => {
+    pending.current = pending.current.then(async () => {
+      while (latest.current !== saved.current) {
+        const document = latest.current;
+        try {
+          version.current = await saveProject(stored.id, document, version.current);
+          saved.current = document;
+        } catch (reason) {
+          setSaveState(isConflict(reason) ? 'conflict' : 'error');
+          setError(reason instanceof Error ? reason.message : String(reason));
+          return false;
+        }
+      }
+      setSaveState('saved');
+      return true;
+    });
+    return pending.current;
   }, [stored.id]);
+  /** Goes to another project once this one is saved; a project that does not save stays open. */
+  const leave = async (go: () => Promise<void>) => {
+    if (!(await flush())) throw Error('This project is not saved, so it stays open.');
+    await go();
+  };
   useEffect(() => {
     if (project === saved.current) return;
     setSaveState((state) => (state === 'conflict' ? state : 'saving'));
@@ -238,12 +248,14 @@ function StudioShell({
     setTab('live');
   }
 
+  // Leaving the page cancels a save on its way, and a running job; ask first.
+  const unsaved = saveState !== 'saved';
   useEffect(() => {
-    if (!running) return;
-    const leave = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', leave);
-    return () => window.removeEventListener('beforeunload', leave);
-  }, [running]);
+    if (!running && !unsaved) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [running, unsaved]);
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -343,8 +355,8 @@ function StudioShell({
                 );
               else if (action === 'open-file') fileInput.current?.click();
               else if (action === 'duplicate')
-                void create({ ...project, name: `${project.name} copy` }).catch((reason: Error) =>
-                  setError(reason.message),
+                void leave(() => create({ ...project, name: `${project.name} copy` })).catch(
+                  (reason: Error) => setError(reason.message),
                 );
               else setDialog({ type: action });
             }}
@@ -377,7 +389,8 @@ function StudioShell({
               event.target.value = '';
               if (!file) return;
               try {
-                await create(parseProject(JSON.parse(await file.text())));
+                const document = parseProject(JSON.parse(await file.text()));
+                await leave(() => create(document));
               } catch (reason) {
                 setError(reason instanceof Error ? reason.message : String(reason));
               }
@@ -426,8 +439,8 @@ function StudioShell({
           confirm="Create project"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) =>
-            void create(newProject(name, preferences.defaultMachine)).catch((reason: Error) =>
-              setError(reason.message),
+            void leave(() => create(newProject(name, preferences.defaultMachine))).catch(
+              (reason: Error) => setError(reason.message),
             )
           }
         />
@@ -448,7 +461,9 @@ function StudioShell({
         <ProjectsDialog
           currentId={stored.id}
           onClose={() => setDialog(undefined)}
-          onOpen={(id) => void open(id).catch((reason: Error) => setError(reason.message))}
+          onOpen={(id) =>
+            void leave(() => open(id)).catch((reason: Error) => setError(reason.message))
+          }
           onDeleted={() => void openLatest().catch((reason: Error) => setError(reason.message))}
         />
       )}

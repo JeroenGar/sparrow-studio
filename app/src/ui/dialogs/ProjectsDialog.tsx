@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { backend, usesSparrowPro } from '../client';
-import { deleteProject, listProjects, type ProjectSummary } from '../projects';
+import { deleteProject, listProjects, projectVersion, type ProjectSummary } from '../projects';
 import { Dialog } from '../Dialog';
 import { Trash } from '../icons';
 
@@ -18,7 +18,11 @@ export function ProjectsDialog({
 }) {
   const [projects, setProjects] = useState<ProjectSummary[]>();
   const [error, setError] = useState('');
-  const [confirming, setConfirming] = useState<string>();
+  // The project to delete, with its version when asked: a deletion removes only what was seen.
+  const [confirming, setConfirming] = useState<{ id: string; version: string }>();
+  const [deleting, setDeleting] = useState(false);
+  const fail = (reason: unknown) =>
+    setError(reason instanceof Error ? reason.message : String(reason));
   const refresh = () =>
     listProjects()
       .then(setProjects)
@@ -44,15 +48,26 @@ export function ProjectsDialog({
                 </span>
               </span>
             </button>
-            {confirming === project.id ? (
+            {confirming?.id === project.id ? (
               <span className="row-actions">
                 <button
                   className="small danger"
+                  disabled={deleting}
                   onClick={async () => {
-                    await deleteProject(project.id);
-                    setConfirming(undefined);
-                    if (project.id === currentId) onDeleted();
-                    else void refresh();
+                    setDeleting(true);
+                    try {
+                      await deleteProject(confirming.id, confirming.version);
+                      setConfirming(undefined);
+                      if (project.id === currentId) onDeleted();
+                      else void refresh();
+                    } catch (reason) {
+                      // Such as a project changed since: it stays, and the list shows it as it is now.
+                      fail(reason);
+                      setConfirming(undefined);
+                      void refresh();
+                    } finally {
+                      setDeleting(false);
+                    }
                   }}
                 >
                   Delete
@@ -65,7 +80,12 @@ export function ProjectsDialog({
               <button
                 className="icon-button"
                 aria-label={`Delete ${project.name}`}
-                onClick={() => setConfirming(project.id)}
+                onClick={() =>
+                  projectVersion(project.id).then(
+                    (version) => setConfirming({ id: project.id, version }),
+                    fail,
+                  )
+                }
               >
                 <Trash />
               </button>

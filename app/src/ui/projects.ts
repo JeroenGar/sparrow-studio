@@ -1,5 +1,5 @@
 import { ApiError, withCode, type Schemas } from '../api/client';
-import { parseProject } from '../project/file';
+import { InvalidProject, parseProject } from '../project/file';
 import type { ProjectDocument } from '../project/model';
 import { client } from './client';
 
@@ -37,11 +37,21 @@ export async function saveProject(id: string, document: ProjectDocument, version
   return (await client.saveProject(id, request(document), version)).version;
 }
 
-/** Deletes a project as it is now. */
-export async function deleteProject(id: string) {
-  const { version } = await client.getProject(id);
-  await client.deleteProject(id, version);
+/** A project's version now, for a deletion to name: a deletion never removes changes it did not see. */
+export async function projectVersion(id: string) {
+  return (await client.getProject(id)).version;
 }
+
+/** Deletes a project at `version`; one already gone counts as deleted. */
+export async function deleteProject(id: string, version: string) {
+  await client.deleteProject(id, version).catch((reason) => {
+    if (!(reason instanceof ApiError && reason.status === 404)) throw reason;
+  });
+}
+
+/** Whether a project cannot be opened for what it is, rather than for a failing request. */
+export const isUnreadable = (reason: unknown) =>
+  reason instanceof InvalidProject || (reason instanceof ApiError && reason.status === 404);
 
 /** Whether a save failed because the project changed since, such as in another tab. */
 export const isConflict = (reason: unknown) =>

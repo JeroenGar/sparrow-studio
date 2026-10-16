@@ -1,8 +1,11 @@
 import { normalizePart } from '../engine/geometry/normalize';
 import { TIME_LIMITS, PROJECT_FORMAT, PROJECT_VERSION, type ProjectDocument } from './model';
 
+/** A document that is not a sparrow studio project studio can read. */
+export class InvalidProject extends Error {}
+
 const fail = (message: string): never => {
-  throw Error(`Not a valid sparrow studio project: ${message}`);
+  throw new InvalidProject(`Not a valid sparrow studio project: ${message}`);
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value);
