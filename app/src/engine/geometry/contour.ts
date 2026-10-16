@@ -101,14 +101,14 @@ export function outline(shape: Shape): Outline {
   return result;
 }
 
-/** A shape moved by `[dx, dy]` and scaled by `factor` about the origin. */
-export function moveShape(shape: Shape, [dx, dy]: Point, factor = 1): Shape {
-  const p = (point: number[]): Point => [point[0] * factor + dx, point[1] * factor + dy];
+/** A shape with every point mapped by `p`, and lengths scaled by `factor`: a similarity. */
+function mapShape(shape: Shape, p: (point: number[]) => Point, factor: number): Shape {
   const contour = (c: Contour): Contour => {
     switch (c.type) {
       case 'polygon':
         return { ...c, points: c.points.map(p) };
       case 'rectangle': {
+        // Only moved and scaled, never turned: a turned rectangle is a polygon.
         const [x, y] = p([c.x_min, c.y_min]);
         return { ...c, x_min: x, y_min: y, width: c.width * factor, height: c.height * factor };
       }
@@ -135,4 +135,22 @@ export function moveShape(shape: Shape, [dx, dy]: Point, factor = 1): Shape {
     }
   };
   return { outer: contour(shape.outer), ...(shape.holes && { holes: shape.holes.map(contour) }) };
+}
+
+/** A shape moved by `[dx, dy]` and scaled by `factor` about the origin. */
+export const moveShape = (shape: Shape, [dx, dy]: Point, factor = 1) =>
+  mapShape(shape, (q) => [q[0] * factor + dx, q[1] * factor + dy], factor);
+
+/** A shape turned by `angleDeg` about the origin, then moved by `[dx, dy]`: a placed copy. */
+export function placeShape(shape: Shape, angleDeg: number, [dx, dy]: Point): Shape {
+  const angle = (angleDeg * Math.PI) / 180;
+  const [c, s] = [Math.cos(angle), Math.sin(angle)];
+  const turned = (q: number[]): Point => [q[0] * c - q[1] * s + dx, q[0] * s + q[1] * c + dy];
+  const asPolygon = (contour: Contour): Contour =>
+    contour.type === 'rectangle' ? polygon(flattenContour(contour, 0)) : contour;
+  return mapShape(
+    { outer: asPolygon(shape.outer), ...(shape.holes && { holes: shape.holes.map(asPolygon) }) },
+    turned,
+    1,
+  );
 }

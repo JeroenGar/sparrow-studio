@@ -2,7 +2,7 @@ import type { Job, Result } from '../model';
 import { worldParts, type WorldPart } from '../geometry/world';
 import { exportDXF, STUDIO_CREDIT } from './dxf';
 import {DOMImplementation,XMLSerializer,type Element} from '@xmldom/xmldom';
-import {pathData} from '../geometry/path';
+import {shapePath} from '../geometry/path';
 import {colors} from '../colors';
 const SVG_NS='http://www.w3.org/2000/svg';
 export type ExportBundle = { svg: string; dxf:string; world: WorldPart[] };
@@ -42,7 +42,7 @@ export function exportSVG(doc: Job,result: Result,utilization: number): ExportBu
   const parts=add(root,'g',{id:'parts',transform:`translate(0 ${height}) scale(1 -1)`,stroke:'#334155','stroke-width':Math.min(width,height)*.0015,'stroke-linejoin':'round'});
   world.forEach((p,i)=>{
     const index=partIndex.get(p.partId)!,part=doc.parts[index];
-    const path=add(parts,'path',{id:`part-${i}`,fill:colors[index%colors.length],'fill-rule':'evenodd',d:pathData([p.outer,...p.holes])});
+    const path=add(parts,'path',{id:`part-${i}`,fill:colors[index%colors.length],'fill-rule':'evenodd',d:shapePath(p.shape)});
     add(path,'title',{},`${part.name} · copy ${p.copyIndex+1}`);
   });
   const svg=new XMLSerializer().serializeToString(svgDocument)+'\n';

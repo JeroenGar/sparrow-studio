@@ -11,7 +11,7 @@ import { importDXF } from '../src/engine/import/dxf';
 import type { WorldPart } from '../src/engine/geometry/world';
 import { colors } from '../src/engine/colors';
 import { importSVG } from '../src/engine/import/svg';
-import { bounds } from '../src/engine/geometry/normalize';
+import { area,bounds } from '../src/engine/geometry/normalize';
 import { pathData } from '../src/engine/geometry/path';
 import parseString from 'dxf/lib/parseString';
 import { outline, polygonShape } from '../src/engine/geometry/contour';
@@ -104,7 +104,7 @@ function framing(text:string){
 
 it('frames wide layouts with negative coordinates and reimports exports as their parts',()=>{
   const doc:Job={name:'wide',parts:[],settings:{...DEFAULT_SETTINGS,materialWidthMm:100}};
-  const world=[{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as WorldPart[];
+  const world=([{partId:'a',copyIndex:0,outer:[[-50,10],[300,10],[300,90],[-50,90]],holes:[[[0,20],[0,40],[20,40],[20,20]]]},{partId:'a',copyIndex:1,outer:[[400,10],[1000,10],[1000,90],[400,90]],holes:[]}] as Omit<WorldPart,'shape'>[]).map(p=>({...p,shape:polygonShape(p.outer,p.holes)}));
   const text=exportDXF(doc,world,1000),{extents,view}=framing(text);
   expect(extents.slice(0,3)).toEqual([-50,0,1000]);
   expect(extents[2]-extents[0]).toBeGreaterThan(5*(extents[3]-extents[1]));
@@ -116,4 +116,20 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers!)}).document.parts).toHaveLength(2);
   // Choosing the sheet layer too makes the sheet enclose and cross the parts.
   expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
+});
+
+it('writes kept curves as curves: SVG arcs, DXF bulges and circles',()=>{
+  const semicircle={...newPart({outer:{type:'path',start:[0,0],segments:[{type:'line',to:[20,0]},{type:'arc',to:[0,0],bulge:1}]}}),id:'half',quantity:1};
+  const disc={...newPart({outer:{type:'circle',center:[5,5],radius:5}}),id:'disc',quantity:1};
+  const doc:Job={name:'curves',parts:[semicircle,disc],settings:{...DEFAULT_SETTINGS,materialWidthMm:20}};
+  const result:Result={usedLengthMm:40,placements:[{partId:'half',copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:'disc',copyIndex:0,xMm:25,yMm:0,angleDeg:90}]};
+  const {svg,dxf:text}=exportSVG(doc,result,50);
+  const paths=Array.from(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('path')).map(p=>p.getAttribute('d')!);
+  expect(paths.every(d=>d.includes('A'))).toBe(true);
+  const fromSVG=importSVG(svg,'curves.svg',{scale:1,tolerance:.01}).document.parts.map(p=>Math.abs(area(outline(p.shape).outer))).sort((a,b)=>a-b);
+  expect(fromSVG).toEqual([expect.closeTo(25*Math.PI,0),expect.closeTo(50*Math.PI,0)]);
+  const entities=(parseString(text) as {entities:{type:string;layer:string;r?:number;vertices?:{bulge?:number}[]}[]}).entities.filter(e=>e.layer==='PARTS');
+  expect(entities.map(e=>e.type).sort()).toEqual(['CIRCLE','LWPOLYLINE']);
+  expect(entities.find(e=>e.type==='CIRCLE')?.r).toBe(5);
+  expect(entities.find(e=>e.type==='LWPOLYLINE')?.vertices?.map(v=>v.bulge??0)).toEqual([0,1]);
 });

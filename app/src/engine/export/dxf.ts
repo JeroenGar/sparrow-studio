@@ -1,6 +1,7 @@
 import {DxfWriter,LWPolylineFlags,Units,point2d,point3d} from '@tarikjabiri/dxf';
 import type {WorldPart} from '../geometry/world';
-import {SHEET_LAYER,type Job,type Ring} from '../model';
+import {SHEET_LAYER,type Job,type Point,type Ring} from '../model';
+import {flattenContour,type Contour} from '../geometry/contour';
 
 export const STUDIO_CREDIT='nested with sparrow studio · https://sparrowstudio.app';
 
@@ -27,7 +28,16 @@ export function exportDXF(doc:Job,world:WorldPart[],sheetLengthMm:number):string
   for(const [layer,color] of [[SHEET_LAYER,8],['PARTS',7],['HOLES',7],['SPARROW_INFO',7]] as const)dxf.addLayer(layer,color);
   const polyline=(ring:Ring,layerName:string)=>dxf.addLWPolyline(ring.map(([x,y])=>({point:point2d(x,y)})),{flags:LWPolylineFlags.Closed,layerName});
   polyline(sheet,SHEET_LAYER);
-  for(const p of world){polyline(p.outer,'PARTS');for(const hole of p.holes)polyline(hole,'HOLES');}
+  // Arcs stay arcs, as polyline bulges, and circles circles; other curves become fine polylines.
+  const contour=(c:Contour,layerName:string)=>{
+    if(c.type==='circle')return dxf.addCircle(point3d(c.center[0],c.center[1]),c.radius,{layerName});
+    if(c.type!=='path'||c.segments.some(s=>s.type!=='line'&&s.type!=='arc'))return polyline(flattenContour(c,.001),layerName);
+    const vertices:{point:Point;bulge:number}[]=[];let at=c.start as Point;
+    for(const s of c.segments){if(s.type!=='line'&&s.type!=='arc')continue;vertices.push({point:at,bulge:s.type==='arc'?s.bulge:0});at=s.to as Point;}
+    if(at[0]!==c.start[0]||at[1]!==c.start[1])vertices.push({point:at,bulge:0});
+    dxf.addLWPolyline(vertices.map(({point:[x,y],bulge})=>({point:point2d(x,y),bulge})),{flags:LWPolylineFlags.Closed,layerName});
+  };
+  for(const p of world){contour(p.shape.outer,'PARTS');for(const hole of p.shape.holes??[])contour(hole,'HOLES');}
   dxf.addText(point3d(minX,textY),textHeight,credit,{layerName:'SPARROW_INFO'});
   return dxf.stringify();
 }
