@@ -116,8 +116,8 @@ pub enum Problem {
 /// One strip, from y = 0 to `height` and from x = 0 to the right without end. Every copy of every
 /// part is placed, and the solver minimizes the length used,
 /// [`LayoutStats::cut_x`](super::LayoutStats::cut_x). The solution has one layout, whose
-/// `sheet_id` is `"strip"`. The boundary separation applies to the strip's bottom, top, and left
-/// edges.
+/// `sheet_id` is `"strip"`, or none when no part is placed. The boundary separation applies as for
+/// a sheet, at the cut too.
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[cfg_attr(feature = "openapi", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields)]
