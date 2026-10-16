@@ -84,3 +84,31 @@ it('bounds nested INSERT expansion before allocating large arrays',()=>{
   const blocks=block('part',shape)+block('many',insert('part','70\n100\n44\n20\n'));
   expect(()=>importDXF(withBlocks(insert('many','70\n101\n44\n3000\n'),blocks),'huge.dxf',options)).toThrow('10,000 expanded');
 });
+
+it('keeps arcs, bulges, circles and splines as curves when asked',()=>{
+  const keep={...options,curves:'keep' as const};
+  const shape=(text:string)=>{const review=importDXF(text,'curves.dxf',keep);expect(review.issues).toEqual([]);return review.document.parts[0].shape;};
+  // A bulged polyline keeps its arc, and its area.
+  const bulged=shape(dxf(poly([[0,0,1],[20,0]])));
+  expect(bulged.outer.type).toBe('path');
+  if(bulged.outer.type==='path')expect(bulged.outer.segments.map(s=>s.type)).toEqual(['arc','line']);
+  expect(Math.abs(area(outline(bulged).outer))).toBeCloseTo(50*Math.PI,0);
+  // A circle stays a circle, scaled with the drawing's units.
+  const circle=shape(dxf('0\nCIRCLE\n10\n5\n20\n5\n40\n5\n',1));
+  expect(circle.outer).toEqual({type:'circle',center:[expect.closeTo(127,1),expect.closeTo(127,1)],radius:expect.closeTo(127,6)});
+  // An arc joined to a line, either way round, keeps the arc bulging outwards.
+  const arc='0\nARC\n10\n0\n20\n0\n40\n10\n50\n0\n51\n180\n';
+  for(const edge of [line(-10,0,10,0),line(10,0,-10,0)]){
+    const joined=shape(dxf(arc+edge));
+    expect(joined.outer.type).toBe('path');
+    expect(Math.abs(area(outline(joined).outer))).toBeCloseTo(50*Math.PI,0);
+  }
+  // A spline stays a NURBS segment.
+  const spline='0\nSPLINE\n70\n4\n71\n2\n72\n6\n73\n3\n'+[0,0,0,1,1,1].map(k=>`40\n${k}\n`).join('')+
+    [1,Math.SQRT1_2,1].map(w=>`41\n${w}\n`).join('')+[[10,0],[10,10],[0,10]].map(([x,y])=>`10\n${x}\n20\n${y}\n`).join('');
+  const curve=shape(dxf(spline+line(0,10,0,0)+line(0,0,10,0)));
+  if(curve.outer.type==='path')expect(curve.outer.segments.some(s=>s.type==='nurbs')).toBe(true);
+  expect(Math.abs(area(outline(curve).outer))).toBeCloseTo(25*Math.PI,0);
+  // Kept curves need no approximation.
+  expect(importDXF(dxf(poly([[0,0,1],[20,0]])),'bulge.dxf',keep).document.parts[0].approximationToleranceMm).toBe(0);
+});

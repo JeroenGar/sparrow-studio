@@ -4,15 +4,18 @@ import { DEFAULT_SETTINGS,newPart,type Part,type Point,type Ring } from '../mode
 import { area,bounds,inside,normalizeJob,normalizeRing,ringCrosses } from '../geometry/normalize';
 import { apply,multiply,append,bezier,type Matrix } from '../geometry/flatten';
 import { localize,type ImportReview } from './sparrow';
-import { polygonShape } from '../geometry/contour';
+import { polygon,type Contour as FormatContour } from '../geometry/contour';
+import { contour,type Path } from './paths';
 
 // Initialized only for SVG imports, not other geometry-worker tasks.
 let svg_paths: typeof import('../../../../web/wasm/pkg/sparrow_web').svg_paths;
 export const initializeSVG=async()=>{const wasm=await loadSerialWasm();await wasm.default();svg_paths=wasm.svg_paths;};
-type Contour={ring:Ring;entityId:string;curved:boolean};
+/** A closed outline as a polygon, for topology and checks, and as the format's contour to keep. */
+type Contour={ring:Ring;entityId:string;curved:boolean;contour:FormatContour};
 type Command=['M'|'L'|'Q'|'C'|'Z',...number[]];
 type ResolvedSVG={height:number;paths:{id:string;commands:Command[];transform:Matrix;rule:'evenodd'|'nonzero'}[]};
-export type SVGOptions={scale:number;tolerance:number};
+/** `curves`: keep them as curves, or flatten them into the parts' shapes. */
+export type SVGOptions={scale:number;tolerance:number;curves?:'keep'|'flatten'};
 const attr=(e:XMLElement,name:string)=>e.hasAttribute(name)?e.getAttribute(name)!:undefined;
 
 function hierarchy(contours:Contour[]):number[] {
@@ -37,23 +40,26 @@ export function contoursToParts(contours:Contour[],fileName:string,format:'svg'|
   const parent=hierarchy(contours),depth=parent.map((p)=>{let d=0;while(p!==-1){d++;p=parent[p];}return d;});
   return contours.flatMap((c,i)=>{
     if(enclosed==='holes'&&depth[i]%2===1)return [];
-    const holes=enclosed==='holes'?contours.filter((_,j)=>parent[j]===i).map(h=>h.ring):[];
-    const part=localize({...newPart(polygonShape(c.ring,holes),c.entityId),source:{format,fileName,entityId:c.entityId},
+    const holes=enclosed==='holes'?contours.filter((_,j)=>parent[j]===i).map(h=>h.contour):[];
+    const part=localize({...newPart({outer:c.contour,...(holes.length&&{holes})},c.entityId),source:{format,fileName,entityId:c.entityId},
       approximationToleranceMm:c.curved||contours.some((h,j)=>parent[j]===i&&h.curved)?tolerance:0});
     return [part];
   });
 }
-function pathContours(commands:Command[],m:Matrix,tolerance:number,id:string):Contour[] {
+function pathContours(commands:Command[],m:Matrix,tolerance:number,id:string,keep:boolean):Contour[] {
   const contours:Contour[]=[];let ring:Ring=[],start:Point=[0,0],current:Point=[0,0],curved=false,closed=false;
-  const finish=()=>{if(ring.length){if(!closed)throw Error('Open path cannot become a part. Close it or remove it in the source drawing.');contours.push({ring,entityId:id,curved});ring=[];}};
+  // The same outline in the format: its transformed start and segments, curves kept.
+  let path:Path={start:[0,0],segments:[]};
+  const finish=()=>{if(ring.length){if(!closed)throw Error('Open path cannot become a part. Close it or remove it in the source drawing.');contours.push({ring,entityId:id,curved:curved&&!keep,contour:keep?contour(path,ring):polygon(ring)});ring=[];}};
   for(const segment of commands) {
     const cmd=segment[0].toUpperCase(),v=segment.slice(1) as number[];
     if(!v.every(Number.isFinite))throw Error('Non-finite path command.');
+    const at=(i:number)=>apply(m,[v[i],v[i+1]]);
     switch(cmd) {
-      case 'M':finish();start=[v[0],v[1]];current=start;ring=[apply(m,start)];closed=false;curved=false;break;
-      case 'L':current=[v[0],v[1]];append(ring,apply(m,current));closed=false;break;
-      case 'C':bezier([current,[v[0],v[1]],[v[2],v[3]],[v[4],v[5]]].map(p=>apply(m,p as Point)),tolerance,ring);current=[v[4],v[5]];curved=true;closed=false;break;
-      case 'Q':bezier([current,[v[0],v[1]],[v[2],v[3]]].map(p=>apply(m,p as Point)),tolerance,ring);current=[v[2],v[3]];curved=true;closed=false;break;
+      case 'M':finish();start=[v[0],v[1]];current=start;ring=[apply(m,start)];path={start:apply(m,start),segments:[]};closed=false;curved=false;break;
+      case 'L':current=[v[0],v[1]];append(ring,apply(m,current));path.segments.push({type:'line',to:at(0)});closed=false;break;
+      case 'C':bezier([current,[v[0],v[1]],[v[2],v[3]],[v[4],v[5]]].map(p=>apply(m,p as Point)),tolerance,ring);path.segments.push({type:'cubic',control1:at(0),control2:at(2),to:at(4)});current=[v[4],v[5]];curved=true;closed=false;break;
+      case 'Q':bezier([current,[v[0],v[1]],[v[2],v[3]]].map(p=>apply(m,p as Point)),tolerance,ring);path.segments.push({type:'quadratic',control:at(0),to:at(2)});current=[v[2],v[3]];curved=true;closed=false;break;
       case 'Z':current=start;closed=true;break;
       default:throw Error(`Unsupported path command ${cmd}.`);
     }
@@ -97,7 +103,7 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
   const entities:Contour[][]=[];let totalVertices=0;
   for(const [i,path] of resolved.paths.entries()) {
     const id=path.id||`path ${i+1}`;
-    const contours=pathContours(path.commands,multiply(matrix,path.transform),options.tolerance,id);
+    const contours=pathContours(path.commands,multiply(matrix,path.transform),options.tolerance,id,options.curves==='keep');
     totalVertices+=contours.reduce((n,c)=>n+c.ring.length,0);
     if(totalVertices>100_000)throw Error('SVG exceeds 100,000 vertices.');
     entities.push(compound(contours,path.rule));

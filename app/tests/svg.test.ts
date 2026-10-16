@@ -92,3 +92,14 @@ it('rejects entities and limits subdivision without silently coarsening',()=>{
   expect(()=>importSVG('<!DOCTYPE svg>'+svg('<rect width="1" height="1"/>'),'bad.svg',options)).toThrow('DOCTYPE');
   expect(()=>importSVG(svg('<circle r="40"/>'),'huge.svg',{...options,tolerance:1e-12})).toThrow('5,000');
 });
+
+it('keeps Bézier curves as curves when asked',()=>{
+  const circle='<circle cx="50" cy="50" r="20"/>';
+  const kept=importSVG(svg(circle),'circle.svg',{...options,curves:'keep'}).document.parts[0];
+  expect(kept.shape.outer.type).toBe('path');
+  if(kept.shape.outer.type==='path')expect(kept.shape.outer.segments.every(s=>s.type==='cubic')).toBe(true);
+  expect(Math.abs(area(outline(kept.shape).outer))).toBeCloseTo(400*Math.PI,0);
+  expect(kept.approximationToleranceMm).toBe(0);
+  const flattened=importSVG(svg(circle),'circle.svg',options).document.parts[0];
+  expect(flattened.shape.outer.type).toBe('polygon');
+});
