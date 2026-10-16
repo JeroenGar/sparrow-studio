@@ -12,6 +12,8 @@ import type { WorldPart } from '../src/engine/geometry/world';
 import { colors } from '../src/engine/colors';
 import { importSVG } from '../src/engine/import/svg';
 import { bounds } from '../src/engine/geometry/normalize';
+import { pathData } from '../src/engine/geometry/path';
+import parseString from 'dxf/lib/parseString';
 
 function fixture() {
   const part={...newPart([[0,0],[1,0],[1,1],[0,1]]),id:'square',quantity:2};
@@ -29,7 +31,11 @@ describe('layout exports',()=>{
     expect(exported.dxf).toContain('nested with sparrow studio');
     expect(exported.dxf).toContain('https://sparrowstudio.app');
     expect(exported.dxf).toContain('SPARROW_INFO');
-    expect(exported.world[1].outer).toEqual([[1,0],[2,0],[2,1],[1,1]]);
+    // The written files hold each copy where it was placed.
+    const paths=new DOMParser().parseFromString(exported.svg,'image/svg+xml').getElementsByTagName('path');
+    expect(Array.from(paths).map(path=>path.getAttribute('d'))).toEqual([pathData([[[0,0],[1,0],[1,1],[0,1]]]),pathData([[[1,0],[2,0],[2,1],[1,1]]])]);
+    const entities=(parseString(exported.dxf) as {entities:{layer:string;vertices?:{x:number;y:number}[]}[]}).entities;
+    expect(entities.filter(entity=>entity.layer==='PARTS').map(entity=>entity.vertices!.map(({x,y})=>[x,y]))).toEqual([[[0,0],[1,0],[1,1],[0,1]],[[1,0],[2,0],[2,1],[1,1]]]);
   });
   it('frames a styled SVG without changing reimported dimensions or adding decorative parts',()=>{
     const {doc,result}=fixture();doc.name='Plate <script> & "test"';
