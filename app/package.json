@@ -12,8 +12,8 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tests",
     "pretest": "npm run api:types",
     "test": "vitest run",
-    "format": "prettier --write src/api src/project src/ui src/main.tsx src/styles.css index.html tests/project.test.ts tests/api.test.ts tests/api.integration.test.ts tests/api.types.ts tests/fixtures/api-input.ts",
-    "format:check": "prettier --check src/api src/project src/ui src/main.tsx src/styles.css index.html tests/project.test.ts tests/api.test.ts tests/api.integration.test.ts tests/api.types.ts tests/fixtures/api-input.ts",
+    "format": "prettier --write src/api src/backend src/project src/ui src/main.tsx src/styles.css index.html tests/project.test.ts tests/api.test.ts tests/backend.test.ts tests/backend.contract.ts tests/api.integration.test.ts tests/api.types.ts tests/fixtures/api-input.ts",
+    "format:check": "prettier --check src/api src/backend src/project src/ui src/main.tsx src/styles.css index.html tests/project.test.ts tests/api.test.ts tests/backend.test.ts tests/backend.contract.ts tests/api.integration.test.ts tests/api.types.ts tests/fixtures/api-input.ts",
     "build": "npm run typecheck && vite build",
     "preview": "vite preview --host 127.0.0.1"
   },

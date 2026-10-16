@@ -1,13 +1,14 @@
 import { useMemo, useState } from 'react';
-import { netArea, worldParts, type WorldPart } from '../../engine/geometry/validate';
+import { worldParts, type WorldPart } from '../../engine/geometry/validate';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { projectFileName } from '../../project/file';
-import { jobKey, projectJob, utilization } from '../../project/model';
+import { drawable, isStale } from '../../project/solution';
 import { Canvas } from '../Canvas';
 import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
 import { download } from '../download';
 import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
+import { serializeProject } from '../../project/file';
 import { RunBar } from '../RunBar';
 import { LayoutDrawing, placementKey } from './LayoutDrawing';
 import { PartThumb } from './PartsView';
@@ -16,21 +17,28 @@ type Format = 'svg' | 'dxf' | 'pdf';
 type Hover = { part: WorldPart; x: number; y: number };
 
 export function SolutionView() {
-  const { project, unit, showError, solver } = useStudio();
+  const { project, unit, showError } = useStudio();
   const solution = project.solutions[0];
+  const document = solution?.document;
+  const outcome = document?.outcome;
   const [highlight, setHighlight] = useState<string>();
   const [hover, setHover] = useState<Hover>();
   const [busy, setBusy] = useState<Format>();
-  const world = useMemo(
-    () => (solution ? worldParts(solution.job, solution.result) : []),
-    [solution],
+  const names = useMemo(
+    () => new Map(project.parts.map((part) => [part.id, part.name])),
+    [project.parts],
   );
-  const stale = useMemo(
-    () => !!solution && jobKey(solution.job) !== jobKey(projectJob(project)),
-    [solution, project],
+  const layout = useMemo(
+    () =>
+      document && outcome
+        ? drawable(document.input, outcome.solution, names, outcome.stats.layouts[0]?.cut_x)
+        : undefined,
+    [document, outcome, names],
   );
+  const world = useMemo(() => (layout ? worldParts(layout.job, layout.result) : []), [layout]);
+  const stale = useMemo(() => !!document && isStale(project, document), [document, project]);
 
-  if (!solution)
+  if (!solution || !document || !outcome || !layout)
     return (
       <div className="view">
         <section className="list-panel" aria-label="Solution">
@@ -51,12 +59,12 @@ export function SolutionView() {
       </div>
     );
 
-  const { job, result } = solution;
+  const { job, result } = layout;
+  const { stats } = outcome;
   const width = job.settings.materialWidthMm;
-  const partsArea = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
-  const waste = width * result.usedLengthMm - partsArea;
-  const placed = job.parts.filter((part) => part.quantity > 0);
-  const names = new Map(job.parts.map((part) => [part.id, part.name]));
+  const waste = stats.consumed_area - stats.placed_area;
+  const placed = job.parts;
+  const state = document.state;
 
   async function exportLayout(format: Format) {
     setBusy(format);
@@ -65,7 +73,7 @@ export function SolutionView() {
         type: 'export',
         runId: 1,
         documentRevision: 1,
-        document: job,
+        document: { ...job, name: project.name },
         result,
       });
       if (reply.type !== 'export-result') throw Error('Could not export the layout.');
@@ -85,21 +93,11 @@ export function SolutionView() {
       setBusy(undefined);
     }
   }
-  async function diagnostics() {
-    const { zip } = await import('../../engine/zip');
-    const { reproductionFiles } = await import('../../engine/export/diagnostics');
-    const { logs = [], droppedLogs = 0, ...details } = solver.diagnostics.current ?? {};
+  function diagnostics() {
     download(
-      'sparrow-studio-diagnostics.zip',
-      zip([
-        {
-          name: 'diagnostics.json',
-          data: JSON.stringify({ project, ...details, droppedLogs }, null, 2),
-        },
-        ...reproductionFiles(solver.diagnostics.current),
-        { name: 'solver.log', data: logs.join('\n') + '\n' },
-      ]),
-      'application/zip',
+      'sparrow-studio-diagnostics.json',
+      JSON.stringify({ project: JSON.parse(serializeProject(project)), job: document }, null, 2),
+      'application/json',
     );
   }
 
@@ -118,9 +116,7 @@ export function SolutionView() {
           <div className="summary">
             <div className="metrics">
               <div className="metric">
-                <span className="metric-value">
-                  {formatPercent(utilization(job, result, netArea))}
-                </span>
+                <span className="metric-value">{formatPercent(stats.density * 100)}</span>
                 <span className="muted">utilization</span>
               </div>
               <div className="metric">
@@ -138,11 +134,18 @@ export function SolutionView() {
               <dt>Waste</dt>
               <dd>{formatArea(waste, unit)}</dd>
               <dt>Placed</dt>
-              <dd>{result.placements.length} parts, all of them</dd>
+              <dd>
+                {result.placements.length} parts
+                {outcome.unplaced.length
+                  ? `, ${outcome.unplaced.reduce((n, u) => n + u.quantity, 0)} not placed`
+                  : ', all of them'}
+              </dd>
               <dt>Run</dt>
               <dd>
-                {solution.stopReason === 'Stopped' ? 'Stopped' : 'Finished'} after{' '}
-                {formatSeconds(result.elapsedSeconds)}
+                {state.status === 'completed' && state.termination === 'stopped'
+                  ? 'Stopped'
+                  : 'Finished'}{' '}
+                after {formatSeconds(state.status === 'completed' ? state.solver_seconds : 0)}
               </dd>
             </dl>
             {stale && (
@@ -192,7 +195,7 @@ export function SolutionView() {
           <div className="pad stack">
             <ProRow>Lock placements and nest the rest again</ProRow>
             <ProRow>Compare several solutions</ProRow>
-            <button className="small" onClick={() => void diagnostics()}>
+            <button className="small" onClick={diagnostics}>
               Download diagnostics
             </button>
           </div>

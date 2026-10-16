@@ -1,17 +1,9 @@
-import {
-  LIMITS,
-  newId,
-  type Job,
-  type Part,
-  type Preset,
-  type Result,
-  type RotationRule,
-  type TimeLimit,
-} from '../engine/model';
+import type { JobDocument } from '../api/client';
+import { LIMITS, newId, type Part, type RotationRule } from '../engine/model';
 
 /** Identifies a sparrow studio project document, in browser storage and in files. */
 export const PROJECT_FORMAT = 'sparrow-studio-project';
-export const PROJECT_VERSION = 1;
+export const PROJECT_VERSION = 2;
 
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };
@@ -19,24 +11,10 @@ export type Strip = { id: string; name: string; widthMm: number };
 export type Stock = { packing: 'strip'; strip: Strip };
 /** Machine-specific solver inputs. Clamps and a separate sheet boundary distance come later. */
 export type MachinePreset = { id: string; name: string; gapMm: number };
-/** Local solving only, for now. */
-export type SolveWith = 'local';
-/** 0 lets the solver choose. */
-export type Threads = 0 | 1 | 2 | 3;
-export type SolverSettings = {
-  solveWith: SolveWith;
-  timeLimitSeconds: TimeLimit;
-  preset: Preset;
-  threads: Threads;
-};
-/** A solver result with the exact job it solved, so it stays valid when inputs change later. */
-export type Solution = {
-  id: string;
-  createdAt: string;
-  job: Job;
-  result: Result;
-  stopReason: 'Complete' | 'Stopped';
-};
+/** How long the solver searches, as the API's settings. */
+export type SolverSettings = { timeLimitSeconds: number; autoTermination: boolean };
+/** A finished job as the API records it, with its input, so it stays valid when the project changes. */
+export type Solution = { id: string; createdAt: string; document: JobDocument };
 /** Settings every part follows unless it has its own. Reflection and nesting in holes join later. */
 export type PartDefaults = { rotations: RotationRule };
 /** A part as the project stores it: a setting is present only when the part has its own. */
@@ -55,13 +33,11 @@ export type ProjectDocument = {
   solutions: Solution[];
 };
 
-export const TIME_LIMITS: TimeLimit[] = [null, 10, 30, 60, 120, 300, 600];
+export const TIME_LIMITS = [10, 30, 60, 120, 300, 600];
 
 export const DEFAULT_SOLVER_SETTINGS: SolverSettings = {
-  solveWith: 'local',
-  timeLimitSeconds: null,
-  preset: 'standard',
-  threads: 0,
+  timeLimitSeconds: 120,
+  autoTermination: true,
 };
 
 export function newMachine(name = 'Default', gapMm = 0): MachinePreset {
@@ -90,37 +66,6 @@ export function activeMachine(project: ProjectDocument): MachinePreset {
   );
 }
 
-/** The solver input for the current project, without validating its geometry. */
-export function projectJob(project: ProjectDocument): Job {
-  return {
-    name: project.name,
-    parts: resolvedParts(project),
-    settings: {
-      solverPreset: project.settings.preset,
-      materialWidthMm: project.stock.strip.widthMm,
-      clearanceMm: activeMachine(project).gapMm,
-      timeLimitSeconds: project.settings.timeLimitSeconds,
-    },
-  };
-}
-
-/** Compares jobs by the inputs that change a layout; names and file sources do not. */
-export function jobKey(job: Job): string {
-  return JSON.stringify({
-    parts: job.parts
-      .filter((part) => part.quantity > 0)
-      .map(({ id, outer, holes, quantity, rotations }) => [
-        id,
-        outer,
-        holes,
-        quantity,
-        ruleKey(rotations),
-      ]),
-    width: job.settings.materialWidthMm,
-    gap: job.settings.clearanceMm,
-  });
-}
-
 export const copyCount = (parts: { quantity: number }[]) =>
   parts.reduce((sum, part) => sum + part.quantity, 0);
 
@@ -140,12 +85,6 @@ export function startBlockers(project: ProjectDocument): string[] {
   else if (Number.isFinite(width) && gap >= width)
     reasons.push('The gap must be smaller than the strip width.');
   return reasons;
-}
-
-/** Utilization of a solution's strip: net part area over the used rectangle. */
-export function utilization(job: Job, result: Result, netArea: (part: Part) => number): number {
-  const area = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
-  return (area / (job.settings.materialWidthMm * result.usedLengthMm)) * 100;
 }
 
 /** Compares rotation rules by the angles they allow. */

@@ -48,10 +48,3 @@ export function importSparrow(text: string,fileName: string,scale: number): Impo
       `One coordinate unit = ${scale} mm. Benchmark coordinates have no intrinsic manufacturing units.`,
       ...(parts.some(p=>p.holes.length)?['Holes are preserved; nesting inside holes is not supported.']:[])]};
 }
-export function solverInput(doc: Job): string {
-  if(!doc.parts.some(part=>part.quantity>0))throw Error('Add at least one copy before nesting.');
-  return JSON.stringify({name:doc.name,strip_height:doc.settings.materialWidthMm,items:doc.parts.filter(part=>part.quantity>0).map((p,id)=>({
-    id,demand:p.quantity,allowed_orientations:p.rotations.kind==='continuous'?undefined:p.rotations.degrees,
-    shape:{type:'simple_polygon',data:p.outer},
-  }))});
-}
