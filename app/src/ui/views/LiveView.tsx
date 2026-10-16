@@ -6,6 +6,7 @@ import type { GeometryReply } from '../../engine/workers/protocol';
 import { activeMachine, copyCount } from '../../project/model';
 import { drawable, utilization } from '../../project/solution';
 import { Canvas } from '../Canvas';
+import { backend, usesSparrowPro } from '../client';
 import { useStudio } from '../context';
 import { formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
@@ -148,7 +149,7 @@ export function LiveView() {
       <section className="list-panel" aria-label="Run progress">
         <div className="list-head">
           <span className="label">{run ? status(run) : 'Next run'}</span>
-          {running && <span className="muted">in this browser</span>}
+          {running && <span className="muted">{backend.solves}</span>}
         </div>
         <div className="list-scroll">
           {!run ? (
@@ -180,11 +181,11 @@ export function LiveView() {
                 </button>
               )}
               <p className="muted">
-                Open-source sparrow, in this browser
+                Solved {backend.solves}
                 {reduced
                   ? ` · ${reduced.used} solver thread${reduced.used === 1 ? '' : 's'}: ${reduced.reason}`
                   : ''}
-                {running ? ' · keep this tab visible for the best speed.' : ''}
+                {running && !usesSparrowPro ? ' · keep this tab visible for the best speed.' : ''}
               </p>
             </div>
           )}

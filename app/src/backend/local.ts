@@ -1,4 +1,5 @@
 import type { Fetch, Input, Job, JobDocument, Schemas } from '../api/client';
+import type { Change, ProjectRecord, ProjectRecords } from './projects';
 
 /**
  * The local backend: the Sparrow Pro API, answered in the browser by open-source sparrow. Studio
@@ -169,7 +170,8 @@ type Follower = {
 
 const FINAL = ['completed', 'cancelled', 'failed'];
 
-export function createLocalBackend(engine: Engine): Fetch {
+export function createLocalBackend(engine: Engine, records: ProjectRecords): Fetch {
+  const creations = new Map<string, string>();
   const jobs = new Map<string, LocalJob>();
   const submissions = new Map<string, { body: string; jobId: string }>();
   let searchSequence = 0;
@@ -417,6 +419,7 @@ export function createLocalBackend(engine: Engine): Fetch {
     };
 
     if (request.method === 'GET' && path === '/limits') return respond(200, LIMITS);
+    if (parts[0] === 'projects') return projects(request, parts[1], json);
     if (request.method === 'POST' && path === '/jobs/validate') {
       await check(readRequest(await json()));
       return respond(204);
@@ -491,6 +494,100 @@ export function createLocalBackend(engine: Engine): Fetch {
       }
     }
     throw notFound(`route ${request.method} ${path}`);
+  }
+
+  /** The project routes: opaque documents, each change naming the version it starts from. */
+  async function projects(
+    request: Request,
+    projectId: string | undefined,
+    json: () => Promise<unknown>,
+  ) {
+    const versioned = (record: ProjectRecord, status = 200) => {
+      const { version: _, ...project } = record;
+      return respond(status, project, { ETag: `"${record.version}"` });
+    };
+    const body = async (): Promise<Pick<ProjectRecord, 'name' | 'document'>> => {
+      const body = (await json()) as { name?: unknown; document?: unknown };
+      if (
+        typeof body?.name !== 'string' ||
+        !body.name.length ||
+        body.name.length > 256 ||
+        !('document' in body)
+      )
+        throw new Refusal(400, {
+          code: 'malformed_request',
+          message: 'Send a `name` of 1 to 256 characters and a `document`.',
+        });
+      return { name: body.name, document: body.document };
+    };
+    const version = () => {
+      const match = request.headers.get('If-Match')?.match(/^"(\d+)"$/);
+      if (!match)
+        throw new Refusal(428, {
+          code: 'precondition_required',
+          message: "Send the project's version in If-Match.",
+        });
+      return Number(match[1]);
+    };
+    const changed = (change: Change) => {
+      if (change === 'missing') throw notFound(`project ${projectId}`);
+      if (change === 'conflict')
+        throw new Refusal(412, {
+          code: 'version_conflict',
+          message: 'This project was changed since; open it again to continue.',
+        });
+      return change;
+    };
+    if (!projectId) {
+      if (request.method === 'GET') {
+        const all = (await records.all()).sort(
+          (a, b) => b.updated_at.localeCompare(a.updated_at) || a.id.localeCompare(b.id),
+        );
+        const url = new URL(request.url);
+        const start = Number(url.searchParams.get('cursor') ?? 0);
+        const limit = Math.min(100, Number(url.searchParams.get('limit') ?? 20));
+        const data = all
+          .slice(start, start + limit)
+          .map(({ document: _, version: __, ...summary }) => summary);
+        return respond(200, {
+          data,
+          next_cursor: start + limit < all.length ? String(start + limit) : null,
+        });
+      }
+      if (request.method === 'POST') {
+        const key = request.headers.get('Idempotency-Key');
+        const earlier = key ? creations.get(key) : undefined;
+        if (earlier) {
+          const record = await records.get(earlier);
+          if (!record) throw notFound(`project ${earlier}`);
+          return versioned(record);
+        }
+        const now = new Date().toISOString();
+        const record: ProjectRecord = {
+          id: id('prj'),
+          ...(await body()),
+          created_at: now,
+          updated_at: now,
+          version: 1,
+        };
+        await records.create(record);
+        if (key) creations.set(key, record.id);
+        return versioned(record, 201);
+      }
+    } else {
+      if (request.method === 'GET') {
+        const record = await records.get(projectId);
+        if (!record) throw notFound(`project ${projectId}`);
+        return versioned(record);
+      }
+      if (request.method === 'PUT')
+        return versioned(changed(await records.replace(projectId, version(), await body())));
+      if (request.method === 'DELETE') {
+        changed(await records.remove(projectId, version()));
+        return respond(204);
+      }
+    }
+    throw notFound(`route ${request.method} ${new URL(request.url).pathname}`);
   }
 
   return async (request) => {

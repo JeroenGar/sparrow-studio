@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createClient, withCode, type Input, type JobRequest } from '../src/api/client';
 import { createLocalBackend, type Engine, type EngineMessage } from '../src/backend/local';
+import { memoryRecords } from '../src/backend/projects';
 import { backendContract, follow, refusal } from './backend.contract';
 import { stripInput } from './fixtures/api-input';
 
@@ -64,7 +65,10 @@ function fakeEngine({ threads = 3, diagnostics = [] } = {}): Engine {
 }
 
 const local = (engine = fakeEngine()) =>
-  createClient({ baseUrl: 'https://studio.local/v1', fetch: createLocalBackend(engine) });
+  createClient({
+    baseUrl: 'https://studio.local/v1',
+    fetch: createLocalBackend(engine, memoryRecords()),
+  });
 
 describe('the local backend', () => {
   const client = local();

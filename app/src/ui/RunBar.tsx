@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiError, withCode } from '../api/client';
 import { copyCount, startBlockers } from '../project/model';
 import { projectRequest } from '../project/solution';
-import { client } from './client';
+import { backend, client } from './client';
 import { useStudio } from './context';
 import { formatLength, formatSeconds } from './format';
 import { ProTag } from './ProTag';
@@ -79,8 +79,7 @@ export function RunBar() {
       ) : (
         <span className="muted">
           {copies} {copies === 1 ? 'part' : 'parts'} · strip{' '}
-          {formatLength(project.stock.strip.widthMm, unit)} {unit} wide · solved in this browser
-          with open-source sparrow
+          {formatLength(project.stock.strip.widthMm, unit)} {unit} wide · solved {backend.solves}
         </span>
       )}
     </div>

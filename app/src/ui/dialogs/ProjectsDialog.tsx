@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
-import { browserStore, type ProjectSummary } from '../../project/store';
+import { backend, usesSparrowPro } from '../client';
+import { deleteProject, listProjects, type ProjectSummary } from '../projects';
 import { Dialog } from '../Dialog';
 import { Trash } from '../icons';
 
-/** The projects saved in this browser. */
+/** The saved projects. */
 export function ProjectsDialog({
   currentId,
   onOpen,
@@ -19,13 +20,12 @@ export function ProjectsDialog({
   const [error, setError] = useState('');
   const [confirming, setConfirming] = useState<string>();
   const refresh = () =>
-    browserStore
-      .list()
+    listProjects()
       .then(setProjects)
       .catch((reason: Error) => setError(reason.message));
   useEffect(() => void refresh(), []);
   return (
-    <Dialog title="Projects in this browser" onClose={onClose} wide>
+    <Dialog title={`Projects ${backend.saves}`} onClose={onClose} wide>
       {error && <p className="field-error">{error}</p>}
       {!projects && !error && <p className="muted">Loading…</p>}
       <ul className="project-list">
@@ -40,7 +40,7 @@ export function ProjectsDialog({
                 <span>{project.name}</span>
                 <span className="muted">
                   {project.id === currentId ? 'Open now · ' : ''}Changed{' '}
-                  {new Date(project.updatedAt).toLocaleString()}
+                  {new Date(project.updated_at).toLocaleString()}
                 </span>
               </span>
             </button>
@@ -49,7 +49,7 @@ export function ProjectsDialog({
                 <button
                   className="small danger"
                   onClick={async () => {
-                    await browserStore.remove(project.id);
+                    await deleteProject(project.id);
                     setConfirming(undefined);
                     if (project.id === currentId) onDeleted();
                     else void refresh();
@@ -73,9 +73,11 @@ export function ProjectsDialog({
           </li>
         ))}
       </ul>
-      <p className="muted">
-        Projects are saved in this browser only. Export a project file to keep a copy elsewhere.
-      </p>
+      {!usesSparrowPro && (
+        <p className="muted">
+          Projects are saved in this browser only. Export a project file to keep a copy elsewhere.
+        </p>
+      )}
     </Dialog>
   );
 }

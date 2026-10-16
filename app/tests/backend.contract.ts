@@ -95,4 +95,38 @@ export function backendContract(client: () => Client, { timeout }: { timeout: nu
     expect(missing.status).toBe(404);
     expect(withCode(missing.error, 'not_found')).toBeDefined();
   });
+
+  it('refuses a save over a stale version', { timeout: 30_000 }, async () => {
+    const created = await client().createProject(
+      { name: 'Integration test', document: { step: 1 } },
+      crypto.randomUUID(),
+    );
+    let current = created.version;
+    try {
+      const saved = await client().saveProject(
+        created.project.id,
+        { name: 'Integration test', document: { step: 2 } },
+        current,
+      );
+      current = saved.version;
+      expect(current).not.toBe(created.version);
+
+      const stale = await refusal(
+        client().saveProject(
+          created.project.id,
+          { name: 'Integration test', document: { step: 3 } },
+          created.version,
+        ),
+      );
+      expect(stale.status).toBe(412);
+      expect(withCode(stale.error, 'version_conflict')).toBeDefined();
+
+      const stored = await client().getProject(created.project.id);
+      expect(stored.project.document).toEqual({ step: 2 });
+      expect(stored.version).toBe(current);
+    } finally {
+      await client().deleteProject(created.project.id, current);
+    }
+    expect((await refusal(client().getProject(created.project.id))).status).toBe(404);
+  });
 }

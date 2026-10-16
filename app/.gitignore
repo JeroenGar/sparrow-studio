@@ -4,3 +4,5 @@ test-results/
 .vite/
 # Generated from vendor/openapi.json by npm run api:types.
 src/api/schema.d.ts
+# Local settings such as a development API key; never committed.
+*.local

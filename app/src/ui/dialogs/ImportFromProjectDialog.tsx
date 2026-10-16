@@ -6,7 +6,8 @@ import {
   type ProjectDocument,
   type Strip,
 } from '../../project/model';
-import { browserStore, type ProjectSummary } from '../../project/store';
+import { backend } from '../client';
+import { listProjects, openProject, type ProjectSummary } from '../projects';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength } from '../format';
@@ -20,7 +21,7 @@ const TITLES: Record<Kind, string> = {
   machines: 'Import machine presets from another project',
 };
 
-/** Copy parts, the strip or machine presets from a project saved in this browser. */
+/** Copy parts, the strip or machine presets from another saved project. */
 export function ImportFromProjectDialog({
   kind,
   currentId,
@@ -38,16 +39,14 @@ export function ImportFromProjectDialog({
   const [chosen, setChosen] = useState<Set<string>>(new Set());
   const [error, setError] = useState('');
   useEffect(() => {
-    browserStore
-      .list()
+    listProjects()
       .then((all) => setProjects(all.filter((project) => project.id !== currentId)))
       .catch((reason: Error) => setError(reason.message));
   }, [currentId]);
 
   async function open(id: string) {
     try {
-      const stored = await browserStore.get(id);
-      if (!stored) throw Error('This project no longer exists.');
+      const stored = await openProject(id);
       setSource(stored.document);
       const items =
         kind === 'parts'
@@ -121,7 +120,7 @@ export function ImportFromProjectDialog({
       {error && <p className="field-error">{error}</p>}
       {!source && (
         <>
-          <p className="muted">Choose a project saved in this browser.</p>
+          <p className="muted">Choose a project saved {backend.saves}.</p>
           {projects && !projects.length && <p>There are no other projects yet.</p>}
           <ul className="project-list">
             {projects?.map((project) => (
@@ -130,7 +129,7 @@ export function ImportFromProjectDialog({
                   <span className="row-text">
                     <span>{project.name}</span>
                     <span className="muted">
-                      Changed {new Date(project.updatedAt).toLocaleString()}
+                      Changed {new Date(project.updated_at).toLocaleString()}
                     </span>
                   </span>
                 </button>

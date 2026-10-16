@@ -4,10 +4,17 @@ import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
 import { addParts, newProject, startBlockers, type ProjectDocument } from '../project/model';
 import { projectRequest } from '../project/solution';
-import { client } from './client';
+import { backend, client } from './client';
 import { useJob } from './useJob';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
-import { browserStore, VersionConflict, type StoredProject } from '../project/store';
+import {
+  createProject,
+  isConflict,
+  listProjects,
+  openProject,
+  saveProject,
+  type StoredProject,
+} from './projects';
 import { StudioContext, type Studio, type Tab } from './context';
 import { AboutDialog } from './dialogs/AboutDialog';
 import { Logo } from './Logo';
@@ -57,8 +64,7 @@ export default function App() {
 
   const open = useCallback(
     async (id: string) => {
-      const project = await browserStore.get(id);
-      if (!project) throw Error('This project no longer exists in this browser.');
+      const project = await openProject(id);
       setStored(project);
       setPreferences({ lastProjectId: id });
     },
@@ -66,7 +72,7 @@ export default function App() {
   );
   const create = useCallback(
     async (document: ProjectDocument) => {
-      const project = await browserStore.create(document);
+      const project = await createProject(document);
       setStored(project);
       setPreferences({ lastProjectId: project.id });
     },
@@ -74,7 +80,7 @@ export default function App() {
   );
   const openLatest = useCallback(async () => {
     // Open the most recent project that still reads; a draft-format project is skipped.
-    for (const project of await browserStore.list()) {
+    for (const project of await listProjects()) {
       try {
         return await open(project.id);
       } catch {
@@ -195,11 +201,10 @@ function StudioShell({
     saving.current = true;
     const document = latest.current;
     try {
-      const next = await browserStore.save(stored.id, document, version.current);
-      version.current = next.version;
+      version.current = await saveProject(stored.id, document, version.current);
       saved.current = document;
     } catch (reason) {
-      setSaveState(reason instanceof VersionConflict ? 'conflict' : 'error');
+      setSaveState(isConflict(reason) ? 'conflict' : 'error');
       setError(reason instanceof Error ? reason.message : String(reason));
       return;
     } finally {
@@ -308,7 +313,7 @@ function StudioShell({
   );
 
   const saveLabel = {
-    saved: 'Saved in this browser',
+    saved: `Saved ${backend.saves}`,
     saving: 'Saving…',
     error: 'Not saved',
     conflict: 'Changed in another tab',
