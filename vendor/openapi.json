@@ -1531,7 +1531,7 @@
         "type": "object"
       },
       "Search": {
-        "description": "The data of a `search` event, sent only with `EventsQuery::search`: the layout the search is\nworking on, which may be infeasible, at most a few times a second. Best-effort: a job may send\nnone.",
+        "description": "The data of a `search` event, sent only with `EventsQuery::search`: the layout the search is\nworking on, which may be infeasible, at most 20 times a second. Best-effort: a job may send\nnone.",
         "properties": {
           "elapsed_seconds": {
             "format": "double",
@@ -1812,7 +1812,7 @@
         "type": "object"
       },
       "Snapshot": {
-        "description": "The data of a `snapshot` event on `GET /v1/jobs/{job_id}/events`: the best feasible solution\nso far. A `status` event carries the `Job`.",
+        "description": "The data of a `snapshot` event on `GET /v1/jobs/{job_id}/events`: the best feasible solution\nso far, at most 4 times a second and only when it improves. A `status` event carries the\n`Job`.",
         "properties": {
           "elapsed_seconds": {
             "format": "double",
@@ -1826,12 +1826,17 @@
           },
           "solution": {
             "$ref": "#/components/schemas/Solution"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats",
+            "description": "The statistics the outcome would have if the job ended with this solution."
           }
         },
         "required": [
           "sequence",
           "elapsed_seconds",
-          "solution"
+          "solution",
+          "stats"
         ],
         "type": "object"
       },
@@ -2686,13 +2691,13 @@
           "200": {
             "content": {
               "text/event-stream": {
-                "example": "event: snapshot\nid: 17\ndata: {\"sequence\":17,\"elapsed_seconds\":34.2,\"solution\":{\"layouts\":[]}}\n\n",
+                "example": "event: snapshot\nid: 17\ndata: {\"sequence\":17,\"elapsed_seconds\":34.2,\"solution\":{\"layouts\":[]},\"stats\":{\"consumed_area\":0.0,\"placed_area\":0.0,\"density\":0.0,\"layouts\":[]}}\n\n",
                 "schema": {
                   "type": "string"
                 }
               }
             },
-            "description": "Server-Sent Events. `status` (data: Job) on connection and on every state change; `snapshot` (data: Snapshot) with the best feasible solution so far, at most about once per second; with `search=true`, `search` (data: Search) with the layout being worked on, at most a few times per second. The stream ends after a final state."
+            "description": "Server-Sent Events. `status` (data: Job) on connection and on every state change; `snapshot` (data: Snapshot) with the best feasible solution so far and its statistics, at most 4 times per second and only when it improves; with `search=true`, `search` (data: Search) with the layout being worked on, at most 20 times per second. The stream ends after a final state."
           },
           "401": {
             "content": {
