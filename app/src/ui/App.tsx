@@ -4,7 +4,8 @@ import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
 import { addParts, newProject, startBlockers, type ProjectDocument } from '../project/model';
 import { projectRequest } from '../project/solution';
-import { backend, client } from './client';
+import { clearBrowserRecords } from '../backend/projects';
+import { backend, client, usesSparrowPro } from './client';
 import { useJob } from './useJob';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import {
@@ -99,9 +100,14 @@ export default function App() {
     const last = readPreferences().lastProjectId;
     const fallBack = (reason: unknown) =>
       isUnreadable(reason) ? openLatest() : Promise.reject(reason);
-    (last ? open(last).catch(fallBack) : openLatest()).catch((reason: Error) =>
-      setError(reason.message),
-    );
+    // In this browser, projects stored by an earlier version may not open; they are deleted
+    // and studio starts afresh rather than not at all.
+    const start = () => (last ? open(last).catch(fallBack) : openLatest());
+    start()
+      .catch((reason) =>
+        usesSparrowPro ? Promise.reject(reason) : clearBrowserRecords().then(openLatest),
+      )
+      .catch((reason: Error) => setError(reason.message));
     // Load once, at startup.
   }, []);
 

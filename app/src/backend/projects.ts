@@ -104,32 +104,12 @@ async function transaction<T>(
   }
 }
 
-/**
- * Records stored before the local backend kept the API's fields, as `{ id, updatedAt, version,
- * document }` and sometimes a `name`, take what they lack from what they have.
- */
-export function read(raw: Record<string, unknown> | undefined): ProjectRecord | undefined {
-  if (!raw) return undefined;
-  if (typeof raw.updated_at === 'string') return raw as ProjectRecord;
-  const document = raw.document as { name?: unknown } | undefined;
-  const updated = String(raw.updatedAt ?? new Date(0).toISOString());
-  const name = typeof raw.name === 'string' ? raw.name : document?.name;
-  return {
-    id: String(raw.id),
-    name: typeof name === 'string' ? name : 'Untitled project',
-    created_at: updated,
-    updated_at: updated,
-    version: Number(raw.version) || 1,
-    document,
-  };
-}
-
 /** Changes the record `id` at `version` in one transaction: `next` replaces it, or none deletes it. */
 function change(id: string, version: number, next?: (current: ProjectRecord) => ProjectRecord) {
   return transaction<Change>('readwrite', (store, done) => {
     const request = store.get(id);
     request.onsuccess = () => {
-      const current = read(request.result);
+      const current = request.result as ProjectRecord | undefined;
       if (!current) return done('missing');
       if (current.version !== version) return done('conflict');
       if (!next) {
@@ -146,12 +126,12 @@ export const browserRecords: ProjectRecords = {
   all: () =>
     transaction<ProjectRecord[]>('readonly', (store, done) => {
       const request = store.getAll();
-      request.onsuccess = () => done(request.result.map((raw) => read(raw)!));
+      request.onsuccess = () => done(request.result as ProjectRecord[]);
     }),
   get: (id) =>
     transaction<ProjectRecord | undefined>('readonly', (store, done) => {
       const request = store.get(id);
-      request.onsuccess = () => done(read(request.result));
+      request.onsuccess = () => done(request.result as ProjectRecord | undefined);
     }),
   create: (record) =>
     transaction<void>('readwrite', (store, done) => {
@@ -167,3 +147,9 @@ export const browserRecords: ProjectRecords = {
     })),
   remove: (id, version) => change(id, version),
 };
+
+/** Deletes every project in this browser: the fallback when what is stored cannot be opened. */
+export const clearBrowserRecords = () =>
+  transaction<void>('readwrite', (store, done) => {
+    store.clear().onsuccess = () => done();
+  });

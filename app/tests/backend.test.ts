@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createClient, withCode, type Input, type JobRequest } from '../src/api/client';
 import { createLocalBackend, type Engine, type EngineMessage } from '../src/backend/local';
-import { memoryRecords, read } from '../src/backend/projects';
+import { memoryRecords } from '../src/backend/projects';
 import { backendContract, follow, refusal } from './backend.contract';
 import { stripInput } from './fixtures/api-input';
 
@@ -185,28 +185,5 @@ describe('the local backend', () => {
     expect(last.status === 'failed' && withCode(last.error, 'no_feasible_solution')?.message).toBe(
       'Part plate fits nowhere.',
     );
-  });
-});
-
-describe('stored projects', () => {
-  const document = { name: 'From the document' };
-  it('reads records from every earlier version of studio', () => {
-    const current = {
-      id: 'a',
-      name: 'A',
-      created_at: '2026-01-01',
-      updated_at: '2026-02-01',
-      version: 3,
-      document,
-    };
-    expect(read(current)).toEqual(current);
-    const named = { id: 'b', name: 'Named', updatedAt: '2026-03-01', version: 2, document };
-    expect(read(named)).toMatchObject({ name: 'Named', updated_at: '2026-03-01', version: 2 });
-    const unnamed = { id: 'c', updatedAt: '2026-04-01', version: 1, document };
-    expect(read(unnamed)).toMatchObject({
-      name: 'From the document',
-      created_at: '2026-04-01',
-      updated_at: '2026-04-01',
-    });
   });
 });
