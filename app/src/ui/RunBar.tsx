@@ -82,7 +82,6 @@ export function RunBar() {
         <button className="primary" onClick={() => setTab(next)}>
           Next: {TAB_NAMES[next]}
         </button>
-        <span className="muted">Look through each tab before the first run.</span>
       </div>
     );
   const copies = copyCount(project.parts);
