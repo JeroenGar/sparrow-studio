@@ -12,6 +12,7 @@ import {
   setDefaultRotations,
   setPartRotations,
   startBlockers,
+  INPUT_TABS,
 } from '../src/project/model';
 import { drawable, isStale, projectInput, projectRequest } from '../src/project/solution';
 import { historyReducer, initialHistory } from '../src/ui/history';
@@ -131,18 +132,40 @@ describe('project document', () => {
     expect(result.usedLengthMm).toBeCloseTo(30);
   });
 
+  it('waits for each input tab before the first run of a new project, and only then', () => {
+    const project = addParts(newProject('Job'), [square(10)]);
+    expect(startBlockers(project)).toEqual([
+      'Open the Parts, Sheets, Machine and Settings tabs first.',
+    ]);
+    expect(startBlockers({ ...project, seenTabs: ['parts', 'machine', 'settings'] })).toEqual([
+      'Open the Sheets tab first.',
+    ]);
+    expect(startBlockers({ ...project, seenTabs: [...INPUT_TABS] })).toEqual([]);
+    // Once it has a solution, or for a project from before the rule, no tab has to be opened.
+    expect(
+      startBlockers({ ...project, solutions: [{ id: 's', createdAt: '', document: {} as never }] }),
+    ).toEqual([]);
+    const { seenTabs: _, ...older } = project;
+    expect(startBlockers(older)).toEqual([]);
+  });
+
   it('explains why a job cannot start', () => {
     const empty = newProject('Job');
-    expect(startBlockers(empty)).toEqual(['Import parts to nest.']);
-    const zero = { ...empty, parts: [square(10, 0)] };
+    expect(startBlockers(empty)).toEqual([
+      'Import parts to nest.',
+      'Open the Parts, Sheets, Machine and Settings tabs first.',
+    ]);
+    // With every input tab opened, only the inputs themselves can hold a run back.
+    const seen = { ...empty, seenTabs: [...INPUT_TABS] };
+    const zero = { ...seen, parts: [square(10, 0)] };
     expect(startBlockers(zero)[0]).toMatch('quantity above zero');
     const wide = {
-      ...empty,
+      ...seen,
       parts: [square(10)],
-      machines: [{ ...empty.machines[0], gapMm: 2000 }],
+      machines: [{ ...seen.machines[0], gapMm: 2000 }],
     };
     expect(startBlockers(wide)).toEqual(['The gap must be smaller than the strip width.']);
-    expect(startBlockers({ ...empty, parts: [square(10)] })).toEqual([]);
+    expect(startBlockers({ ...seen, parts: [square(10)] })).toEqual([]);
   });
 
   it('makes safe file names', () => {

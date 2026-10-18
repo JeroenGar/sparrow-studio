@@ -2,7 +2,7 @@ import type { ProjectDocument } from '../project/model';
 
 /**
  * Undo history for project edits. A project's results, its solutions and the job running for it,
- * are not edits: undo never removes or restores them.
+ * and the tabs opened so far are not edits: undo never removes or restores them.
  */
 export type History = {
   present: ProjectDocument;
@@ -19,13 +19,14 @@ export type HistoryAction =
   | { type: 'undo' }
   | { type: 'redo' };
 
-type Results = Pick<ProjectDocument, 'solutions' | 'runningJobId'>;
+type Results = Pick<ProjectDocument, 'solutions' | 'runningJobId' | 'seenTabs'>;
 
 /** A project from the history with the present results. */
 const withResults = (project: ProjectDocument, present: ProjectDocument): ProjectDocument => ({
   ...project,
   solutions: present.solutions,
   runningJobId: present.runningJobId,
+  seenTabs: present.seenTabs,
 });
 
 const LIMIT = 100;

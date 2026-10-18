@@ -61,9 +61,11 @@ export function describeError(reason: unknown): string {
   return withCode(reason.error, 'invalid_job_input')?.field_errors[0]?.message ?? reason.message;
 }
 
-/** What a run tells its owner: a job submitted, and a job over, with its document if it has one. */
+/** What a run tells its owner: a job submitted, one picked up again, and one over, with its document if it has one. */
 export type JobEvents = {
   submitted: (jobId: string) => void;
+  /** A remembered job is running still, and is followed again. */
+  resumed: () => void;
   ended: (document?: JobDocument) => void;
 };
 
@@ -192,6 +194,7 @@ export function useJob(
       const stopping = current.current.stopping;
       const runner = begin({ input: document.input, settings: document.settings });
       runner.mine.id = jobId;
+      owner.current.resumed();
       try {
         if (stopping) await client.stopJob(jobId);
         await follow(await client.getJob(jobId), runner);

@@ -2,7 +2,14 @@ import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'r
 import { newId } from '../engine/model';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
-import { addParts, newProject, startBlockers, type ProjectDocument } from '../project/model';
+import {
+  addParts,
+  INPUT_TABS,
+  newProject,
+  startBlockers,
+  type InputTab,
+  type ProjectDocument,
+} from '../project/model';
 import { projectRequest } from '../project/solution';
 import { clearBrowserRecords } from '../backend/projects';
 import { backend, client, usesSparrowPro } from './client';
@@ -171,6 +178,12 @@ function StudioShell({
   const [history, dispatch] = useReducer(historyReducer, stored.document, initialHistory);
   const project = history.present;
   const [tab, setTab] = useState<Tab>('parts');
+  // Opening an input tab counts for the new project's first run; it is no edit to undo.
+  const seenTabs = history.present.seenTabs;
+  useEffect(() => {
+    if (seenTabs && INPUT_TABS.includes(tab as InputTab) && !seenTabs.includes(tab as InputTab))
+      dispatch({ type: 'results', results: { seenTabs: [...seenTabs, tab as InputTab] } });
+  }, [tab, seenTabs]);
   const [dialog, setDialog] = useState<Dialogs>();
   const [error, setError] = useState('');
   const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error' | 'conflict'>('saved');
@@ -185,6 +198,7 @@ function StudioShell({
       // Jobs in this browser end with the page, so only Sparrow Pro's are remembered.
       submitted: (jobId) =>
         usesSparrowPro && dispatch({ type: 'results', results: { runningJobId: jobId } }),
+      resumed: () => setTab('live'),
       ended: (document) => {
         const completed = document?.state.status === 'completed' && !!document.outcome;
         dispatch({
@@ -432,7 +446,8 @@ function StudioShell({
               event.target.value = '';
               if (!file) return;
               try {
-                const document = parseProject(JSON.parse(await file.text()));
+                // An opened project file counts as new: its tabs are to be opened again.
+                const document = { ...parseProject(JSON.parse(await file.text())), seenTabs: [] };
                 await leave(() => create(document));
               } catch (reason) {
                 failed(reason);

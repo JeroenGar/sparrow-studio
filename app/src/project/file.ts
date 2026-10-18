@@ -1,7 +1,14 @@
 import { normalizePart } from '../engine/geometry/normalize';
 import { polygonShape } from '../engine/geometry/contour';
 import type { Ring } from '../engine/model';
-import { TIME_LIMITS, PROJECT_FORMAT, PROJECT_VERSION, type ProjectDocument } from './model';
+import {
+  INPUT_TABS,
+  TIME_LIMITS,
+  PROJECT_FORMAT,
+  PROJECT_VERSION,
+  type InputTab,
+  type ProjectDocument,
+} from './model';
 
 /** A document that is not a sparrow studio project studio can read. */
 export class InvalidProject extends Error {}
@@ -56,6 +63,12 @@ export function parseProject(stored: unknown): ProjectDocument {
     return fail('invalid solutions.');
   if (value.runningJobId !== undefined && typeof value.runningJobId !== 'string')
     return fail('invalid running job.');
+  if (
+    value.seenTabs !== undefined &&
+    (!Array.isArray(value.seenTabs) ||
+      !value.seenTabs.every((tab) => INPUT_TABS.includes(tab as InputTab)))
+  )
+    return fail('invalid seen tabs.');
   const defaults = value.partDefaults;
   const rule = isRecord(defaults) ? defaults.rotations : undefined;
   const validRule =

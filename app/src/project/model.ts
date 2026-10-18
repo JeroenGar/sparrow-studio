@@ -36,6 +36,11 @@ export type ProjectDocument = {
    * opening, follows it again, and records its solution.
    */
   runningJobId?: string;
+  /**
+   * The input tabs opened so far: a new project's first run waits until each was opened once.
+   * Absent in projects from before this rule, which count as seen.
+   */
+  seenTabs?: InputTab[];
 };
 
 export const TIME_LIMITS = [10, 30, 60, 120, 300, 600];
@@ -44,6 +49,22 @@ export const DEFAULT_SOLVER_SETTINGS: SolverSettings = {
   timeLimitSeconds: 120,
   autoTermination: true,
 };
+
+/** The tabs with a job's inputs. */
+export const INPUT_TABS = ['parts', 'sheets', 'machine', 'settings'] as const;
+export type InputTab = (typeof INPUT_TABS)[number];
+const TAB_NAMES: Record<InputTab, string> = {
+  parts: 'Parts',
+  sheets: 'Sheets',
+  machine: 'Machine',
+  settings: 'Settings',
+};
+
+/** The input tabs still to open before a project's first run; none once it has a solution. */
+export function unseenTabs(project: ProjectDocument): InputTab[] {
+  if (!project.seenTabs || project.solutions.length) return [];
+  return INPUT_TABS.filter((tab) => !project.seenTabs!.includes(tab));
+}
 
 export function newMachine(name = 'Default', gapMm = 0): MachinePreset {
   return { id: newId(), name, gapMm };
@@ -62,6 +83,7 @@ export function newProject(name: string, machine: MachinePreset = newMachine()):
     machineId: copy.id,
     settings: { ...DEFAULT_SOLVER_SETTINGS },
     solutions: [],
+    seenTabs: [],
   };
 }
 
@@ -89,6 +111,11 @@ export function startBlockers(project: ProjectDocument): string[] {
   if (!Number.isFinite(gap) || gap < 0) reasons.push('Set a valid gap in the Machine tab.');
   else if (Number.isFinite(width) && gap >= width)
     reasons.push('The gap must be smaller than the strip width.');
+  const unseen = unseenTabs(project).map((tab) => TAB_NAMES[tab]);
+  if (unseen.length)
+    reasons.push(
+      `Open the ${unseen.length > 1 ? `${unseen.slice(0, -1).join(', ')} and ${unseen.at(-1)}` : unseen[0]} tab${unseen.length > 1 ? 's' : ''} first.`,
+    );
   return reasons;
 }
 
