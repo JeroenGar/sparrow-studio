@@ -8,6 +8,7 @@ import {
   type JobRequest,
   type Schemas,
 } from '../api/client';
+import { explain } from './explain';
 
 /** A run of one job through the API: what was asked, and what has come back so far. */
 export type Run = {
@@ -53,15 +54,6 @@ function tick(run: Run, job: Job, seconds?: number): Run['clock'] {
 
 const FINAL = ['completed', 'cancelled', 'failed'];
 export const isFinal = (job?: Job) => !!job && FINAL.includes(job.state.status);
-
-/** Says what went wrong in words for the run's status, telling missing features apart. */
-export function describeError(reason: unknown): string {
-  if (!(reason instanceof ApiError))
-    return reason instanceof Error ? reason.message : String(reason);
-  const unavailable = withCode(reason.error, 'feature_unavailable');
-  if (unavailable) return unavailable.field_errors[0]?.message ?? reason.message;
-  return withCode(reason.error, 'invalid_job_input')?.field_errors[0]?.message ?? reason.message;
-}
 
 /** What a run tells its owner: a job submitted, one picked up again, and one over, with its document if it has one. */
 export type JobEvents = {
@@ -109,7 +101,7 @@ export function useJob(
     const fail = (reason: unknown) =>
       update((run) => ({
         ...run,
-        error: describeError(reason),
+        error: explain(reason),
         clock: run.clock && { seconds: elapsed(run), at: performance.now(), stopped: true },
       }));
     return { controller, mine, update, fail };

@@ -13,6 +13,7 @@ import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
 import { elapsed, useNow, type Run } from '../useJob';
 import { LayoutDrawing } from './LayoutDrawing';
+import { explainJobError } from '../explain';
 
 /**
  * The overlaps of the layout the search is working on, worked out off the main thread for one
@@ -144,7 +145,8 @@ export function LiveView() {
   longest.current.length = Math.max(longest.current.length, shownLength);
 
   const state = run?.job?.state;
-  const failure = run?.error ?? (state?.status === 'failed' ? state.error.message : undefined);
+  const failure =
+    run?.error ?? (state?.status === 'failed' ? explainJobError(state.error) : undefined);
   const reduced = run?.job?.diagnostics?.find(
     (diagnostic) => diagnostic.kind === 'threads_reduced',
   ) as { used: number; reason: string } | undefined;

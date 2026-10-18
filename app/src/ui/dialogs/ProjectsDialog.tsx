@@ -3,6 +3,7 @@ import { backend, usesSparrowPro } from '../client';
 import { deleteProject, listProjects, projectVersion, type ProjectSummary } from '../projects';
 import { Dialog } from '../Dialog';
 import { Trash } from '../icons';
+import { explain } from '../explain';
 
 /** The saved projects. */
 export function ProjectsDialog({
@@ -21,12 +22,11 @@ export function ProjectsDialog({
   // The project to delete, with its version when asked: a deletion removes only what was seen.
   const [confirming, setConfirming] = useState<{ id: string; version: string }>();
   const [deleting, setDeleting] = useState(false);
-  const fail = (reason: unknown) =>
-    setError(reason instanceof Error ? reason.message : String(reason));
+  const fail = (reason: unknown) => setError(explain(reason));
   const refresh = () =>
     listProjects()
       .then(setProjects)
-      .catch((reason: Error) => setError(reason.message));
+      .catch((reason) => setError(explain(reason)));
   useEffect(() => void refresh(), []);
   return (
     <Dialog title={`Projects ${backend.saves}`} onClose={onClose} wide>

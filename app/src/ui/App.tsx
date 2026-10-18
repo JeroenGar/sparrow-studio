@@ -45,6 +45,7 @@ import { PartsView } from './views/PartsView';
 import { SettingsView } from './views/SettingsView';
 import { SheetsView } from './views/SheetsView';
 import { SolutionView } from './views/SolutionView';
+import { explain } from './explain';
 
 const FIRST_EXAMPLE = 'albano.json';
 
@@ -116,7 +117,7 @@ export default function App() {
       .catch((reason) =>
         usesSparrowPro ? Promise.reject(reason) : clearBrowserRecords().then(openLatest),
       )
-      .catch((reason: Error) => setError(reason.message));
+      .catch((reason) => setError(explain(reason)));
     // Load once, at startup.
   }, []);
 
@@ -252,7 +253,7 @@ function StudioShell({
           saved.current = document;
         } catch (reason) {
           setSaveState(isConflict(reason) ? 'conflict' : 'error');
-          setError(reason instanceof Error ? reason.message : String(reason));
+          setError(explain(reason));
           return false;
         }
       }
@@ -263,11 +264,10 @@ function StudioShell({
   }, [stored.id]);
   /** Shows why a project could not be opened or made; a full account opens its projects to make room. */
   const failed = (reason: unknown) => {
-    if (isProjectLimit(reason)) {
-      setError('You have as many projects as your plan allows. Delete one to make room.');
-      setDialog({ type: 'projects' });
-    } else setError(reason instanceof Error ? reason.message : String(reason));
+    setError(explain(reason));
+    if (isProjectLimit(reason)) setDialog({ type: 'projects' });
   };
+
   /** Goes to another project once this one is saved; a project that does not save stays open. */
   const leave = async (go: () => Promise<void>) => {
     if (job.submitting) throw Error('The job is being submitted; try again in a moment.');
@@ -524,10 +524,8 @@ function StudioShell({
         <ProjectsDialog
           currentId={stored.id}
           onClose={() => setDialog(undefined)}
-          onOpen={(id) =>
-            void leave(() => open(id)).catch((reason: Error) => setError(reason.message))
-          }
-          onDeleted={() => void openLatest().catch((reason: Error) => setError(reason.message))}
+          onOpen={(id) => void leave(() => open(id)).catch(failed)}
+          onDeleted={() => void openLatest().catch(failed)}
         />
       )}
       {dialog?.type === 'examples' && (

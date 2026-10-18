@@ -6,7 +6,8 @@ import { backend, client } from './client';
 import { useStudio } from './context';
 import { formatLength, formatSeconds } from './format';
 import { ProTag } from './ProTag';
-import { describeError, elapsed, useNow } from './useJob';
+import { elapsed, useNow } from './useJob';
+import { explain } from './explain';
 
 /** Why the backend refuses the project's job: an error to fix, or a feature it does not have. */
 type Refusal = { message: string; unavailable: boolean };
@@ -27,7 +28,7 @@ function useRefusal() {
           setChecked({
             key,
             refusal: {
-              message: describeError(reason),
+              message: explain(reason),
               unavailable:
                 reason instanceof ApiError && !!withCode(reason.error, 'feature_unavailable'),
             },

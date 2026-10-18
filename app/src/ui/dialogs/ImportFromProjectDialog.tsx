@@ -11,6 +11,7 @@ import { listProjects, openProject, type ProjectSummary } from '../projects';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength } from '../format';
+import { explain } from '../explain';
 
 export type ProjectImport = { parts: Part[]; strip?: Strip; machines: MachinePreset[] };
 type Kind = 'parts' | 'sheets' | 'machines';
@@ -41,7 +42,7 @@ export function ImportFromProjectDialog({
   useEffect(() => {
     listProjects()
       .then((all) => setProjects(all.filter((project) => project.id !== currentId)))
-      .catch((reason: Error) => setError(reason.message));
+      .catch((reason) => setError(explain(reason)));
   }, [currentId]);
 
   async function open(id: string) {
@@ -56,7 +57,7 @@ export function ImportFromProjectDialog({
             : [stored.document.stock.strip.id];
       setChosen(new Set(items));
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : String(reason));
+      setError(explain(reason));
     }
   }
   const toggle = (id: string) =>
