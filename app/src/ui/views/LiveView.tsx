@@ -89,7 +89,9 @@ function RunClock({ run, running }: { run: Run; running: boolean }) {
 /** The improvement chart, running on with the clock between improvements. */
 function LiveChart({ run, running }: { run: Run; running: boolean }) {
   const seconds = elapsed(run, useNow(running));
-  return <ImprovementChart history={run.history} elapsed={seconds} />;
+  // A job followed again after a reload has no earlier history: its chart starts where watching did.
+  const from = run.resumed ? (run.history[0]?.seconds ?? 0) : 0;
+  return <ImprovementChart history={run.history} from={from} elapsed={seconds} />;
 }
 
 function status(run: Run) {
@@ -278,15 +280,25 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
  * the next. Utilization is plotted by its distance below the current best on a log scale, so even
  * small late improvements show; time runs linearly.
  */
-function ImprovementChart({ history, elapsed }: { history: Run['history']; elapsed: number }) {
+function ImprovementChart({
+  history,
+  from,
+  elapsed,
+}: {
+  history: Run['history'];
+  /** Where the time axis starts, in seconds. */
+  from: number;
+  elapsed: number;
+}) {
   const W = 300;
   const H = 110;
   const pad = { left: 44, right: 6, top: 8, bottom: 16 };
   const values = history.map((entry) => entry.utilization);
   const low = Math.min(...values);
   const high = Math.max(...values);
-  const end = Math.max(elapsed * 1000, history.at(-1)!.seconds * 1000, 1);
-  const x = (ms: number) => pad.left + (ms / end) * (W - pad.left - pad.right);
+  const start = from * 1000;
+  const end = Math.max(elapsed * 1000, history.at(-1)!.seconds * 1000, start + 1);
+  const x = (ms: number) => pad.left + ((ms - start) / (end - start)) * (W - pad.left - pad.right);
   // The best sits at the top and the first layout at the bottom; in between, the log distance.
   const floor = Math.max((high - low) * 0.01, 1e-6);
   const depth = (value: number) => Math.log((high - value + floor) / floor);
@@ -304,8 +316,12 @@ function ImprovementChart({ history, elapsed }: { history: Run['history']; elaps
     if (value >= low && yTicks.every((tick) => Math.abs(y(tick) - y(value)) >= 11))
       yTicks.push(value);
   // Time ticks at a round step, about 70 px apart.
-  const step = rulerStep(((end / 1000) * 70) / (W - pad.left - pad.right));
-  const xTicks = Array.from({ length: Math.floor(end / 1000 / step) + 1 }, (_, i) => i * step);
+  const step = rulerStep((((end - start) / 1000) * 70) / (W - pad.left - pad.right));
+  const first = Math.ceil(from / step) * step;
+  const xTicks = Array.from(
+    { length: Math.floor((end / 1000 - first) / step) + 1 },
+    (_, i) => first + i * step,
+  );
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Utilization over time">
       {yTicks.map((value) => (

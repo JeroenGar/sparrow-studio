@@ -20,6 +20,8 @@ export type Run = {
   search?: Schemas['Search'];
   /** The utilization of each better layout, in percent, by the second it arrived. */
   history: { seconds: number; utilization: number }[];
+  /** Followed again after the page reopened: what came before is not shown. */
+  resumed?: boolean;
   /** Why the run could not go on: a refused submission, or a lost connection. */
   error?: string;
   /** The finished job's document has been handed on. */
@@ -95,13 +97,13 @@ export function useJob(
   );
 
   /** Starts showing a run of `request`; its updates stop once a newer run starts. */
-  const begin = useCallback((request: JobRequest) => {
+  const begin = useCallback((request: JobRequest, resumed = false) => {
     following.current?.abort();
     const controller = new AbortController();
     following.current = controller;
     const mine: { id?: string; stopping: boolean } = { stopping: false };
     current.current = mine;
-    setRun({ request, history: [] });
+    setRun({ request, history: [], resumed });
     const update = (change: (run: Run) => Run) =>
       !controller.signal.aborted && setRun((current) => current && change(current));
     const fail = (reason: unknown) =>
@@ -192,7 +194,7 @@ export function useJob(
       setResuming(false);
       if (FINAL.includes(document.state.status)) return owner.current.ended(document);
       const stopping = current.current.stopping;
-      const runner = begin({ input: document.input, settings: document.settings });
+      const runner = begin({ input: document.input, settings: document.settings }, true);
       runner.mine.id = jobId;
       owner.current.resumed();
       try {
