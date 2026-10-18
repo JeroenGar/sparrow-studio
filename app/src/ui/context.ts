@@ -23,6 +23,8 @@ export type Studio = {
   /** The current or last run of this session. */
   run?: Run;
   running: boolean;
+  /** Follows the project's remembered job again, when it is not being followed. */
+  reconnect?: () => void;
   startRun: () => void;
   stopRun: () => void;
 };

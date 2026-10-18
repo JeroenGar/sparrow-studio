@@ -182,7 +182,9 @@ function StudioShell({
   const job = useJob(
     client,
     {
-      submitted: (jobId) => dispatch({ type: 'results', results: { runningJobId: jobId } }),
+      // Jobs in this browser end with the page, so only Sparrow Pro's are remembered.
+      submitted: (jobId) =>
+        usesSparrowPro && dispatch({ type: 'results', results: { runningJobId: jobId } }),
       ended: (document) => {
         const completed = document?.state.status === 'completed' && !!document.outcome;
         dispatch({
@@ -202,7 +204,7 @@ function StudioShell({
   );
   useEffect(() => {
     const jobId = stored.document.runningJobId;
-    if (jobId) void job.resume(jobId);
+    if (jobId && usesSparrowPro) void job.resume(jobId);
     // Once, for the job the project remembered when it was opened.
   }, []);
   const running = job.running;
@@ -253,13 +255,16 @@ function StudioShell({
   };
   /** Goes to another project once this one is saved; a project that does not save stays open. */
   const leave = async (go: () => Promise<void>) => {
+    if (job.submitting) throw Error('The job is being submitted; try again in a moment.');
     if (!(await flush())) throw Error('This project is not saved, so it stays open.');
     await go();
   };
   useEffect(() => {
     if (project === saved.current) return;
     setSaveState((state) => (state === 'conflict' ? state : 'saving'));
-    const timer = setTimeout(() => void flush(), 400);
+    // A newly remembered job is saved at once: closing the page must not lose it.
+    const now = project.runningJobId !== saved.current.runningJobId;
+    const timer = setTimeout(() => void flush(), now ? 0 : 400);
     return () => clearTimeout(timer);
   }, [project, flush]);
   useEffect(() => {
@@ -275,7 +280,7 @@ function StudioShell({
   }, [flush]);
 
   function startRun() {
-    if (running || startBlockers(project).length) return;
+    if (running || project.runningJobId || startBlockers(project).length) return;
     setError('');
     void job.start(projectRequest(project));
     setTab('live');
@@ -285,11 +290,11 @@ function StudioShell({
   const unsaved = saveState !== 'saved';
   useEffect(() => {
     // Sparrow Pro keeps running a job after the page closes, and the project picks it up again.
-    if (!(running && !usesSparrowPro) && !unsaved) return;
+    if (!(running && !usesSparrowPro) && !job.submitting && !unsaved) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [running, unsaved]);
+  }, [running, unsaved, job.submitting]);
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -351,6 +356,10 @@ function StudioShell({
       showError,
       run: job.run,
       running,
+      // A remembered job not being followed, such as after a lost connection, is reconnected to
+      // rather than replaced.
+      reconnect:
+        project.runningJobId && !running ? () => void job.resume(project.runningJobId!) : undefined,
       startRun,
       stopRun: job.stop,
     }),

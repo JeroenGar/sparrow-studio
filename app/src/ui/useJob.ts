@@ -165,20 +165,35 @@ export function useJob(
    * Picks up a job an earlier page submitted: follows it if it still runs, or hands on its
    * document if it ended meanwhile. A job the backend no longer has is over, without a document.
    */
+  // Picking up a remembered job, before its run is shown: it counts as running, so no new run starts.
+  const [resuming, setResuming] = useState(false);
   const resume = useCallback(
     async (jobId: string) => {
+      following.current?.abort();
+      const controller = new AbortController();
+      following.current = controller;
+      current.current = { id: jobId, stopping: false };
+      setResuming(true);
       let document: JobDocument;
       try {
         document = await client.getJobDocument(jobId);
       } catch (reason) {
+        // A failed request leaves the job remembered, to reconnect to later.
+        if (controller.signal.aborted) return;
+        setResuming(false);
         if (reason instanceof ApiError && (reason.status === 404 || reason.status === 410))
           owner.current.ended();
         return;
       }
+      // A newer run, or leaving, cancels picking up.
+      if (controller.signal.aborted) return;
+      setResuming(false);
       if (FINAL.includes(document.state.status)) return owner.current.ended(document);
+      const stopping = current.current.stopping;
       const runner = begin({ input: document.input, settings: document.settings });
       runner.mine.id = jobId;
       try {
+        if (stopping) await client.stopJob(jobId);
         await follow(await client.getJob(jobId), runner);
       } catch (reason) {
         if (!runner.controller.signal.aborted) runner.fail(reason);
@@ -189,12 +204,15 @@ export function useJob(
 
   const stop = useCallback(() => {
     current.current.stopping = true;
-    if (run?.job && !isFinal(run.job)) void client.stopJob(run.job.id);
+    const id = current.current.id;
+    if (id && !isFinal(run?.job)) void client.stopJob(id);
   }, [client, run?.job]);
 
   // A run goes on until its result is handed on, so a new one cannot cut it short.
-  const running = !!run && !run.error && !run.done;
-  return { run, running, start, resume, stop };
+  const running = resuming || (!!run && !run.error && !run.done);
+  // Submitted, but the backend has not answered with the job yet.
+  const submitting = !!run && !run.job && !run.error;
+  return { run, running, submitting, start, resume, stop };
 }
 
 /** This page's clock, read once per animation frame while `active`. */

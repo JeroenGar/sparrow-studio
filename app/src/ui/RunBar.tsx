@@ -45,7 +45,7 @@ function useRefusal() {
 
 /** Start nesting, at the bottom of every tab's list. While a run is going, it becomes Stop. */
 export function RunBar() {
-  const { project, unit, running, startRun, stopRun, run } = useStudio();
+  const { project, unit, running, startRun, stopRun, run, reconnect } = useStudio();
   const { checking, refusal } = useRefusal();
   const now = useNow(running);
 
@@ -61,6 +61,18 @@ export function RunBar() {
       </div>
     );
   }
+  if (reconnect)
+    return (
+      <div className="run-bar">
+        <button className="primary" onClick={reconnect}>
+          Reconnect
+        </button>
+        <span className="muted">
+          {run?.error ?? 'A job for this project is not being followed.'} Reconnect to follow it
+          again.
+        </span>
+      </div>
+    );
   const blocker = startBlockers(project)[0];
   const copies = copyCount(project.parts);
   return (
