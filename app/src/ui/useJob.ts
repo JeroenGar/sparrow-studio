@@ -61,78 +61,130 @@ export function describeError(reason: unknown): string {
   return withCode(reason.error, 'invalid_job_input')?.field_errors[0]?.message ?? reason.message;
 }
 
+/** What a run tells its owner: a job submitted, and a job over, with its document if it has one. */
+export type JobEvents = {
+  submitted: (jobId: string) => void;
+  ended: (document?: JobDocument) => void;
+};
+
 /**
- * Runs jobs through the API client and follows them live. `onDocument` receives each finished
- * job's document, completed or not.
+ * Runs jobs through the API client and follows them live, also jobs submitted by an earlier page.
+ * With `stopOnLeave`, leaving stops the job, for a backend whose jobs end with the page anyway.
  */
-export function useJob(client: Client, onDocument: (document: JobDocument) => void) {
+export function useJob(
+  client: Client,
+  events: JobEvents,
+  { stopOnLeave }: { stopOnLeave: boolean },
+) {
   const [run, setRun] = useState<Run>();
   const following = useRef<AbortController | undefined>(undefined);
   // The job being run, and a stop asked for while it is still being submitted.
   const current = useRef<{ id?: string; stopping: boolean }>({ stopping: false });
-  const finished = useRef(onDocument);
-  finished.current = onDocument;
-  // Leaving, such as for another project, stops the job: nothing would save its result.
+  const owner = useRef(events);
+  owner.current = events;
   useEffect(
     () => () => {
       following.current?.abort();
+      if (!stopOnLeave) return;
       current.current.stopping = true;
       if (current.current.id) void client.stopJob(current.current.id).catch(() => {});
+    },
+    [client, stopOnLeave],
+  );
+
+  /** Starts showing a run of `request`; its updates stop once a newer run starts. */
+  const begin = useCallback((request: JobRequest) => {
+    following.current?.abort();
+    const controller = new AbortController();
+    following.current = controller;
+    const mine: { id?: string; stopping: boolean } = { stopping: false };
+    current.current = mine;
+    setRun({ request, history: [] });
+    const update = (change: (run: Run) => Run) =>
+      !controller.signal.aborted && setRun((current) => current && change(current));
+    const fail = (reason: unknown) =>
+      update((run) => ({
+        ...run,
+        error: describeError(reason),
+        clock: run.clock && { seconds: elapsed(run), at: performance.now(), stopped: true },
+      }));
+    return { controller, mine, update, fail };
+  }, []);
+
+  /** Follows a job until it ends, then hands on its document. */
+  const follow = useCallback(
+    async (job: Job, { controller, update }: ReturnType<typeof begin>) => {
+      for await (const event of client.streamJobEvents(job.id, {
+        search: true,
+        signal: controller.signal,
+      })) {
+        if (event.type === 'status') job = event.data;
+        update((run) => {
+          if (event.type === 'status')
+            return { ...run, job: event.data, clock: tick(run, event.data) };
+          const clock = run.job && tick(run, run.job, event.data.elapsed_seconds);
+          if (event.type === 'search') return { ...run, search: event.data, clock };
+          const history = [
+            ...run.history,
+            { seconds: event.data.elapsed_seconds, utilization: event.data.stats.density * 100 },
+          ];
+          return { ...run, best: event.data, history, clock };
+        });
+      }
+      // The stream can end before the job, such as when the connection drops.
+      if (!isFinal(job)) job = await client.getJob(job.id);
+      if (!isFinal(job)) throw Error('Lost the connection to the running job.');
+      update((run) => ({ ...run, job, clock: tick(run, job) }));
+      const document = await client.getJobDocument(job.id);
+      // A newer run, or leaving, makes this one's result too late to keep.
+      if (controller.signal.aborted) return;
+      owner.current.ended(document);
+      update((run) => ({ ...run, done: true }));
     },
     [client],
   );
 
   const start = useCallback(
     async (request: JobRequest) => {
-      following.current?.abort();
-      const controller = new AbortController();
-      following.current = controller;
-      const update = (change: (run: Run) => Run) =>
-        !controller.signal.aborted && setRun((current) => current && change(current));
-      const mine = { stopping: false } as { id?: string; stopping: boolean };
-      current.current = mine;
-      setRun({ request, history: [] });
+      const runner = begin(request);
       try {
-        let job = await client.submitJob(request, crypto.randomUUID());
-        mine.id = job.id;
-        update((run) => ({ ...run, job }));
-        if (mine.stopping) await client.stopJob(job.id);
-        for await (const event of client.streamJobEvents(job.id, {
-          search: true,
-          signal: controller.signal,
-        })) {
-          if (event.type === 'status') job = event.data;
-          update((run) => {
-            if (event.type === 'status')
-              return { ...run, job: event.data, clock: tick(run, event.data) };
-            const clock = run.job && tick(run, run.job, event.data.elapsed_seconds);
-            if (event.type === 'search') return { ...run, search: event.data, clock };
-            const history = [
-              ...run.history,
-              { seconds: event.data.elapsed_seconds, utilization: event.data.stats.density * 100 },
-            ];
-            return { ...run, best: event.data, history, clock };
-          });
-        }
-        // The stream can end before the job, such as when the connection drops.
-        if (!isFinal(job)) job = await client.getJob(job.id);
-        if (!isFinal(job)) throw Error('Lost the connection to the running job.');
-        update((run) => ({ ...run, job, clock: tick(run, job) }));
-        const document = await client.getJobDocument(job.id);
-        // A newer run, or leaving, makes this one's result too late to keep.
-        if (controller.signal.aborted) return;
-        finished.current(document);
-        update((run) => ({ ...run, done: true }));
+        const job = await client.submitJob(request, crypto.randomUUID());
+        runner.mine.id = job.id;
+        owner.current.submitted(job.id);
+        runner.update((run) => ({ ...run, job }));
+        if (runner.mine.stopping) await client.stopJob(job.id);
+        await follow(job, runner);
       } catch (reason) {
-        if (!controller.signal.aborted)
-          update((run) => ({
-            ...run,
-            error: describeError(reason),
-            clock: run.clock && { seconds: elapsed(run), at: performance.now(), stopped: true },
-          }));
+        if (!runner.controller.signal.aborted) runner.fail(reason);
       }
     },
-    [client],
+    [client, begin, follow],
+  );
+
+  /**
+   * Picks up a job an earlier page submitted: follows it if it still runs, or hands on its
+   * document if it ended meanwhile. A job the backend no longer has is over, without a document.
+   */
+  const resume = useCallback(
+    async (jobId: string) => {
+      let document: JobDocument;
+      try {
+        document = await client.getJobDocument(jobId);
+      } catch (reason) {
+        if (reason instanceof ApiError && (reason.status === 404 || reason.status === 410))
+          owner.current.ended();
+        return;
+      }
+      if (FINAL.includes(document.state.status)) return owner.current.ended(document);
+      const runner = begin({ input: document.input, settings: document.settings });
+      runner.mine.id = jobId;
+      try {
+        await follow(await client.getJob(jobId), runner);
+      } catch (reason) {
+        if (!runner.controller.signal.aborted) runner.fail(reason);
+      }
+    },
+    [client, begin, follow],
   );
 
   const stop = useCallback(() => {
@@ -142,7 +194,7 @@ export function useJob(client: Client, onDocument: (document: JobDocument) => vo
 
   // A run goes on until its result is handed on, so a new one cannot cut it short.
   const running = !!run && !run.error && !run.done;
-  return { run, running, start, stop };
+  return { run, running, start, resume, stop };
 }
 
 /** This page's clock, read once per animation frame while `active`. */

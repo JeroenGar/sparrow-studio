@@ -1,6 +1,9 @@
 import type { ProjectDocument } from '../project/model';
 
-/** Undo history for project edits. Solutions are results, not edits, so undo never removes them. */
+/**
+ * Undo history for project edits. A project's results, its solutions and the job running for it,
+ * are not edits: undo never removes or restores them.
+ */
 export type History = {
   present: ProjectDocument;
   past: ProjectDocument[];
@@ -12,9 +15,18 @@ export type History = {
 export type HistoryAction =
   | { type: 'load'; project: ProjectDocument }
   | { type: 'edit'; project: ProjectDocument; key?: string; at: number }
-  | { type: 'solutions'; solutions: ProjectDocument['solutions'] }
+  | { type: 'results'; results: Partial<Results> }
   | { type: 'undo' }
   | { type: 'redo' };
+
+type Results = Pick<ProjectDocument, 'solutions' | 'runningJobId'>;
+
+/** A project from the history with the present results. */
+const withResults = (project: ProjectDocument, present: ProjectDocument): ProjectDocument => ({
+  ...project,
+  solutions: present.solutions,
+  runningJobId: present.runningJobId,
+});
 
 const LIMIT = 100;
 const COALESCE_MS = 1200;
@@ -44,13 +56,13 @@ export function historyReducer(state: History, action: HistoryAction): History {
         lastAt: action.at,
       };
     }
-    case 'solutions':
-      return { ...state, present: { ...state.present, solutions: action.solutions } };
+    case 'results':
+      return { ...state, present: { ...state.present, ...action.results } };
     case 'undo': {
       const previous = state.past.at(-1);
       if (!previous) return state;
       return {
-        present: { ...previous, solutions: state.present.solutions },
+        present: withResults(previous, state.present),
         past: state.past.slice(0, -1),
         future: [state.present, ...state.future],
         lastAt: 0,
@@ -60,7 +72,7 @@ export function historyReducer(state: History, action: HistoryAction): History {
       const next = state.future[0];
       if (!next) return state;
       return {
-        present: { ...next, solutions: state.present.solutions },
+        present: withResults(next, state.present),
         past: [...state.past, state.present],
         future: state.future.slice(1),
         lastAt: 0,

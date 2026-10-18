@@ -31,6 +31,11 @@ export type ProjectDocument = {
   settings: SolverSettings;
   /** Holds at most one solution for now; sparrow pro will return several. */
   solutions: Solution[];
+  /**
+   * The job running for this project, when one is. A page closed while it runs finds it here on
+   * opening, follows it again, and records its solution.
+   */
+  runningJobId?: string;
 };
 
 export const TIME_LIMITS = [10, 30, 60, 120, 300, 600];

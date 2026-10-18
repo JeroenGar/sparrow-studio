@@ -54,6 +54,8 @@ export function parseProject(stored: unknown): ProjectDocument {
     !value.solutions.every((solution) => isRecord(solution) && isRecord(solution.document))
   )
     return fail('invalid solutions.');
+  if (value.runningJobId !== undefined && typeof value.runningJobId !== 'string')
+    return fail('invalid running job.');
   const defaults = value.partDefaults;
   const rule = isRecord(defaults) ? defaults.rotations : undefined;
   const validRule =

@@ -36,6 +36,12 @@ describe('project document', () => {
     expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
   });
 
+  it('keeps the job running for the project', () => {
+    const project = { ...newProject('Shop job'), runningJobId: 'job_7' };
+    expect(parseProject(JSON.parse(serializeProject(project))).runningJobId).toBe('job_7');
+    expect(() => parseProject({ ...project, runningJobId: 7 })).toThrow('running job');
+  });
+
   it('rejects other formats and versions', () => {
     const project = newProject('Shop job');
     expect(() => parseProject({ ...project, format: 'other' })).toThrow('unknown format');
@@ -185,10 +191,15 @@ describe('undo history', () => {
     state = historyReducer(state, { type: 'edit', project: named('AB'), key: 'name', at: 1500 });
     expect(state.past).toHaveLength(1);
     const solution = { id: 's', createdAt: '', document: {} as never };
-    state = historyReducer(state, { type: 'solutions', solutions: [solution] });
+    state = historyReducer(state, {
+      type: 'results',
+      results: { solutions: [solution], runningJobId: 'job_1' },
+    });
     state = historyReducer(state, { type: 'undo' });
     expect(state.present.name).toBe('Job');
     expect(state.present.solutions).toEqual([solution]);
+    // The job running for the project is no edit either.
+    expect(state.present.runningJobId).toBe('job_1');
     state = historyReducer(state, { type: 'redo' });
     expect(state.present.name).toBe('AB');
   });

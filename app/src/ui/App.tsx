@@ -177,15 +177,34 @@ function StudioShell({
   const version = useRef(stored.version);
   const saved = useRef(stored.document);
   const fileInput = useRef<HTMLInputElement>(null);
-  // A finished job becomes the project's solution when it completed with a layout.
-  const job = useJob(client, (document) => {
-    if (document.state.status !== 'completed' || !document.outcome) return;
-    dispatch({
-      type: 'solutions',
-      solutions: [{ id: newId(), createdAt: new Date().toISOString(), document }],
-    });
-    setTab((current) => (current === 'live' ? 'solution' : current));
-  });
+  // The project remembers its running job, so a page closed meanwhile picks it up on opening; a
+  // job that completed with a layout becomes the project's solution.
+  const job = useJob(
+    client,
+    {
+      submitted: (jobId) => dispatch({ type: 'results', results: { runningJobId: jobId } }),
+      ended: (document) => {
+        const completed = document?.state.status === 'completed' && !!document.outcome;
+        dispatch({
+          type: 'results',
+          results: {
+            runningJobId: undefined,
+            ...(completed && {
+              solutions: [{ id: newId(), createdAt: new Date().toISOString(), document }],
+            }),
+          },
+        });
+        if (completed) setTab((current) => (current === 'live' ? 'solution' : current));
+      },
+    },
+    // Jobs in this browser end with the page, so leaving the project stops them.
+    { stopOnLeave: !usesSparrowPro },
+  );
+  useEffect(() => {
+    const jobId = stored.document.runningJobId;
+    if (jobId) void job.resume(jobId);
+    // Once, for the job the project remembered when it was opened.
+  }, []);
   const running = job.running;
 
   const showError = useCallback((message: string) => setError(message), []);
@@ -262,10 +281,11 @@ function StudioShell({
     setTab('live');
   }
 
-  // Leaving the page cancels a save on its way, and a running job; ask first.
+  // Leaving the page cancels a save on its way, and a job in this browser; ask first.
   const unsaved = saveState !== 'saved';
   useEffect(() => {
-    if (!running && !unsaved) return;
+    // Sparrow Pro keeps running a job after the page closes, and the project picks it up again.
+    if (!(running && !usesSparrowPro) && !unsaved) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
