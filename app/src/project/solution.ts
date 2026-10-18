@@ -1,5 +1,5 @@
 import type { Input, JobDocument, JobRequest, Schemas } from '../api/client';
-import { netArea, worldParts } from '../engine/geometry/world';
+import { worldParts } from '../engine/geometry/world';
 import type { Job, Part, Result } from '../engine/model';
 import { activeMachine, resolvedParts, type ProjectDocument } from './model';
 
@@ -110,10 +110,4 @@ export function drawable(
     placements,
   };
   return { job, result };
-}
-
-/** The share of the used strip that the parts cover, in percent. */
-export function utilization({ job, result }: { job: Job; result: Result }): number {
-  const area = job.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
-  return (area / (job.settings.materialWidthMm * result.usedLengthMm)) * 100;
 }

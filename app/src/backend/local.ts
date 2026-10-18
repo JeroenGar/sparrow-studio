@@ -313,7 +313,7 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
           const cut = (stats: Stats) => stats.layouts[0]?.cut_x ?? Infinity;
           if (local.best && cut(message.stats) >= cut(local.best.stats)) return;
           local.best = { ...message, sequence: ++sequence };
-          const { stats: _, replay: __, ...snapshot } = local.best;
+          const { replay: _, ...snapshot } = local.best;
           return publish(local, 'snapshot', snapshot, local.best.sequence);
         }
         case 'search': {
@@ -384,7 +384,7 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
         local.followers.add(follower);
         follower.send('status', local.job);
         if (local.best) {
-          const { stats: _, replay: __, ...snapshot } = local.best;
+          const { replay: _, ...snapshot } = local.best;
           follower.send('snapshot', snapshot, local.best.sequence);
         }
         if (FINAL.includes(local.job.state.status)) close();

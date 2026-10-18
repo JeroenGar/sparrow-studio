@@ -19,8 +19,11 @@ export async function refusal(request: Promise<unknown>): Promise<ApiError> {
 /** Follows a job live until it ends, and returns every status it streamed. */
 export async function follow(client: Client, job: Job, signal: AbortSignal) {
   const statuses: Job[] = [];
-  for await (const event of client.streamJobEvents(job.id, { search: true, signal }))
+  for await (const event of client.streamJobEvents(job.id, { search: true, signal })) {
     if (event.type === 'status') statuses.push(event.data);
+    // Each better layout comes with the statistics its outcome would have.
+    if (event.type === 'snapshot') expect(event.data.stats.layouts[0].cut_x).toBeGreaterThan(0);
+  }
   return statuses;
 }
 

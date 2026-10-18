@@ -4,7 +4,7 @@ import { worldParts } from '../../engine/geometry/world';
 import type { LiveGeometry } from '../../engine/geometry/live';
 import type { GeometryReply } from '../../engine/workers/protocol';
 import { activeMachine, copyCount } from '../../project/model';
-import { drawable, utilization } from '../../project/solution';
+import { drawable } from '../../project/solution';
 import { Canvas } from '../Canvas';
 import { backend, usesSparrowPro } from '../client';
 import { useStudio } from '../context';
@@ -119,7 +119,10 @@ export function LiveView() {
   );
   const input = run?.request.input;
   const best = useMemo(
-    () => (input && run?.best ? drawable(input, run.best.solution, names) : undefined),
+    () =>
+      input && run?.best
+        ? drawable(input, run.best.solution, names, run.best.stats.layouts[0]?.cut_x)
+        : undefined,
     [input, run?.best, names],
   );
   const frame = useSearchFrame(running ? input : undefined, run?.search, names);
@@ -159,7 +162,7 @@ export function LiveView() {
               <div className="metrics">
                 <div className="metric">
                   <span className="metric-value">
-                    {best ? formatPercent(utilization(best)) : '—'}
+                    {run?.best ? formatPercent(run.best.stats.density * 100) : '—'}
                   </span>
                   <span className="muted">utilization</span>
                 </div>

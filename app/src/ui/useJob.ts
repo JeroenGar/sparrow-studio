@@ -8,7 +8,6 @@ import {
   type JobRequest,
   type Schemas,
 } from '../api/client';
-import { drawable, utilization } from '../project/solution';
 
 /** A run of one job through the API: what was asked, and what has come back so far. */
 export type Run = {
@@ -108,10 +107,9 @@ export function useJob(client: Client, onDocument: (document: JobDocument) => vo
               return { ...run, job: event.data, clock: tick(run, event.data) };
             const clock = run.job && tick(run, run.job, event.data.elapsed_seconds);
             if (event.type === 'search') return { ...run, search: event.data, clock };
-            const percent = utilization(drawable(request.input, event.data.solution));
             const history = [
               ...run.history,
-              { seconds: event.data.elapsed_seconds, utilization: percent },
+              { seconds: event.data.elapsed_seconds, utilization: event.data.stats.density * 100 },
             ];
             return { ...run, best: event.data, history, clock };
           });
