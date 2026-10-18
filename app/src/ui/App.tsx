@@ -7,6 +7,7 @@ import {
   INPUT_TABS,
   newProject,
   startBlockers,
+  unseenTabs,
   type InputTab,
   type ProjectDocument,
 } from '../project/model';
@@ -294,7 +295,13 @@ function StudioShell({
   }, [flush]);
 
   function startRun() {
-    if (running || project.runningJobId || startBlockers(project).length) return;
+    if (
+      running ||
+      project.runningJobId ||
+      startBlockers(project).length ||
+      unseenTabs(project).length
+    )
+      return;
     setError('');
     void job.start(projectRequest(project));
     setTab('live');

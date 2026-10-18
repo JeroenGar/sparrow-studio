@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, withCode } from '../api/client';
-import { copyCount, startBlockers } from '../project/model';
+import { copyCount, startBlockers, TAB_NAMES, unseenTabs } from '../project/model';
 import { projectRequest } from '../project/solution';
 import { backend, client } from './client';
 import { useStudio } from './context';
@@ -45,7 +45,7 @@ function useRefusal() {
 
 /** Start nesting, at the bottom of every tab's list. While a run is going, it becomes Stop. */
 export function RunBar() {
-  const { project, unit, running, startRun, stopRun, run, reconnect } = useStudio();
+  const { project, unit, running, startRun, stopRun, run, reconnect, setTab } = useStudio();
   const { checking, refusal } = useRefusal();
   const now = useNow(running);
 
@@ -74,6 +74,17 @@ export function RunBar() {
       </div>
     );
   const blocker = startBlockers(project)[0];
+  // A new project's first run comes after a look through each input tab, one after the other.
+  const next = unseenTabs(project)[0];
+  if (!blocker && next)
+    return (
+      <div className="run-bar">
+        <button className="primary" onClick={() => setTab(next)}>
+          Next: {TAB_NAMES[next]}
+        </button>
+        <span className="muted">Look through each tab before the first run.</span>
+      </div>
+    );
   const copies = copyCount(project.parts);
   return (
     <div className="run-bar">

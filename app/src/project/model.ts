@@ -53,7 +53,7 @@ export const DEFAULT_SOLVER_SETTINGS: SolverSettings = {
 /** The tabs with a job's inputs. */
 export const INPUT_TABS = ['parts', 'sheets', 'machine', 'settings'] as const;
 export type InputTab = (typeof INPUT_TABS)[number];
-const TAB_NAMES: Record<InputTab, string> = {
+export const TAB_NAMES: Record<InputTab, string> = {
   parts: 'Parts',
   sheets: 'Sheets',
   machine: 'Machine',
@@ -111,11 +111,6 @@ export function startBlockers(project: ProjectDocument): string[] {
   if (!Number.isFinite(gap) || gap < 0) reasons.push('Set a valid gap in the Machine tab.');
   else if (Number.isFinite(width) && gap >= width)
     reasons.push('The gap must be smaller than the strip width.');
-  const unseen = unseenTabs(project).map((tab) => TAB_NAMES[tab]);
-  if (unseen.length)
-    reasons.push(
-      `Open the ${unseen.length > 1 ? `${unseen.slice(0, -1).join(', ')} and ${unseen.at(-1)}` : unseen[0]} tab${unseen.length > 1 ? 's' : ''} first.`,
-    );
   return reasons;
 }
 
