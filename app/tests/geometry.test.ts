@@ -3,6 +3,7 @@ import { describe,it,expect } from 'vitest';
 import { newPart,DEFAULT_SETTINGS,SHEET_LAYER,defaultDXFLayers,type Job,type Result } from '../src/engine/model';
 import { normalizePart,normalizeRing } from '../src/engine/geometry/normalize';
 import { worldParts } from '../src/engine/geometry/world';
+import { pole } from '../src/engine/geometry/pole';
 import { importSparrow } from '../src/engine/import/sparrow';
 import { exportSVG } from '../src/engine/export/svg';
 import { exportDXF } from '../src/engine/export/dxf';
@@ -168,4 +169,18 @@ it('exports a layout on its sheet: outline, defects and cut drawn, and only the 
   expect(imported.document.parts).toHaveLength(2);
   const entities=(parseString(dxf) as {entities:{type:string;layer:string}[]}).entities.filter(e=>e.layer===SHEET_LAYER);
   expect(entities.map(e=>e.type).sort()).toEqual(['CIRCLE','LINE','LWPOLYLINE','LWPOLYLINE']);
+});
+
+it('finds the pole of inaccessibility inside the material, where the middle of the bounds is not',()=>{
+  // A C: its middle is the gap between its arms.
+  const c=outline(polygonShape([[0,0],[100,0],[100,20],[20,20],[20,80],[100,80],[100,100],[0,100]]));
+  const {point,radius}=pole(c);
+  expect(point[0]).toBeLessThan(20);
+  // Widest where an arm meets the spine: 20·(2 − √2) ≈ 11.7 from every edge.
+  expect(radius).toBeCloseTo(20*(2-Math.SQRT2),0);
+  // A ring: the hole in the middle is not material either.
+  const ring=outline(polygonShape([[0,0],[100,0],[100,100],[0,100]],[[[20,20],[20,80],[80,80],[80,20]]]));
+  const inRing=pole(ring);
+  expect(Math.min(inRing.point[0],inRing.point[1],100-inRing.point[0],100-inRing.point[1])).toBeLessThan(20);
+  expect(inRing.radius).toBeGreaterThan(9);
 });

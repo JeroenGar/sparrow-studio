@@ -35,6 +35,7 @@ import {
 } from '../rotations';
 import { RunBar } from '../RunBar';
 import { outline } from '../../engine/geometry/contour';
+import { pole } from '../../engine/geometry/pole';
 
 type Menu = { partId: string; x: number; y: number };
 
@@ -668,14 +669,16 @@ function PartsDrawing({
         const isSelected = part.id === selected;
         const { outer, holes } = outline(part.shape);
         const d = ringsPath([outer, ...holes], dx, dy);
-        const size = Math.min(box[2] - box[0], box[3] - box[1]);
+        // The grain line sits in the widest place of the material, which the middle of an
+        // irregular part need not be, and stays within it.
+        const { point, radius } = pole(outline(part.shape));
         // Only parts with their own rotations show a grain line, once large enough on screen:
         // it fades in from 30 px and is fully drawn at 60 px.
-        const detail = Math.max(0, Math.min(1, (size / upp - 30) / 30));
+        const detail = Math.max(0, Math.min(1, ((2 * radius) / upp - 30) / 30));
         const grain =
           ownRotations(part.id) &&
           detail > 0 &&
-          grainPaths(part.rotations, (box[0] + box[2]) / 2, -(box[1] + box[3]) / 2, size * 0.45);
+          grainPaths(part.rotations, point[0] + dx, -(point[1] + dy), radius * 0.9);
         return (
           <g
             key={part.id}
