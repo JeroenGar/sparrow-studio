@@ -1072,7 +1072,8 @@
               "max_time_limit_seconds",
               "max_part_copies",
               "max_projects",
-              "max_project_bytes"
+              "max_project_bytes",
+              "max_project_summary_bytes"
             ],
             "type": "string"
           },
@@ -1092,7 +1093,13 @@
             "type": "integer"
           },
           "max_project_bytes": {
-            "description": "The total size of the account's project documents.",
+            "description": "The total size of the account's projects: their documents and summaries.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "max_project_summary_bytes": {
+            "description": "The largest summary of one project, serialized as sent.",
             "format": "uint64",
             "minimum": 0,
             "type": "integer"
@@ -1134,7 +1141,8 @@
           "max_running_jobs",
           "max_queued_jobs",
           "max_projects",
-          "max_project_bytes"
+          "max_project_bytes",
+          "max_project_summary_bytes"
         ],
         "type": "object"
       },
@@ -1369,6 +1377,9 @@
           "name": {
             "type": "string"
           },
+          "summary": {
+            "description": "The client's own summary of the project, such as what its list shows: opaque to the API,\nstored as given, and `null` when none was set."
+          },
           "updated_at": {
             "format": "date-time",
             "type": "string"
@@ -1379,6 +1390,7 @@
           "name",
           "created_at",
           "updated_at",
+          "summary",
           "document"
         ],
         "type": "object"
@@ -1394,6 +1406,9 @@
           "name": {
             "description": "From 1 to 256 characters.",
             "type": "string"
+          },
+          "summary": {
+            "description": "Any JSON, opaque to the API, of at most `max_project_summary_bytes` as sent; it counts\ntowards `max_project_bytes`. A save replaces the whole project, so a save without it\nclears it."
           }
         },
         "required": [
@@ -1403,7 +1418,7 @@
         "type": "object"
       },
       "ProjectSummary": {
-        "description": "A project in a list, without its document; lists are ordered by `updated_at`, most recent\nfirst.",
+        "description": "A project in a list, with its summary but without its document; lists are ordered by\n`updated_at`, most recent first.",
         "properties": {
           "created_at": {
             "format": "date-time",
@@ -1415,6 +1430,9 @@
           "name": {
             "type": "string"
           },
+          "summary": {
+            "description": "The client's own summary of the project, such as what its list shows: opaque to the API,\nstored as given, and `null` when none was set."
+          },
           "updated_at": {
             "format": "date-time",
             "type": "string"
@@ -1424,7 +1442,8 @@
           "id",
           "name",
           "created_at",
-          "updated_at"
+          "updated_at",
+          "summary"
         ],
         "type": "object"
       },
