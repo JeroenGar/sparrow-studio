@@ -112,3 +112,15 @@ it('keeps arcs, bulges, circles and splines as curves when asked',()=>{
   // Kept curves need no approximation.
   expect(importDXF(dxf(poly([[0,0,1],[20,0]])),'bulge.dxf',keep).document.parts[0].approximationToleranceMm).toBe(0);
 });
+
+it('reads parts that share a cut line as neighbours, and still refuses overlapping ones',()=>{
+  const left=poly([[0,0],[10,0],[10,10],[0,10]]),right=poly([[10,2],[20,2],[20,8],[10,8]]);
+  const shared=importDXF(dxf(left+right),'shared.dxf',options);
+  expect(shared.issues).toEqual([]);
+  expect(shared.document.parts).toHaveLength(2);
+  const overlapping=importDXF(dxf(left+poly([[5,2],[20,2],[20,8],[5,8]])),'overlap.dxf',options);
+  expect(overlapping.issues?.join(' ')).toContain('intersecting');
+  // A part touching the edge of a loop around it is still ambiguous.
+  const touchingInside=importDXF(dxf(poly([[0,0],[30,0],[30,30],[0,30]])+left),'inside.dxf',options);
+  expect(touchingInside.issues?.join(' ')).toContain('intersecting');
+});

@@ -1,7 +1,7 @@
 import { DOMParser, XMLSerializer, type Element as XMLElement } from '@xmldom/xmldom';
 import { loadSerialWasm } from '../wasm';
 import { DEFAULT_SETTINGS,newPart,type Part,type Point,type Ring } from '../model';
-import { area,bounds,inside,normalizeJob,normalizeRing,ringCrosses } from '../geometry/normalize';
+import { area,bounds,inside,normalizeJob,normalizeRing,onlyTouch,ringCrosses } from '../geometry/normalize';
 import { apply,multiply,append,bezier,type Matrix } from '../geometry/flatten';
 import { localize,type ImportReview } from './sparrow';
 import { polygon,type Contour as FormatContour } from '../geometry/contour';
@@ -21,7 +21,8 @@ const attr=(e:XMLElement,name:string)=>e.hasAttribute(name)?e.getAttribute(name)
 function hierarchy(contours:Contour[]):number[] {
   const rings=contours.map(c=>normalizeRing(c.ring)),areas=rings.map(r=>Math.abs(area(r))),parent=rings.map(()=>-1);
   for(let i=0;i<rings.length;i++)for(let j=i+1;j<rings.length;j++) {
-    if(ringCrosses(rings[i],rings[j]))throw Error(`Contours ${contours[i].entityId} and ${contours[j].entityId} touch or intersect; topology is ambiguous.`);
+    // Contours that only touch, side by side, are neighbours: neither lies inside the other.
+    if(ringCrosses(rings[i],rings[j])&&!onlyTouch(rings[i],rings[j]))throw Error(`Contours ${contours[i].entityId} and ${contours[j].entityId} touch or intersect; topology is ambiguous.`);
     const a=inside(rings[i][0],rings[j]),b=inside(rings[j][0],rings[i]);
     if(a&&(parent[i]===-1||areas[j]<areas[parent[i]]))parent[i]=j;
     if(b&&(parent[j]===-1||areas[i]<areas[parent[j]]))parent[j]=i;

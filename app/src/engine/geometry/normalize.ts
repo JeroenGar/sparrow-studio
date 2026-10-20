@@ -1,3 +1,4 @@
+import polygonClipping from 'polygon-clipping';
 import { orient2d } from 'robust-predicates';
 import { LIMITS, type Job, type Point, type Ring, type Part } from '../model';
 import { moveShape, outline, polygon, type Contour } from './contour';
@@ -38,6 +39,11 @@ export function isSimpleRing(ring: Ring): boolean {
     if (intersects(ring[i],ring[(i+1)%ring.length],ring[j],ring[(j+1)%ring.length])) return false;
   }
   return true;
+}
+/** Whether two rings whose edges meet only touch: their insides overlap by no more than rounding. */
+export function onlyTouch(a: Ring, b: Ring): boolean {
+  const overlap = polygonClipping.intersection([a], [b]).reduce((sum, polygon) => sum + polygon.reduce((n, ring, i) => n + (i ? -1 : 1) * Math.abs(area(ring as Ring)), 0), 0);
+  return overlap <= 1e-9 * Math.min(Math.abs(area(a)), Math.abs(area(b)));
 }
 export function normalizeRing(value: unknown): Ring {
   if (!Array.isArray(value) || value.length > LIMITS.verticesPerPart + 1) throw Error('Contour exceeds 5,000 vertices or is not an array.');

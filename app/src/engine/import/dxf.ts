@@ -2,7 +2,7 @@ import parseString from 'dxf/lib/parseString';
 import {pointSegmentDistance} from '../geometry/world';
 import {DEFAULT_SETTINGS,SHEET_LAYER,type Point,type Ring} from '../model';
 import {apply,multiply,append,bulge,ellipse,nurbs,type Matrix} from '../geometry/flatten';
-import {bounds,normalizeJob,normalizeRing,ringCrosses} from '../geometry/normalize';
+import {bounds,normalizeJob,normalizeRing,onlyTouch,ringCrosses} from '../geometry/normalize';
 import {contoursToParts} from './svg';
 import {polygon,type Contour as FormatContour} from '../geometry/contour';
 import {contour,lines,moveEnds,reverse,similar,transformPath,type Path} from './paths';
@@ -227,7 +227,9 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
   const valid:Contour[]=[];
   for(const c of contours)try{valid.push({...c,ring:normalizeRing(c.ring)});}catch(e){issues.push(`${c.entityId}: ${String(e)}`);}
   const rejected=new Set<number>();
-  for(let i=0;i<valid.length;i++)for(let j=0;j<i;j++)if(ringCrosses(valid[i].ring,valid[j].ring)){rejected.add(i);rejected.add(j);issues.push(`${valid[i].entityId} and ${valid[j].entityId}: intersecting or duplicate loops.`);}
+  // Loops whose edges touch but whose insides do not overlap are neighbours, such as parts that
+  // share a cut line; loops that overlap, or touch inside one another, are ambiguous.
+  for(let i=0;i<valid.length;i++)for(let j=0;j<i;j++)if(ringCrosses(valid[i].ring,valid[j].ring)&&!onlyTouch(valid[i].ring,valid[j].ring)){rejected.add(i);rejected.add(j);issues.push(`${valid[i].entityId} and ${valid[j].entityId}: intersecting or duplicate loops.`);}
   const parts=contoursToParts(valid.filter((_,i)=>!rejected.has(i)),fileName,'dxf',options.tolerance+joined.adjustment,options.enclosed);
   for(const [type,count] of unsupported)warnings.push(`Excluded ${count} unsupported ${type} entities.`);
   const document={name:fileName.replace(/\.dxf$/i,''),parts,settings:{...DEFAULT_SETTINGS}};
