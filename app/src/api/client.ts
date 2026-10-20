@@ -78,6 +78,16 @@ export function withCode<E extends { code: string }, const C extends KnownCodes<
   return error?.code === code ? (error as Extract<E, { code: C }>) : undefined;
 }
 
+type KnownKinds<D> = D extends { kind: infer K } ? (string extends K ? never : K) : never;
+
+/** A diagnostic as its variant for `kind`, as `withCode` does for errors; undefined for any other. */
+export function withKind<D extends { kind: string }, const K extends KnownKinds<D>>(
+  diagnostic: D | undefined,
+  kind: K,
+): Extract<D, { kind: K }> | undefined {
+  return diagnostic?.kind === kind ? (diagnostic as Extract<D, { kind: K }>) : undefined;
+}
+
 type Result<D> = { data?: D; error?: unknown; response: Response };
 
 async function ok<D>(request: Promise<Result<D>>): Promise<D> {

@@ -290,6 +290,20 @@ input[aria-invalid='true'] {
   border-radius: 6px;
   padding: 6px 8px;
 }
+.notice p,
+.notice ul {
+  margin: 0;
+}
+.notice ul {
+  padding-left: 16px;
+}
+.notice.warning {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.warning-text {
+  color: var(--danger);
+}
 
 /* The sparrow pro marker: visible, disabled-looking, and leads to signing in. */
 .pro-tag {

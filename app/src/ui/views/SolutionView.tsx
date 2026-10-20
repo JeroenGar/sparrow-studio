@@ -7,6 +7,8 @@ import { Canvas } from '../Canvas';
 import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
 import { download } from '../download';
+import { withKind } from '../../api/client';
+import { explainDiagnostic } from '../explain';
 import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
 import { serializeProject } from '../../project/file';
 import { RunBar } from '../RunBar';
@@ -94,6 +96,15 @@ export function SolutionView() {
   const unplacedCopies = outcome.unplaced.reduce((n, u) => n + u.quantity, 0);
   const placedOf = (partId: string) =>
     layouts.reduce((n, l) => n + l.result.placements.filter((p) => p.partId === partId).length, 0);
+  // Parts with copies that fit on no empty sheet: the unplaced list says so for each.
+  const tooLarge = new Set(
+    outcome.diagnostics.flatMap((d) => withKind(d, 'no_valid_placement')?.part_id ?? []),
+  );
+  const notes = outcome.diagnostics.flatMap((diagnostic) =>
+    withKind(diagnostic, 'no_valid_placement')
+      ? []
+      : (explainDiagnostic(diagnostic, names, unit) ?? []),
+  );
   const [x0, y0, x1, y1] = stack.extent;
   const pad = Math.max(x1 - x0, y1 - y0) * 0.05;
 
@@ -197,6 +208,35 @@ export function SolutionView() {
                 after {formatSeconds(state.status === 'completed' ? state.solver_seconds : 0)}
               </dd>
             </dl>
+            {unplacedCopies > 0 && (
+              <div className="notice warning">
+                <p>
+                  {unplacedCopies} {unplacedCopies === 1 ? 'copy' : 'copies'} could not be placed:
+                </p>
+                <ul>
+                  {outcome.unplaced.map((u) => (
+                    <li key={u.part_id}>
+                      {names.get(u.part_id) ?? 'A part'}: {u.quantity} not placed
+                      {tooLarge.has(u.part_id) && ', as it fits nowhere on the material'}
+                    </li>
+                  ))}
+                </ul>
+                <p>
+                  {tooLarge.size
+                    ? 'Check that each part fits the material with the gap and the distance to the edge.'
+                    : 'Add material, or lower the quantities, and start nesting again.'}
+                </p>
+              </div>
+            )}
+            {notes.length > 0 && (
+              <div className="notice">
+                <ul>
+                  {notes.map((note, i) => (
+                    <li key={i}>{note}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {stale && (
               <p className="notice">
                 The parts or settings changed since this run. Start nesting again to update the
@@ -263,7 +303,7 @@ export function SolutionView() {
               <PartThumb part={part} index={i} />
               <span className="row-text">
                 <span>{part.name}</span>
-                <span className="muted">
+                <span className={placedOf(part.id) < part.quantity ? 'warning-text' : 'muted'}>
                   {placedOf(part.id)} of {part.quantity} placed
                 </span>
               </span>

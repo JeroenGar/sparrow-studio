@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../src/api/client';
-import { explain, explainJobError } from '../src/ui/explain';
+import { explain, explainDiagnostic, explainJobError } from '../src/ui/explain';
 
 vi.mock('../src/ui/client', () => ({ usesSparrowPro: true }));
 
@@ -40,5 +40,21 @@ describe('errors in studio’s words', () => {
         doc_url: null,
       }),
     ).toMatch(/before it found a layout/);
+  });
+});
+
+describe('diagnostics in studio’s words', () => {
+  it('names the part and says what happened', () => {
+    const names = new Map([['p1', 'Bracket']]);
+    expect(
+      explainDiagnostic({ kind: 'no_valid_placement', part_id: 'p1', quantity: 2 }, names, 'mm'),
+    ).toMatch(/^Bracket: no place was found for 2 copies/);
+    expect(
+      explainDiagnostic({ kind: 'hole_ignored', part_id: 'p1', hole_index: 0 }, names, 'mm'),
+    ).toMatch(/^Bracket: hole 1 /);
+    expect(
+      explainDiagnostic({ kind: 'boundary_separation_raised', requested: 1, used: 2 }, names, 'mm'),
+    ).toMatch(/raised from 1 mm to 2 mm/);
+    expect(explainDiagnostic({ kind: 'something_new' }, names, 'mm')).toBeUndefined();
   });
 });

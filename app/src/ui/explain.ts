@@ -1,6 +1,7 @@
-import { ApiError, withCode, type Schemas } from '../api/client';
+import { ApiError, withCode, withKind, type Schemas } from '../api/client';
 import { usesSparrowPro } from './client';
-import { formatSeconds } from './format';
+import type { DisplayUnit } from '../engine/units';
+import { formatLength, formatSeconds } from './format';
 
 /**
  * What went wrong, in studio's words. The API's messages are written for developers, so studio
@@ -54,17 +55,45 @@ export function explain(reason: unknown): string {
   return reason.message;
 }
 
-/** Why a job failed, in studio's words. */
-export function explainJobError(error: Schemas['JobError']): string {
+/** Why a job failed, in studio's words; `onSheets` when it nested into sheets rather than a strip. */
+export function explainJobError(error: Schemas['JobError'], onSheets = false): string {
   const field = withCode(error, 'invalid_job_input')?.field_errors[0];
   if (field) return field.message;
   switch (error.code) {
     case 'no_feasible_solution':
-      return 'The search ended before it found a layout. Give it more time, or check that every part fits on the strip.';
+      return onSheets
+        ? 'The search ended before every part had a place on the sheets. Add sheets or give it more time, and check that every part fits on a sheet.'
+        : 'The search ended before it found a layout. Give it more time, or check that every part fits on the strip.';
     case 'import_timeout':
       return 'The time ran out while the parts were being read. Give the job more time.';
     case 'worker_lost':
       return 'The solver stopped responding. Start the job again.';
   }
   return 'The job could not run. Start it again.';
+}
+
+/**
+ * A fallback the backend took while reading the job, in studio's words; undefined for one studio
+ * does not know. `names` holds the project's part names.
+ */
+export function explainDiagnostic(
+  diagnostic: Schemas['Diagnostic'],
+  names: Map<string, string>,
+  unit: DisplayUnit,
+): string | undefined {
+  const name = (id: string) => names.get(id) ?? 'A part';
+  const copies = (n: number) => `${n} ${n === 1 ? 'copy' : 'copies'}`;
+  const length = (mm: number) => `${formatLength(mm, unit, 3)} ${unit}`;
+  const unplaced = withKind(diagnostic, 'no_valid_placement');
+  if (unplaced)
+    return `${name(unplaced.part_id)}: no place was found for ${copies(unplaced.quantity)}, not even on empty material. Check that the part fits with the gap and the distance to the edge.`;
+  const hole = withKind(diagnostic, 'hole_ignored');
+  if (hole)
+    return `${name(hole.part_id)}: hole ${hole.hole_index + 1} crosses the outline or another hole, so the part was treated as solid there.`;
+  const raised = withKind(diagnostic, 'boundary_separation_raised');
+  if (raised)
+    return `The distance to the material edge was raised from ${length(raised.requested)} to ${length(raised.used)}, half the gap.`;
+  if (withKind(diagnostic, 'locked_placement_conflict'))
+    return 'A placement given in advance overlaps something or lies too close to it; it was kept as given.';
+  return undefined;
 }

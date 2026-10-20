@@ -174,7 +174,7 @@ export function LiveView() {
 
   const state = run?.job?.state;
   const failure =
-    run?.error ?? (state?.status === 'failed' ? explainJobError(state.error) : undefined);
+    run?.error ?? (state?.status === 'failed' ? explainJobError(state.error, onSheets) : undefined);
   const reduced = run?.job?.diagnostics?.find(
     (diagnostic) => diagnostic.kind === 'threads_reduced',
   ) as { used: number; reason: string } | undefined;
