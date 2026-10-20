@@ -37,6 +37,14 @@ type Selection = {
   setTool: (tool: Tool | undefined) => void;
 };
 
+/** Moves a sheet entry to `to`, its place in the list without it. */
+function moveSheet(project: ProjectDocument, id: string, to: number): ProjectDocument {
+  const sheet = project.stock.sheets.find((other) => other.id === id);
+  if (!sheet) return project;
+  const rest = project.stock.sheets.filter((other) => other.id !== id);
+  return withStock(project, { sheets: [...rest.slice(0, to), sheet, ...rest.slice(to)] });
+}
+
 /** Changes one sheet entry. */
 const updateSheet = (
   project: ProjectDocument,
@@ -199,15 +207,15 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
       (all) => all.map((sheet) => (sheet.id === id ? { ...sheet, ...change } : sheet)),
       key,
     );
-  const move = (id: string, step: number) =>
-    setSheets((all) => {
-      const from = all.findIndex((sheet) => sheet.id === id);
-      const to = from + step;
-      if (to < 0 || to >= all.length) return all;
-      const moved = [...all];
-      [moved[from], moved[to]] = [moved[to], moved[from]];
-      return moved;
-    });
+  const move = (id: string, to: number) => edit((current) => moveSheet(current, id, to));
+  // A row being dragged, and where it would land: before the row of that index.
+  const [dragged, setDragged] = useState<{ id: string; before?: number }>();
+  const drop = () => {
+    if (dragged?.before === undefined) return setDragged(undefined);
+    const from = sheets.findIndex((sheet) => sheet.id === dragged.id);
+    move(dragged.id, dragged.before > from ? dragged.before - 1 : dragged.before);
+    setDragged(undefined);
+  };
   const add = () => {
     const sheet = newSheet(`Sheet ${sheets.length + 1}`, 3000, 1500);
     setSheets((all) => [...all, sheet]);
@@ -256,8 +264,35 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
         {sheets.map((sheet, index) => {
           const rectangle = rectangleOf(sheet);
           return (
-            <div key={sheet.id}>
+            <div
+              key={sheet.id}
+              className={
+                dragged?.before === index
+                  ? 'drop-before'
+                  : dragged?.before === sheets.length && index === sheets.length - 1
+                    ? 'drop-after'
+                    : undefined
+              }
+              onDragOver={(event) => {
+                if (!dragged) return;
+                event.preventDefault();
+                const rect = event.currentTarget.getBoundingClientRect();
+                const below = event.clientY > rect.top + Math.min(rect.height, 56) / 2;
+                setDragged({ ...dragged, before: index + (below ? 1 : 0) });
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                drop();
+              }}
+            >
               <button
+                draggable
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = 'move';
+                  setDragged({ id: sheet.id });
+                }}
+                onDragEnd={() => setDragged(undefined)}
+                title="Drag to change the nesting order"
                 className={sheet.id === selected ? 'row selected' : 'row'}
                 aria-expanded={sheet.id === selected}
                 onClick={() => setSelected(sheet.id === selected ? undefined : sheet.id)}
@@ -397,14 +432,14 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
                     <button
                       className="small"
                       disabled={index === 0}
-                      onClick={() => move(sheet.id, -1)}
+                      onClick={() => move(sheet.id, index - 1)}
                     >
                       Move up
                     </button>
                     <button
                       className="small"
                       disabled={index === sheets.length - 1}
-                      onClick={() => move(sheet.id, 1)}
+                      onClick={() => move(sheet.id, index + 1)}
                     >
                       Move down
                     </button>
@@ -454,7 +489,19 @@ function arrangeSheets(sheets: SheetEntry[]) {
   });
   const height = Math.max(...boxes.map((b) => b[3] - b[1]), 1);
   const extent: Box = [0, 0, Math.max(x - gap, 1), height];
-  return { offsets, boxes, extent };
+  // Each sheet where it is drawn.
+  const placed = boxes.map((b, i): Box => {
+    const [dx, dy] = offsets[i];
+    return [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
+  });
+  return { offsets, boxes, placed, gap, extent };
+}
+
+/** An arrow across the gap from one sheet to the next, at height `y`. */
+function orderArrow(from: number, to: number, y: number, upp: number) {
+  const [a, b] = [from + (to - from) * 0.25, from + (to - from) * 0.75];
+  const head = Math.min(8 * upp, (b - a) / 2);
+  return `M${a} ${-y}H${b}M${b - head} ${-y - head}L${b} ${-y}L${b - head} ${-y + head}`;
 }
 
 /** A defect in a few words: a rectangle by its size and corner, or freeform by its corners. */
@@ -542,6 +589,52 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
           }
       : undefined;
 
+  // Without a defect tool, dragging a sheet moves it in the nesting order; a click selects it.
+  const [moving, setMoving] = useState<{ id: string; from: Point; at: Point; moved: boolean }>();
+  const hit = ([x, y]: Point) =>
+    arrangement.placed.findIndex((b) => x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3]);
+  const others = moving ? arrangement.placed.filter((_, i) => sheets[i].id !== moving.id) : [];
+  const movingIndex = moving ? sheets.findIndex((sheet) => sheet.id === moving.id) : -1;
+  // Where the moved sheet would go: after every other sheet whose middle lies left of its own.
+  const target =
+    moving && movingIndex >= 0
+      ? (() => {
+          const b = arrangement.placed[movingIndex];
+          const middle = (b[0] + b[2]) / 2 + moving.at[0] - moving.from[0];
+          return others.filter((o) => (o[0] + o[2]) / 2 < middle).length;
+        })()
+      : -1;
+  const reorder: CanvasTool = {
+    down: (point) => {
+      const i = hit(point);
+      if (i < 0) return false;
+      setMoving({ id: sheets[i].id, from: point, at: point, moved: false });
+    },
+    move: (point) =>
+      setMoving(
+        (m) =>
+          m && {
+            ...m,
+            at: point,
+            moved:
+              m.moved || Math.hypot(point[0] - m.from[0], point[1] - m.from[1]) > (x1 - x0) * 0.005,
+          },
+      ),
+    up: () => {
+      if (!moving) return;
+      if (moving.moved) edit((current) => moveSheet(current, moving.id, target));
+      else select(moving.id === selected ? undefined : moving.id);
+      setMoving(undefined);
+    },
+  };
+  // Where the moved sheet would land, between the sheets it would stand between.
+  const marker =
+    moving?.moved && target >= 0
+      ? target === 0
+        ? (others[0]?.[0] ?? 0) - arrangement.gap / 2
+        : others[target - 1][2] + arrangement.gap / 2
+      : undefined;
+
   const draftRing: Point[] | undefined =
     draft.from && draft.at
       ? [draft.from, [draft.at[0], draft.from[1]], draft.at, [draft.from[0], draft.at[1]]]
@@ -553,8 +646,15 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
     <Canvas
       label="The sheets"
       extent={[x0 - pad, y0 - pad * 2, x1 + pad, y1 + pad * 2]}
-      tool={canvasTool}
+      tool={canvasTool ?? (tool ? undefined : reorder)}
       onBackgroundClick={() => !tool && select(undefined)}
+      toolbar={
+        sheets.length > 1 && (
+          <span className="chip">
+            Nested in this order: sheet 1 first. Drag a sheet to move it in the order.
+          </span>
+        )
+      }
     >
       {({ upp }) => (
         <>
@@ -567,13 +667,34 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
             const behind = Math.min(sheet.quantity, 3) - 1;
             const step = 8 * upp;
             const chosen = sheet.id === selected;
+            const lifted = moving?.moved && moving.id === sheet.id;
+            const next = arrangement.placed[i + 1];
             return (
               <g
                 key={sheet.id}
-                opacity={sheet.quantity ? 1 : 0.4}
-                onClick={() => !tool && select(sheet.id)}
-                style={tool ? undefined : { cursor: 'pointer' }}
+                opacity={sheet.quantity ? (lifted ? 0.7 : 1) : 0.4}
+                transform={
+                  lifted
+                    ? `translate(${moving.at[0] - moving.from[0]} ${-(moving.at[1] - moving.from[1])})`
+                    : undefined
+                }
+                style={tool ? undefined : { cursor: lifted ? 'grabbing' : 'grab' }}
               >
+                {/* An arrow to the next sheet in the order. */}
+                {next && !moving?.moved && (
+                  <path
+                    d={orderArrow(
+                      arrangement.placed[i][2] + Math.max(0, behind) * step,
+                      next[0],
+                      Math.min(arrangement.placed[i][3], next[3]) / 2,
+                      upp,
+                    )}
+                    className="order-arrow"
+                    strokeWidth={1.5 * upp}
+                    fill="none"
+                    pointerEvents="none"
+                  />
+                )}
                 {Array.from({ length: Math.max(0, behind) }, (_, k) => (
                   <path
                     key={k}
@@ -610,6 +731,14 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
               </g>
             );
           })}
+          {marker !== undefined && (
+            <path
+              d={`M${marker} ${-y1 - pad}V${pad}`}
+              className="accent-line"
+              strokeWidth={3 * upp}
+              pointerEvents="none"
+            />
+          )}
           {draftRing && (
             <path
               d={

@@ -20,10 +20,11 @@ export type CanvasView = {
 
 /**
  * A drawing tool: while one is given, the left button draws instead of panning, and the tool hears
- * each press, move and release at a point in world coordinates.
+ * each press, move and release at a point in world coordinates. A press it returns `false` for
+ * pans as usual.
  */
 export type CanvasTool = {
-  down?: (point: [number, number], event: ReactPointerEvent) => void;
+  down?: (point: [number, number], event: ReactPointerEvent) => boolean | void;
   move?: (point: [number, number], event: ReactPointerEvent) => void;
   up?: (point: [number, number], event: ReactPointerEvent) => void;
   double?: (point: [number, number]) => void;
@@ -140,9 +141,8 @@ export function Canvas({
   }
 
   function down(event: ReactPointerEvent) {
-    if (tool && event.button === 0) {
+    if (tool && event.button === 0 && tool.down?.(at(event), event) !== false) {
       (event.currentTarget as Element).setPointerCapture(event.pointerId);
-      tool.down?.(at(event), event);
       return;
     }
     if (event.button !== 0 && event.button !== 1) return;
