@@ -23,7 +23,7 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         });
         const combined={...reviews[0].document,parts:reviews.flatMap(r=>r.document.parts)};
         const document=combined.parts.length?normalizeJob(combined):combined;
-        reply={...ids,type:'import-review',review:{document,warnings:reviews.flatMap(r=>r.warnings),issues:reviews.flatMap(r=>r.issues??[]),layers:[...new Set(reviews.flatMap(r=>r.layers??[]))].sort()}};
+        reply={...ids,type:'import-review',review:{document,sheets:reviews.flatMap(r=>r.sheets??[]),warnings:reviews.flatMap(r=>r.warnings),issues:reviews.flatMap(r=>r.issues??[]),layers:[...new Set(reviews.flatMap(r=>r.layers??[]))].sort()}};
         break;
       }
       case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result,data.utilization,data.sheet)}; break;

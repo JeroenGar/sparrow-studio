@@ -1,9 +1,10 @@
 import { DOMParser, XMLSerializer, type Element as XMLElement } from '@xmldom/xmldom';
 import { loadSerialWasm } from '../wasm';
-import { DEFAULT_SETTINGS,newPart,type Part,type Point,type Ring } from '../model';
-import { area,bounds,inside,normalizeJob,normalizeRing,onlyTouch,ringCrosses } from '../geometry/normalize';
+import { type Point,type Ring } from '../model';
+import { area,inside,normalizeRing,ringCrosses } from '../geometry/normalize';
 import { apply,multiply,append,bezier,type Matrix } from '../geometry/flatten';
-import { localize,type ImportReview } from './sparrow';
+import type { ImportReview } from './sparrow';
+import { defaultRoles,review,type Drawing } from './drawing';
 import { polygon,type Contour as FormatContour } from '../geometry/contour';
 import { contour,type Path } from './paths';
 
@@ -18,37 +19,27 @@ type ResolvedSVG={height:number;paths:{id:string;commands:Command[];transform:Ma
 export type SVGOptions={scale:number;tolerance:number;curves?:'keep'|'flatten'};
 const attr=(e:XMLElement,name:string)=>e.hasAttribute(name)?e.getAttribute(name)!:undefined;
 
-function hierarchy(contours:Contour[],tolerance=.01):number[] {
-  const rings=contours.map(c=>normalizeRing(c.ring)),areas=rings.map(r=>Math.abs(area(r))),parent=rings.map(()=>-1);
-  for(let i=0;i<rings.length;i++)for(let j=i+1;j<rings.length;j++) {
-    // Contours that only touch, side by side, are neighbours: neither lies inside the other, even
-    // where a rounding sliver puts a corner of one just inside the other.
-    if(ringCrosses(rings[i],rings[j])){
-      if(onlyTouch(rings[i],rings[j],tolerance))continue;
-      throw Error(`Contours ${contours[i].entityId} and ${contours[j].entityId} touch or intersect; topology is ambiguous.`);
-    }
-    const a=inside(rings[i][0],rings[j]),b=inside(rings[j][0],rings[i]);
-    if(a&&(parent[i]===-1||areas[j]<areas[parent[i]]))parent[i]=j;
-    if(b&&(parent[j]===-1||areas[i]<areas[parent[j]]))parent[j]=i;
-  }
-  return parent;
-}
+/**
+ * The sub-paths of one SVG path that its fill rule fills differently from what lies around them:
+ * the outline, and holes the fill leaves open. Under `nonzero`, a sub-path inside another with
+ * the same winding is filled anyway and drawn by its outer one alone.
+ */
 function compound(contours:Contour[],rule:'evenodd'|'nonzero'):Contour[] {
-  const parents=hierarchy(contours);
-  return contours.filter((c,i)=>{
-    let winding=0,depth=0,p=parents[i];
-    while(p!==-1){winding+=Math.sign(area(contours[p].ring));depth++;p=parents[p];}
-    return rule==='evenodd' || (winding===0)!==(winding+Math.sign(area(c.ring))===0);
+  if(rule==='evenodd'||contours.length<2)return contours;
+  const rings=contours.map(c=>{try{return normalizeRing(c.ring);}catch{return undefined;}});
+  const parent=contours.map((_,i)=>{
+    let best=-1;
+    contours.forEach((_,j)=>{
+      const [a,b]=[rings[i],rings[j]];
+      if(i===j||!a||!b||ringCrosses(a,b)||!inside(a[0],b))return;
+      if(best<0||Math.abs(area(b))<Math.abs(area(rings[best]!)))best=j;
+    });
+    return best;
   });
-}
-export function contoursToParts(contours:Contour[],fileName:string,format:'svg'|'dxf',tolerance:number,enclosed:'holes'|'parts'):Part[] {
-  const parent=hierarchy(contours,tolerance),depth=parent.map((p)=>{let d=0;while(p!==-1){d++;p=parent[p];}return d;});
-  return contours.flatMap((c,i)=>{
-    if(enclosed==='holes'&&depth[i]%2===1)return [];
-    const holes=enclosed==='holes'?contours.filter((_,j)=>parent[j]===i).map(h=>h.contour):[];
-    const part=localize({...newPart({outer:c.contour,...(holes.length&&{holes})},c.entityId),source:{format,fileName,entityId:c.entityId},
-      approximationToleranceMm:c.curved||contours.some((h,j)=>parent[j]===i&&h.curved)?tolerance:0});
-    return [part];
+  return contours.filter((c,i)=>{
+    let winding=0,p=parent[i];
+    while(p!==-1){winding+=Math.sign(area(contours[p].ring));p=parent[p];}
+    return (winding===0)!==(winding+Math.sign(area(c.ring))===0);
   });
 }
 function pathContours(commands:Command[],m:Matrix,tolerance:number,id:string,keep:boolean):Contour[] {
@@ -71,7 +62,19 @@ function pathContours(commands:Command[],m:Matrix,tolerance:number,id:string,kee
   }
   finish();return contours;
 }
+/** An SVG read as parts. */
 export function importSVG(text:string,fileName:string,options:SVGOptions):ImportReview {
+  const drawing=traceSVG(text,fileName,options);
+  const parts=review(drawing,defaultRoles(drawing.layers));
+  if(!parts.document.parts.length&&!parts.issues?.length)throw Error('No visible closed vector outlines found.');
+  return parts;
+}
+
+/** The layer an SVG's outlines are on, until SVG groups become layers. */
+export const SVG_LAYER='drawing';
+
+/** Every closed outline of an SVG, where it is drawn, after each path's fill rule. */
+export function traceSVG(text:string,fileName:string,options:SVGOptions):Drawing {
   if(!Number.isFinite(options.scale)||options.scale<=0||!Number.isFinite(options.tolerance)||options.tolerance<=0||options.tolerance>100)throw Error('Scale and approximation tolerance must be positive finite numbers.');
   if(/<!DOCTYPE|<!ENTITY/i.test(text))throw Error('SVG entities and DOCTYPE declarations are forbidden.');
   if(/<\?xml-stylesheet\b/i.test(text))throw Error('External SVG stylesheets are unsupported. Embed styles in the SVG.');
@@ -114,8 +117,6 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
     entities.push(compound(contours,path.rule));
   }
   warnings.push('Closed contour interpretation: closed stroke-only outlines count; stroke thickness is not part size or kerf.');
-  const parts=entities.flatMap(contours=>contoursToParts(contours,fileName,'svg',options.tolerance,'holes'));
-  if(entities.some(e=>e.length>1))warnings.push('Compound contours may produce separate part types. Holes follow the source fill rule.');
-  if(!parts.length)throw Error('No visible closed vector outlines found.');
-  return {document:normalizeJob({name:fileName.replace(/\.svg$/i,''),parts,settings:{...DEFAULT_SETTINGS}}),warnings};
+  const outlines=entities.flat().map(c=>({id:c.entityId,layer:SVG_LAYER,ring:c.ring,contour:c.contour,curved:c.curved}));
+  return {name:fileName,format:'svg',outlines,layers:outlines.length?[SVG_LAYER]:[],warnings,issues:[],tolerance:options.tolerance};
 }

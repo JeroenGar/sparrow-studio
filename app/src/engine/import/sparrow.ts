@@ -1,8 +1,9 @@
 import { DEFAULT_SETTINGS, newPart, type Job, type Part, type Ring } from '../model';
 import { bounds, normalizeJob, normalizeRing } from '../geometry/normalize';
 import { moveShape, outline, polygonShape } from '../geometry/contour';
+import type { ImportedSheet } from './drawing';
 
-export type ImportReview = { document: Job; warnings: string[]; issues?:string[]; layers?:string[] };
+export type ImportReview = { document: Job; warnings: string[]; issues?:string[]; layers?:string[]; sheets?: ImportedSheet[] };
 export function record(value: unknown): Record<string,unknown> {
   if(!value || typeof value!=='object' || Array.isArray(value)) throw Error('Expected an object.');
   return value as Record<string,unknown>;

@@ -20,8 +20,11 @@ it('honors units, layer selection, and nested holes',()=>{
   const outer=poly([[0,0],[4,0],[4,4],[0,4]]),hole=poly([[1,1],[2,1],[2,2],[1,2]],'holes');
   const text=dxf(outer+hole,1),review=importDXF(text,'inch.dxf',options);
   expect(bounds(outline(review.document.parts[0].shape).outer)[2]).toBeCloseTo(101.6);
-  expect(outline(review.document.parts[0].shape).holes).toHaveLength(1);expect(review.layers).toEqual(['cut','holes']);
-  expect(importDXF(text,'inch.dxf',{...options,layers:['cut']}).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(0);
+  // A hole is drawn on its part's layer; on another layer, the inner outline is a part of its own.
+  expect(review.document.parts.map(part=>outline(part.shape).holes.length)).toEqual([0,0]);expect(review.layers).toEqual(['cut','holes']);
+  expect(importDXF(text,'inch.dxf',{...options,layers:['cut']}).document.parts.map(part=>outline(part.shape).holes.length)).toEqual([0]);
+  const sameLayer=importDXF(dxf(outer+poly([[1,1],[2,1],[2,2],[1,2]]),1),'inch.dxf',options);
+  expect(sameLayer.document.parts.map(part=>outline(part.shape).holes.length)).toEqual([1]);
   const unitless=importDXF(dxf(outer,0),'unitless.dxf',{...options,scale:25.4});
   expect(unitless.warnings.join(' ')).toContain('selected 25.4');expect(bounds(outline(unitless.document.parts[0].shape).outer)[2]).toBeCloseTo(101.6);
 });
@@ -43,7 +46,7 @@ it('lists unsupported entities and blocks nonplanar geometry, duplicates, and bi
   const review=importDXF(dxf(rectangle+'0\nTEXT\n0\nINSERT\n'+line(20,0,30,0)+'30\n1\n'),'mixed.dxf',options);
   expect(review.document.parts).toHaveLength(1);expect(review.warnings.join(' ')).toContain('unsupported TEXT');expect(review.issues?.join(' ')).toContain('block reference');
   expect(review.issues?.join(' ')).toContain('Nonzero elevation');
-  expect(importDXF(dxf(rectangle+rectangle),'duplicate.dxf',options).issues?.join(' ')).toContain('duplicate');
+  expect(importDXF(dxf(rectangle+rectangle),'duplicate.dxf',options).issues?.join(' ')).toContain('overlap');
   expect(()=>importDXF('AutoCAD Binary DXF\0','binary.dxf',options)).toThrow('Binary DXF');
 });
 
@@ -55,15 +58,17 @@ it('expands nested blocks, base points, arrays and nonuniform transforms',()=>{
   const blocks=block('part',shape,5,6)+block('nested',insert('part','10\n2\n20\n3\n'),2,3);
   const input=insert('nested','8\nCUT\n41\n2\n42\n3\n50\n90\n70\n2\n44\n40\n');
   const result=importDXF(withBlocks(input,blocks),'blocks.dxf',options);
-  expect(result.issues).toEqual([]);expect(result.document.parts).toHaveLength(2);
+  // The array's two copies are one part, twice.
+  expect(result.issues).toEqual([]);expect(result.document.parts.map(part=>part.quantity)).toEqual([2]);
   for(const part of result.document.parts){const b=bounds(outline(part.shape).outer);expect(b[2]).toBeCloseTo(15);expect(b[3]).toBeCloseTo(20);}
   expect(result.layers).toContain('CUT');
 });
 it('preserves explicit block-child layers and rejects cyclic block expansion',()=>{
   const shapes=poly([[0,0],[10,0],[10,10],[0,10]],'0')+poly([[2,2],[4,2],[4,4],[2,4]],'holes');
   const text=withBlocks(insert('part','8\nCUT\n'),block('part',shapes));
-  expect(importDXF(text,'layers.dxf',options).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(1);
-  expect(importDXF(text,'layers.dxf',{...options,layers:['CUT']}).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(0);
+  // The child on its own layer is no hole of the outline on CUT, but a part of its own.
+  expect(importDXF(text,'layers.dxf',options).document.parts.map(part=>outline(part.shape).holes.length)).toEqual([0,0]);
+  expect(importDXF(text,'layers.dxf',{...options,layers:['CUT']}).document.parts.map(part=>outline(part.shape).holes.length)).toEqual([0]);
   const cycle=importDXF(withBlocks(insert('cycle'),block('cycle',insert('cycle'))),'cycle.dxf',options);
   expect(cycle.document.parts).toHaveLength(0);expect(cycle.issues?.join(' ')).toContain('cyclic');
 });
@@ -119,10 +124,10 @@ it('reads parts that share a cut line as neighbours, and still refuses overlappi
   expect(shared.issues).toEqual([]);
   expect(shared.document.parts).toHaveLength(2);
   const overlapping=importDXF(dxf(left+poly([[5,2],[20,2],[20,8],[5,8]])),'overlap.dxf',options);
-  expect(overlapping.issues?.join(' ')).toContain('intersecting');
+  expect(overlapping.issues?.join(' ')).toContain('overlap');
   // A part touching the edge of a loop around it is still ambiguous.
   const touchingInside=importDXF(dxf(poly([[0,0],[30,0],[30,30],[0,30]])+left),'inside.dxf',options);
-  expect(touchingInside.issues?.join(' ')).toContain('intersecting');
+  expect(touchingInside.issues?.join(' ')).toContain('touches the other from inside');
 });
 
 it('reads parts that overlap by a rounding sliver as neighbours',()=>{

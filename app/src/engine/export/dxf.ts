@@ -29,7 +29,7 @@ export function exportDXF(doc:Job,world:WorldPart[],stripLengthMm:number,sheet?:
   // Autodesk Viewer clips the drawing to the saved view. The library fits that view to approximate
   // bounds with a fixed 2:1 aspect, so frame the exact extents, with a 5% margin, ourselves.
   Object.assign(dxf.modelSpace,{centerView:()=>point3d(ext[0]+width/2,ext[1]+height/2),viewHeight:()=>Math.max(height,width/2)*1.1});
-  for(const [layer,color] of [[SHEET_LAYER,8],['PARTS',7],['HOLES',7],['SPARROW_INFO',7]] as const)dxf.addLayer(layer,color);
+  for(const [layer,color] of [[SHEET_LAYER,8],['PARTS',7],['SPARROW_INFO',7]] as const)dxf.addLayer(layer,color);
   const polyline=(ring:Ring,layerName:string)=>dxf.addLWPolyline(ring.map(([x,y])=>({point:point2d(x,y)})),{flags:LWPolylineFlags.Closed,layerName});
   // Arcs stay arcs, as polyline bulges, and circles circles; other curves become fine polylines.
   const contour=(c:Contour,layerName:string)=>{
@@ -45,7 +45,8 @@ export function exportDXF(doc:Job,world:WorldPart[],stripLengthMm:number,sheet?:
     for(const c of [sheet.shape.outer,...(sheet.shape.holes??[]),...sheet.defects])contour(c,SHEET_LAYER);
     if(sheet.cutX!==null){const [,y0,,y1]=bounds(material[0]);dxf.addLine(point3d(sheet.cutX,y0),point3d(sheet.cutX,y1),{layerName:SHEET_LAYER});}
   }
-  for(const p of world){contour(p.shape.outer,'PARTS');for(const hole of p.shape.holes??[])contour(hole,'HOLES');}
+  // Holes on their part's layer: an outline inside another of the same layer is its hole.
+  for(const p of world){contour(p.shape.outer,'PARTS');for(const hole of p.shape.holes??[])contour(hole,'PARTS');}
   dxf.addText(point3d(minX,textY),textHeight,credit,{layerName:'SPARROW_INFO'});
   return dxf.stringify();
 }

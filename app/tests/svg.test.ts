@@ -29,8 +29,9 @@ it('resolves nested viewports and reports clipping instead of silently changing 
 it('accepts Illustrator presentation styles without importing invisible canvas bounds',()=>{
   const review=importSVG(svg('<rect width="100" height="100" style="fill:none"/><g fill="none"><rect width="90" height="90"/><rect width="10" height="20" style="stroke:black;stroke-linejoin:round"/><rect x="30" width="10" height="20" style="fill:black"/></g>',
     'viewBox="0 0 100 100" style="enable-background:new 0 0 100 100"'),'illustrator.svg',options);
-  expect(review.document.parts).toHaveLength(2);
-  expect(review.document.parts.map(p=>bounds(outline(p.shape).outer).slice(2))).toEqual([[10,20],[10,20]]);
+  // The two visible rectangles are the same shape: one part, twice.
+  expect(review.document.parts.map(p=>p.quantity)).toEqual([2]);
+  expect(review.document.parts.map(p=>bounds(outline(p.shape).outer).slice(2))).toEqual([[10,20]]);
   expect(review.document.parts.every(p=>outline(p.shape).holes.length===0)).toBe(true);
   expect(bounds(importSVG(svg('<rect id="part" width="10" height="10" style="transform:scale(2)"/>'),'css.svg',options).document.parts.map(part=>outline(part.shape))[0].outer).slice(2)).toEqual([expect.closeTo(20,4),expect.closeTo(20,4)]);
 });
@@ -47,9 +48,9 @@ it('resolves viewBox, affine transforms, and local use references',()=>{
 });
 it('expands repeated and nested use references with independent transforms',()=>{
   const review=importSVG(svg('<defs><path id="part" d="M0 0H10V5H0Z"/><g id="pair"><use href="#part"/><use href="#part" x="20"/></g></defs><use href="#pair" transform="translate(10 10)"/><use href="#pair" transform="translate(70 10) rotate(90) scale(2)"/>'),'repeated.svg',options);
-  expect(review.document.parts).toHaveLength(4);
-  expect(review.document.parts.map(p=>bounds(outline(p.shape).outer).slice(2))).toEqual([[10,5],[10,5],[10,20],[10,20]].map(pair=>pair.map(v=>expect.closeTo(v,4))));
-  expect(new Set(review.document.parts.map(p=>p.id)).size).toBe(4);
+  // Four copies of two shapes, the second turned and scaled: two parts, twice each.
+  expect(review.document.parts.map(p=>p.quantity)).toEqual([2,2]);
+  expect(review.document.parts.map(p=>bounds(outline(p.shape).outer).slice(2))).toEqual([[10,5],[10,20]].map(pair=>pair.map(v=>expect.closeTo(v,4))));
 });
 it('honors preserveAspectRatio meet, slice and none without clipping cutting contours',()=>{
   const body='<rect width="10" height="10"/>',attrs='width="100mm" height="100mm" viewBox="0 0 100 50"';
@@ -64,15 +65,20 @@ it('honors compound fill rules and keeps different SVG paths independent',()=>{
   const d='M0 0H40V40H0Z M10 10H30V30H10Z';
   expect(importSVG(svg(`<path fill-rule="evenodd" d="${d}"/>`),'holes.svg',options).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(1);
   expect(importSVG(svg(`<path d="${d}"/>`),'solid.svg',options).document.parts.map(part=>outline(part.shape))[0].holes).toHaveLength(0);
+  // A separate shape entirely inside another of the same layer is its hole.
   const separate=svg('<rect width="40" height="40"/><rect x="10" y="10" width="20" height="20"/>');
-  expect(importSVG(separate,'nested.svg',options).document.parts).toHaveLength(2);
+  expect(importSVG(separate,'nested.svg',options).document.parts.map(part=>outline(part.shape).holes.length)).toEqual([1]);
 });
-it.each([30,40])('imports overlapping or touching artwork separately while preserving compound holes (x=%s)',x=>{
-  const body=`<path fill-rule="evenodd" d="M0 0H40V40H0Z M10 10H20V20H10Z"/><rect x="${x}" width="40" height="40"/>`;
-  const review=importSVG(svg(body),'artwork.svg',options);
-  expect(review.document.parts).toHaveLength(2);
-  expect(review.document.parts.map(p=>outline(p.shape).holes.length)).toEqual([1,0]);
-  expect(()=>importSVG(svg('<path d="M0 0L20 20L0 20L20 0Z"/>'),'crossed.svg',options)).toThrow();
+it('imports touching artwork as neighbours, and leaves overlapping artwork out with what lies inside it',()=>{
+  const body=(x:number)=>`<path fill-rule="evenodd" d="M0 0H40V40H0Z M10 10H20V20H10Z"/><rect x="${x}" width="40" height="40"/>`;
+  const touching=importSVG(svg(body(40)),'touching.svg',options);
+  expect(touching.document.parts.map(p=>outline(p.shape).holes.length)).toEqual([1,0]);
+  const overlapping=importSVG(svg(body(30)),'overlapping.svg',options);
+  expect(overlapping.document.parts).toEqual([]);
+  expect(overlapping.issues?.join(' ')).toContain('overlap');
+  const crossed=importSVG(svg('<path d="M0 0L20 20L0 20L20 0Z"/>'),'crossed.svg',options);
+  expect(crossed.document.parts).toEqual([]);
+  expect(crossed.issues?.join(' ')).toContain('path 1');
 });
 it('flattens transformed circles, ellipses, rounded rectangles, and cubics',()=>{
   const bodies=['<circle r="10" cx="20" cy="20" transform="matrix(2 0 1 1 0 0)"/>','<ellipse rx="20" ry="5" cx="30" cy="30"/>','<rect width="30" height="20" rx="5"/>','<path d="M0 0C0 30 30 30 30 0Z"/>'];

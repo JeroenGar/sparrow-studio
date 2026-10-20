@@ -79,7 +79,7 @@ it('writes a DXF in millimetres with the sheet, parts and credit on their own la
   expect(entities).toContain('\n1\nnested with sparrow studio - https://sparrowstudio.app\n');
   expect(text).toMatch(/^[\x20-\x7e\n]*$/);
   expect(record(text,'LAYER',SHEET_LAYER).get('62')).toBe('8');
-  for(const layer of ['PARTS','HOLES','SPARROW_INFO'])expect(record(text,'LAYER',layer).get('62')).toBe('7');
+  for(const layer of ['PARTS','SPARROW_INFO'])expect(record(text,'LAYER',layer).get('62')).toBe('7');
   const {extents}=framing(text);expect(extents.slice(0,2)).toEqual([0,0]);expect(extents[2]).toBeGreaterThanOrEqual(2);
 });
 
@@ -114,18 +114,18 @@ it('frames wide layouts with negative coordinates and reimports exports as their
   expect(view[2]-view[0]).toBeGreaterThan(extents[2]-extents[0]);
   const options={scale:1,tolerance:.01,enclosed:'holes' as const};
   const review=importDXF(text,'wide.dxf',options);
-  expect(review.layers).toEqual(['HOLES','PARTS',SHEET_LAYER]);
+  expect(review.layers).toEqual(['PARTS',SHEET_LAYER]);
   expect(review.document.parts.map(part=>[bounds(outline(part.shape).outer),outline(part.shape).holes.length])).toEqual([[[0,0,350,80],1],[[0,0,600,80],0]]);
   expect(importDXF(text,'wide.dxf',{...options,layers:defaultDXFLayers(review.layers!)}).document.parts).toHaveLength(2);
-  // Choosing the sheet layer too makes the sheet enclose and cross the parts.
-  expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).issues?.join(' ')).toContain('intersecting')
+  // Choosing the sheet layer too adds the sheet, on its own layer, as one more outline.
+  expect(importDXF(text,'wide.dxf',{...options,layers:review.layers}).document.parts).toHaveLength(3);
 });
 
 it('writes kept curves as curves: SVG arcs, DXF bulges and circles',()=>{
   const semicircle={...newPart({outer:{type:'path',start:[0,0],segments:[{type:'line',to:[20,0]},{type:'arc',to:[0,0],bulge:1}]}}),id:'half',quantity:1};
   const disc={...newPart({outer:{type:'circle',center:[5,5],radius:5}}),id:'disc',quantity:1};
   const doc:Job={name:'curves',parts:[semicircle,disc],settings:{...DEFAULT_SETTINGS,materialWidthMm:20}};
-  const result:Result={usedLengthMm:40,placements:[{partId:'half',copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:'disc',copyIndex:0,xMm:25,yMm:0,angleDeg:90}]};
+  const result:Result={usedLengthMm:40,placements:[{partId:'half',copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:'disc',copyIndex:0,xMm:35,yMm:0,angleDeg:90}]};
   const {svg,dxf:text}=exportSVG(doc,result,50);
   const paths=Array.from(new DOMParser().parseFromString(svg,'image/svg+xml').getElementsByTagName('path')).map(p=>p.getAttribute('d')!);
   expect(paths.every(d=>d.includes('A'))).toBe(true);
@@ -166,7 +166,8 @@ it('exports a layout on its sheet: outline, defects and cut drawn, and only the 
   // The frame is the sheet, not the strip.
   expect(svg).toContain('width="4.4mm" height="3.3mm"');
   const imported=importSVG(svg,'sheet.svg',{scale:1,tolerance:.01});
-  expect(imported.document.parts).toHaveLength(2);
+  // Two copies of one square: one part, twice.
+  expect(imported.document.parts.map(part=>part.quantity)).toEqual([2]);
   const entities=(parseString(dxf) as {entities:{type:string;layer:string}[]}).entities.filter(e=>e.layer===SHEET_LAYER);
   expect(entities.map(e=>e.type).sort()).toEqual(['CIRCLE','LINE','LWPOLYLINE','LWPOLYLINE']);
 });
