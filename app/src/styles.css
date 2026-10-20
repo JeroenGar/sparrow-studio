@@ -781,6 +781,27 @@ input[aria-invalid='true'] {
   border-radius: 2px;
   background: var(--overlap);
 }
+.canvas-surface.drawing {
+  cursor: crosshair;
+}
+.row-actions button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+.defect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.sheet-edge.selected {
+  stroke: var(--accent);
+}
+.defect.draft {
+  fill-opacity: 0.4;
+  stroke-dasharray: 4 3;
+}
 .sheet-label {
   fill: var(--muted);
   font-family: var(--mono);

@@ -43,7 +43,12 @@ export function projectInput(project: ProjectDocument): Input {
       project.stock.packing === 'sheets'
         ? {
             type: 'minimize_sheets_in_order',
-            sheets: sheets.map(({ id, quantity }) => ({ id, geometry_id: id, quantity })),
+            sheets: sheets.map(({ id, quantity, defects }) => ({
+              id,
+              geometry_id: id,
+              quantity,
+              ...(defects?.length && { defects }),
+            })),
           }
         : { type: 'minimize_strip_length', height: project.stock.strip.widthMm },
   };

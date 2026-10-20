@@ -47,7 +47,12 @@ export function parseProject(stored: unknown): ProjectDocument {
       typeof sheet.name !== 'string' ||
       !Number.isInteger(sheet.quantity) ||
       (sheet.quantity as number) < 0 ||
-      !drawable(sheet.shape)
+      !drawable(sheet.shape) ||
+      (sheet.defects !== undefined &&
+        !(
+          Array.isArray(sheet.defects) &&
+          sheet.defects.every((defect) => isRecord(defect) && drawable({ outer: defect }))
+        ))
     )
       return fail('invalid sheet.');
   const strip = stock.strip;

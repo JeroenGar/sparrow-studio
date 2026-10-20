@@ -238,6 +238,26 @@ describe('project document', () => {
     expect(layouts.flatMap((l) => l.result.placements.map((p) => p.copyIndex))).toEqual([0, 1, 2]);
   });
 
+  it('sends the defects of a sheet entry with it, and keeps them in project files', () => {
+    const flaw = { type: 'rectangle' as const, x_min: 10, y_min: 10, width: 20, height: 5 };
+    const plate = { ...newSheet('Plate', 100, 50), defects: [flaw] };
+    const bare = newSheet('Bare', 100, 50);
+    let project = addParts(newProject('Job'), [square(10)]);
+    project = {
+      ...project,
+      stock: { packing: 'sheets', strip: project.stock.strip, sheets: [plate, bare] },
+    };
+    const problem = projectInput(project).problem;
+    expect(
+      problem.type === 'minimize_sheets_in_order' && problem.sheets.map((s) => s.defects),
+    ).toEqual([[flaw], undefined]);
+    expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
+    const broken = { ...plate, defects: [{ type: 'polygon', points: [[0, 0]] }] };
+    expect(() =>
+      parseProject({ ...project, stock: { ...project.stock, sheets: [broken] } }),
+    ).toThrow('invalid sheet');
+  });
+
   it('refuses sheets it cannot draw', () => {
     const project = newProject('Shop job');
     const sheet = {

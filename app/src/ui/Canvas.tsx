@@ -18,6 +18,17 @@ export type CanvasView = {
   upp: number;
 };
 
+/**
+ * A drawing tool: while one is given, the left button draws instead of panning, and the tool hears
+ * each press, move and release at a point in world coordinates.
+ */
+export type CanvasTool = {
+  down?: (point: [number, number], event: ReactPointerEvent) => void;
+  move?: (point: [number, number], event: ReactPointerEvent) => void;
+  up?: (point: [number, number], event: ReactPointerEvent) => void;
+  double?: (point: [number, number]) => void;
+};
+
 /** A world box (y up) as an SVG box (y down), padded and stretched to the element's aspect ratio. */
 function fitBox(box: Box, element: { width: number; height: number }, padding: number): ViewBox {
   const width = Math.max(box[2] - box[0], 1e-6);
@@ -43,6 +54,7 @@ export function Canvas({
   toolbar,
   overlay,
   onBackgroundClick,
+  tool,
   children,
 }: {
   extent: Box;
@@ -52,6 +64,7 @@ export function Canvas({
   toolbar?: ReactNode;
   overlay?: ReactNode;
   onBackgroundClick?: () => void;
+  tool?: CanvasTool;
   children: (view: CanvasView) => ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -113,11 +126,25 @@ export function Canvas({
     return () => element.removeEventListener('wheel', wheel);
   }, []);
 
+  /** The world point under the pointer. */
+  function at(event: { clientX: number; clientY: number }): [number, number] {
+    const rect = container.current!.getBoundingClientRect();
+    const x = view[0] + ((event.clientX - rect.left) / rect.width) * view[2];
+    const y = view[1] + ((event.clientY - rect.top) / rect.height) * view[3];
+    return [x, -y];
+  }
+
   function down(event: ReactPointerEvent) {
+    if (tool && event.button === 0) {
+      (event.currentTarget as Element).setPointerCapture(event.pointerId);
+      tool.down?.(at(event), event);
+      return;
+    }
     if (event.button !== 0 && event.button !== 1) return;
     drag.current = { x: event.clientX, y: event.clientY, view, moved: false };
   }
   function move(event: ReactPointerEvent) {
+    if (tool && !drag.current) tool.move?.(at(event), event);
     const state = drag.current;
     if (!state) return;
     const dx = event.clientX - state.x;
@@ -128,7 +155,12 @@ export function Canvas({
     const scale = state.view[2] / size.width;
     setView([state.view[0] - dx * scale, state.view[1] - dy * scale, state.view[2], state.view[3]]);
   }
-  function up() {
+  function up(event: ReactPointerEvent) {
+    if (tool && !drag.current && event.button === 0) {
+      tool.up?.(at(event), event);
+      suppressClick.current = true;
+      return;
+    }
     suppressClick.current = !!drag.current?.moved;
     drag.current = null;
   }
@@ -150,7 +182,8 @@ export function Canvas({
       </div>
       <div
         ref={container}
-        className="canvas-surface"
+        className={tool ? 'canvas-surface drawing' : 'canvas-surface'}
+        onDoubleClick={tool?.double && ((event) => tool.double!(at(event)))}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}

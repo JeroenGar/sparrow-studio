@@ -1,8 +1,8 @@
-import { useId, useMemo, useState } from 'react';
-import { outline } from '../../engine/geometry/contour';
+import { useEffect, useId, useMemo, useState } from 'react';
+import { flattenContour, outline, type Contour } from '../../engine/geometry/contour';
 import { bounds } from '../../engine/geometry/normalize';
 import { netArea } from '../../engine/geometry/world';
-import { LIMITS, newId } from '../../engine/model';
+import { LIMITS, newId, type Point } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
 import type { Box } from '../../project/layout';
 import {
@@ -13,9 +13,9 @@ import {
   type SheetEntry,
   type Stock,
 } from '../../project/model';
-import { Canvas, ringsPath } from '../Canvas';
+import { Canvas, ringsPath, type CanvasTool } from '../Canvas';
 import { usesSparrowPro } from '../client';
-import { ProRow, ProTag } from '../ProTag';
+import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
 import { formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
@@ -27,9 +27,41 @@ const withStock = (project: ProjectDocument, change: Partial<Stock>): ProjectDoc
   stock: { ...project.stock, ...change },
 });
 
+/** A defect tool: drag a rectangle, or click the corners of a freeform region. */
+type Tool = 'rectangle' | 'freeform';
+/** The selected sheet entry, and the tool drawing on it, if any. */
+type Selection = {
+  selected?: string;
+  select: (id: string | undefined) => void;
+  tool?: Tool;
+  setTool: (tool: Tool | undefined) => void;
+};
+
+/** Changes one sheet entry. */
+const updateSheet = (
+  project: ProjectDocument,
+  id: string,
+  change: (sheet: SheetEntry) => SheetEntry,
+): ProjectDocument =>
+  withStock(project, {
+    sheets: project.stock.sheets.map((sheet) => (sheet.id === id ? change(sheet) : sheet)),
+  });
+
 export function SheetsView() {
   const { project, edit } = useStudio();
   const packing = project.stock.packing;
+  const [selected, setSelected] = useState<string>();
+  const [tool, setTool] = useState<Tool>();
+  // Choosing another sheet puts the tool down.
+  const selection: Selection = {
+    selected,
+    select: (id) => {
+      setSelected(id);
+      setTool(undefined);
+    },
+    tool,
+    setTool,
+  };
   return (
     <div className="view">
       <section className="list-panel" aria-label="Sheets">
@@ -47,10 +79,10 @@ export function SheetsView() {
             Sheets
           </button>
         </div>
-        {packing === 'strip' ? <StripList /> : <SheetList />}
+        {packing === 'strip' ? <StripList /> : <SheetList {...selection} />}
         <RunBar />
       </section>
-      {packing === 'strip' ? <StripCanvas /> : <SheetsCanvas />}
+      {packing === 'strip' ? <StripCanvas /> : <SheetsCanvas {...selection} />}
     </div>
   );
 }
@@ -154,10 +186,9 @@ function SheetThumb({ sheet }: { sheet: SheetEntry }) {
   );
 }
 
-function SheetList() {
+function SheetList({ selected, select: setSelected, tool, setTool }: Selection) {
   const { project, edit, unit, openImport } = useStudio();
   const sheets = project.stock.sheets;
-  const [selected, setSelected] = useState<string>();
   const setSheets = (change: (sheets: SheetEntry[]) => SheetEntry[], key?: string) =>
     edit((current) => withStock(current, { sheets: change(current.stock.sheets) }), key);
   const update = (id: string, change: Partial<SheetEntry>, key?: string) =>
@@ -319,7 +350,46 @@ function SheetList() {
                       </button>
                     </div>
                   </div>
-                  <ProRow>Defects and clamp zones</ProRow>
+                  <div className="field">
+                    Defects
+                    <span className="muted">
+                      Regions parts avoid on every sheet of this entry, such as flaws.
+                    </span>
+                    {(sheet.defects ?? []).map((defect, i) => (
+                      <div className="defect-row" key={i}>
+                        <span className="mono grow">{describeDefect(defect, unit)}</span>
+                        <button
+                          className="small danger"
+                          onClick={() =>
+                            update(sheet.id, {
+                              defects: sheet.defects!.filter((_, other) => other !== i),
+                            })
+                          }
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    <div className="row-actions">
+                      {(['rectangle', 'freeform'] as const).map((kind) => (
+                        <button
+                          key={kind}
+                          className="small"
+                          aria-pressed={tool === kind}
+                          onClick={() => setTool(tool === kind ? undefined : kind)}
+                        >
+                          {kind === 'rectangle' ? 'Draw rectangle' : 'Draw freeform'}
+                        </button>
+                      ))}
+                    </div>
+                    {tool && (
+                      <span className="muted">
+                        {tool === 'rectangle'
+                          ? 'Drag on the sheet to draw a rectangle.'
+                          : 'Click the corners on the sheet; double-click to finish. Escape cancels.'}
+                      </span>
+                    )}
+                  </div>
                   <div className="row-actions wrap">
                     <button
                       className="small"
@@ -384,31 +454,124 @@ function arrangeSheets(sheets: SheetEntry[]) {
   return { offsets, boxes, extent };
 }
 
-function SheetsCanvas() {
-  const { project } = useStudio();
+/** A defect in a few words: a rectangle by its size and corner, or freeform by its corners. */
+function describeDefect(defect: Contour, unit: DisplayUnit): string {
+  const at = (mm: number) => formatLength(mm, unit);
+  if (defect.type === 'rectangle')
+    return `${at(defect.width)} × ${at(defect.height)} ${unit} at ${at(defect.x_min)}, ${at(defect.y_min)}`;
+  const corners = flattenContour(defect, 0.1).length;
+  return `Freeform, ${corners} corners`;
+}
+
+/**
+ * The defect being drawn on the selected sheet, in its coordinates: a rectangle from where the
+ * drag started, or the corners clicked so far; `at` follows the pointer.
+ */
+type Draft = { from?: Point; corners: Point[]; at?: Point };
+
+function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
+  const { project, edit } = useStudio();
   const sheets = project.stock.sheets;
   const arrangement = useMemo(() => arrangeSheets(sheets), [sheets]);
+  const [draft, setDraft] = useState<Draft>({ corners: [] });
+  const index = sheets.findIndex((sheet) => sheet.id === selected);
   const [x0, y0, x1, y1] = arrangement.extent;
   const pad = Math.max(x1 - x0, y1 - y0) * 0.08;
+
+  // Putting the tool down, or choosing another one, drops the draft; Escape puts it down.
+  useEffect(() => {
+    setDraft({ corners: [] });
+    if (!tool) return;
+    const key = (event: KeyboardEvent) => event.key === 'Escape' && setTool(undefined);
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  }, [tool, selected]);
+
+  const add = (defect: Contour) => {
+    edit((current) =>
+      updateSheet(current, selected!, (sheet) => ({
+        ...sheet,
+        defects: [...(sheet.defects ?? []), defect],
+      })),
+    );
+    setTool(undefined);
+  };
+  const [dx, dy] = index >= 0 ? arrangement.offsets[index] : [0, 0];
+  // The selected sheet's own coordinates of a canvas point, to the millimetre.
+  const local = ([x, y]: [number, number]): Point => [Math.round(x - dx), Math.round(y - dy)];
+  const canvasTool: CanvasTool | undefined =
+    tool && index >= 0
+      ? tool === 'rectangle'
+        ? {
+            down: (point) => setDraft({ corners: [], from: local(point), at: local(point) }),
+            move: (point) => setDraft((d) => (d.from ? { ...d, at: local(point) } : d)),
+            up: (point) => {
+              const from = draft.from;
+              const [ax, ay] = local(point);
+              setDraft({ corners: [] });
+              if (!from) return;
+              const [width, height] = [Math.abs(ax - from[0]), Math.abs(ay - from[1])];
+              if (width > 0 && height > 0)
+                add({
+                  type: 'rectangle',
+                  x_min: Math.min(ax, from[0]),
+                  y_min: Math.min(ay, from[1]),
+                  width,
+                  height,
+                });
+            },
+          }
+        : {
+            move: (point) => setDraft((d) => ({ ...d, at: local(point) })),
+            up: (point) => setDraft((d) => ({ ...d, corners: [...d.corners, local(point)] })),
+            double: () => {
+              // A double-click also clicked twice: the corner it added twice counts once.
+              const corners = draft.corners.filter(
+                (p, i, all) => i === 0 || p[0] !== all[i - 1][0] || p[1] !== all[i - 1][1],
+              );
+              setDraft({ corners: [] });
+              if (corners.length >= 3) add({ type: 'polygon', points: corners });
+            },
+          }
+      : undefined;
+
+  const draftRing: Point[] | undefined =
+    draft.from && draft.at
+      ? [draft.from, [draft.at[0], draft.from[1]], draft.at, [draft.from[0], draft.at[1]]]
+      : draft.corners.length
+        ? [...draft.corners, ...(draft.at ? [draft.at] : [])]
+        : undefined;
+
   return (
-    <Canvas label="The sheets" extent={[x0 - pad, y0 - pad * 2, x1 + pad, y1 + pad * 2]}>
+    <Canvas
+      label="The sheets"
+      extent={[x0 - pad, y0 - pad * 2, x1 + pad, y1 + pad * 2]}
+      tool={canvasTool}
+      onBackgroundClick={() => !tool && select(undefined)}
+    >
       {({ upp }) => (
         <>
-          {sheets.map((sheet, index) => {
-            const [dx, dy] = arrangement.offsets[index];
-            const box = arrangement.boxes[index];
+          {sheets.map((sheet, i) => {
+            const [ox, oy] = arrangement.offsets[i];
+            const box = arrangement.boxes[i];
             const { outer, holes } = outline(sheet.shape);
-            const d = ringsPath([outer, ...holes], dx, dy);
+            const d = ringsPath([outer, ...holes], ox, oy);
             // Sheets in stock beyond the first show as outlines stacked behind it.
             const behind = Math.min(sheet.quantity, 3) - 1;
             const step = 8 * upp;
+            const chosen = sheet.id === selected;
             return (
-              <g key={sheet.id} opacity={sheet.quantity ? 1 : 0.4}>
-                {Array.from({ length: Math.max(0, behind) }, (_, i) => (
+              <g
+                key={sheet.id}
+                opacity={sheet.quantity ? 1 : 0.4}
+                onClick={() => !tool && select(sheet.id)}
+                style={tool ? undefined : { cursor: 'pointer' }}
+              >
+                {Array.from({ length: Math.max(0, behind) }, (_, k) => (
                   <path
-                    key={i}
+                    key={k}
                     d={d}
-                    transform={`translate(${(behind - i) * step} ${-(behind - i) * step})`}
+                    transform={`translate(${(behind - k) * step} ${-(behind - k) * step})`}
                     fill="var(--sheet)"
                     className="sheet-edge"
                     strokeWidth={upp}
@@ -418,20 +581,40 @@ function SheetsCanvas() {
                   d={d}
                   fillRule="evenodd"
                   fill="var(--sheet)"
-                  className="sheet-edge"
-                  strokeWidth={2 * upp}
+                  className={chosen ? 'sheet-edge selected' : 'sheet-edge'}
+                  strokeWidth={(chosen ? 3 : 2) * upp}
                 />
+                {(sheet.defects ?? []).map((defect, k) => (
+                  <path
+                    key={k}
+                    d={ringsPath([flattenContour(defect, upp / 4)], ox, oy)}
+                    className="defect"
+                    strokeWidth={upp}
+                  />
+                ))}
                 <text
                   className="sheet-label"
-                  x={box[0] + dx}
-                  y={-(box[3] + dy) - (behind * 8 + 8) * upp}
+                  x={box[0] + ox}
+                  y={-(box[3] + oy) - (behind * 8 + 8) * upp}
                   fontSize={12 * upp}
                 >
-                  {index + 1} · {sheet.name} · ×{sheet.quantity}
+                  {i + 1} · {sheet.name} · ×{sheet.quantity}
                 </text>
               </g>
             );
           })}
+          {draftRing && (
+            <path
+              d={
+                draft.from
+                  ? ringsPath([draftRing], dx, dy)
+                  : `M${draftRing.map(([x, y]) => `${x + dx},${-(y + dy)}`).join('L')}`
+              }
+              className="defect draft"
+              strokeWidth={upp}
+              pointerEvents="none"
+            />
+          )}
           {!sheets.length && (
             <text x={50} y={-50} fontSize={14 * upp} textAnchor="middle" className="muted-text">
               Sheets appear here in nesting order.

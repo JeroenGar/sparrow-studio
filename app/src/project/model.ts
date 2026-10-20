@@ -1,5 +1,5 @@
 import type { JobDocument } from '../api/client';
-import type { Shape } from '../engine/geometry/contour';
+import type { Contour, Shape } from '../engine/geometry/contour';
 import { LIMITS, newId, type Part, type RotationRule } from '../engine/model';
 
 /** Identifies a sparrow studio project document, in browser storage and in files. */
@@ -9,10 +9,17 @@ export const PROJECT_VERSION = 5;
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };
 /**
- * A row of identical sheets, used one after another: a rectangle, or an imported outline. Its
- * shape is in the job format, in the sheet's own coordinates.
+ * A row of identical sheets, used one after another: a rectangle, or an imported outline, with
+ * regions parts must avoid, such as flaws. Its shape and defects are in the job format, in the
+ * sheet's own coordinates; defects may overlap each other and reach past the sheet.
  */
-export type SheetEntry = { id: string; name: string; shape: Shape; quantity: number };
+export type SheetEntry = {
+  id: string;
+  name: string;
+  shape: Shape;
+  quantity: number;
+  defects?: Contour[];
+};
 /**
  * What the parts are nested into: one strip, or sheets in the order of the list. A project keeps
  * both; `packing` says which a job uses.
