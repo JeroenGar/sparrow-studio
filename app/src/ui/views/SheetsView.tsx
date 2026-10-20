@@ -198,7 +198,7 @@ function SheetList() {
           {count === 1 ? 'sheet' : 'sheets'}
         </span>
         <span className="row-actions">
-          <ImportMenu kind="sheets" files={false} />
+          <ImportMenu kind="sheets" />
           <button className="small" onClick={add}>
             + New
           </button>
@@ -208,9 +208,13 @@ function SheetList() {
         {!sheets.length && (
           <div className="empty">
             <p>No sheets yet.</p>
-            <p className="muted">Add the sheets you have in stock, in the order to use them.</p>
-            <div className="row-actions">
+            <p className="muted">
+              Add the sheets you have in stock, in the order to use them: rectangles, or outlines of
+              remnants from DXF or SVG files.
+            </p>
+            <div className="row-actions wrap">
               <button onClick={add}>Add a sheet</button>
+              <button onClick={() => openImport('sheets', 'files')}>Import files…</button>
               <button onClick={() => openImport('sheets', 'project')}>From another project…</button>
             </div>
           </div>

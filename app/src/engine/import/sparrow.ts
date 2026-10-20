@@ -46,6 +46,5 @@ export function importSparrow(text: string,fileName: string,scale: number): Impo
   });
   return {document:normalizeJob({name:input.name,parts,settings:{...DEFAULT_SETTINGS,materialWidthMm:number(input.strip_height)*scale}}),
     warnings:[...(input.solution!==undefined?['Stored native solution is ignored; warm starts are not supported.']:[]),
-      `One coordinate unit = ${scale} mm. Benchmark coordinates have no intrinsic manufacturing units.`,
-      ...(parts.some(p=>p.shape.holes?.length)?['Holes are preserved; nesting inside holes is not supported.']:[])]};
+      `One coordinate unit = ${scale} mm. Benchmark coordinates have no intrinsic manufacturing units.`]};
 }

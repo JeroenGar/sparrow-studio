@@ -111,7 +111,6 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
   warnings.push('Closed contour interpretation: closed stroke-only outlines count; stroke thickness is not part size or kerf.');
   const parts=entities.flatMap(contours=>contoursToParts(contours,fileName,'svg',options.tolerance,'holes'));
   if(entities.some(e=>e.length>1))warnings.push('Compound contours may produce separate part types. Holes follow the source fill rule.');
-  if(parts.some(p=>p.shape.holes?.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
   if(!parts.length)throw Error('No visible closed vector outlines found.');
   return {document:normalizeJob({name:fileName.replace(/\.svg$/i,''),parts,settings:{...DEFAULT_SETTINGS}}),warnings};
 }

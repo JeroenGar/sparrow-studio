@@ -17,14 +17,20 @@ type Options = { scale: number; tolerance: number; enclosed: 'holes' | 'parts'; 
 const MAX_FILE = 10 * 1024 * 1024;
 const MAX_BATCH = 25 * 1024 * 1024;
 
-/** Import parts from drawing files, after a preview of units, contours and warnings. */
+/**
+ * Import parts, or sheet outlines, from drawing files, after a preview of units, contours and
+ * warnings. Read as sheets, each outline is a sheet entry, and its holes regions without material.
+ */
 export function ImportFilesDialog({
+  kind,
   onAdd,
   onClose,
 }: {
+  kind: 'parts' | 'sheets';
   onAdd: (parts: Part[], stripWidthMm?: number) => void;
   onClose: () => void;
 }) {
+  const noun = kind === 'parts' ? 'part' : 'sheet';
   const { unit } = useStudio();
   const picker = useRef<HTMLInputElement>(null);
   const [files, setFiles] = useState<ImportFile[]>();
@@ -114,7 +120,7 @@ export function ImportFilesDialog({
 
   return (
     <Dialog
-      title="Import parts from files"
+      title={`Import ${noun}s from files`}
       onClose={onClose}
       wide
       actions={
@@ -139,7 +145,7 @@ export function ImportFilesDialog({
                 )
               }
             >
-              Add {parts.length} {parts.length === 1 ? 'part' : 'parts'}
+              Add {parts.length} {parts.length === 1 ? noun : `${noun}s`}
             </button>
           )}
         </>
@@ -206,7 +212,7 @@ export function ImportFilesDialog({
                 onChange={(event) => setEnclosed(event.target.value as 'holes' | 'parts')}
               >
                 <option value="holes">Are holes</option>
-                <option value="parts">Are separate parts</option>
+                <option value="parts">Are separate {noun}s</option>
               </select>
             </label>
           )}
@@ -239,8 +245,11 @@ export function ImportFilesDialog({
       {review && !stale && (
         <>
           <p>
-            {parts.length} part {parts.length === 1 ? 'type' : 'types'} ·{' '}
-            {parts.reduce((sum, part) => sum + part.quantity, 0)} copies ·{' '}
+            {kind === 'parts'
+              ? `${parts.length} part ${parts.length === 1 ? 'type' : 'types'} · `
+              : ''}
+            {parts.reduce((sum, part) => sum + part.quantity, 0)}{' '}
+            {kind === 'parts' ? 'copies' : 'sheets'} ·{' '}
             {parts.reduce((sum, part) => sum + (part.shape.holes?.length ?? 0), 0)} holes
           </p>
           <div className="import-preview">
@@ -298,7 +307,7 @@ export function ImportFilesDialog({
               </label>
             </>
           )}
-          {isInstance && (
+          {isInstance && kind === 'parts' && (
             <label className="choice">
               <input
                 type="checkbox"

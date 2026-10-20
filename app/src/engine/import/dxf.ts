@@ -230,7 +230,6 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
   for(let i=0;i<valid.length;i++)for(let j=0;j<i;j++)if(ringCrosses(valid[i].ring,valid[j].ring)){rejected.add(i);rejected.add(j);issues.push(`${valid[i].entityId} and ${valid[j].entityId}: intersecting or duplicate loops.`);}
   const parts=contoursToParts(valid.filter((_,i)=>!rejected.has(i)),fileName,'dxf',options.tolerance+joined.adjustment,options.enclosed);
   for(const [type,count] of unsupported)warnings.push(`Excluded ${count} unsupported ${type} entities.`);
-  if(parts.some(p=>p.shape.holes?.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
   const document={name:fileName.replace(/\.dxf$/i,''),parts,settings:{...DEFAULT_SETTINGS}};
   return {document:parts.length?normalizeJob(document):document,warnings,issues,layers};
 }

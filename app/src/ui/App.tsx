@@ -150,7 +150,7 @@ type Dialogs =
   | { type: 'pro' }
   | { type: 'preferences' }
   | { type: 'about' }
-  | { type: 'import-files' }
+  | { type: 'import-files'; kind: 'parts' | 'sheets' }
   | { type: 'import-project'; kind: 'parts' | 'sheets' | 'machines' };
 
 const TABS: { id: Tab; label: string }[] = [
@@ -370,8 +370,8 @@ function StudioShell({
       openPro: () => setDialog({ type: 'pro' }),
       openImport: (kind, source) =>
         setDialog(
-          source === 'files' && kind === 'parts'
-            ? { type: 'import-files' }
+          source === 'files' && kind !== 'machines'
+            ? { type: 'import-files', kind }
             : { type: 'import-project', kind },
         ),
       showError,
@@ -549,8 +549,29 @@ function StudioShell({
       )}
       {dialog?.type === 'import-files' && (
         <ImportFilesDialog
+          kind={dialog.kind}
           onClose={() => setDialog(undefined)}
           onAdd={(parts, widthMm) => {
+            if (dialog.kind === 'sheets') {
+              // Each outline is a sheet entry, in stock as often as the file asks for its part.
+              edit((current) => ({
+                ...current,
+                stock: {
+                  ...current.stock,
+                  sheets: [
+                    ...current.stock.sheets,
+                    ...parts.map((part) => ({
+                      id: newId(),
+                      name: part.name,
+                      shape: part.shape,
+                      quantity: Math.max(1, part.quantity),
+                    })),
+                  ],
+                },
+              }));
+              setDialog(undefined);
+              return;
+            }
             edit((previous) => {
               const current = addParts(
                 previous,
