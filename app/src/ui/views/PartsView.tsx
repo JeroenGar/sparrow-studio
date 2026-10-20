@@ -28,6 +28,7 @@ import { GrainIcon, grainPaths } from '../grain';
 import {
   ROTATION_LABELS,
   describeAngles,
+  nextRotation,
   parseAngles,
   rotationKind,
   rotationRule,
@@ -108,6 +109,9 @@ export function PartsView() {
       else if (event.key === '-' || event.key === '_') setQuantity(chosen, chosen.quantity - 1);
       else if (event.key === 'Delete' || event.key === 'Backspace') removePart(chosen.id);
       else if (event.key === 'Escape') setSelected(undefined);
+      // R cycles the rotations; with a modifier, it is the browser's, such as reloading.
+      else if (event.key.toLowerCase() === 'r' && !event.metaKey && !event.ctrlKey && !event.altKey)
+        setSetting(chosen.id, 'rotations', nextRotation(stored(chosen.id)?.rotations));
       else return;
       event.preventDefault();
     };

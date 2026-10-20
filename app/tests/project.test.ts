@@ -19,7 +19,7 @@ import {
 } from '../src/project/model';
 import { drawable, isStale, projectInput, projectRequest } from '../src/project/solution';
 import { historyReducer, initialHistory } from '../src/ui/history';
-import { parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
+import { nextRotation, parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
 import { outline, polygonShape } from '../src/engine/geometry/contour';
 import { worldParts } from '../src/engine/geometry/world';
 
@@ -371,6 +371,20 @@ describe('rotations', () => {
     expect(rotationKind({ kind: 'discrete', degrees: [0, 45] })).toBe('custom');
     expect(parseAngles('0, 45 , 405')).toEqual({ kind: 'discrete', degrees: [0, 45] });
     expect(parseAngles('a')).toBeUndefined();
+  });
+});
+
+describe('cycling rotations', () => {
+  it('goes from the defaults through every named rule and back', () => {
+    const seen: string[] = [];
+    let own = undefined as ReturnType<typeof rotationRule> | undefined;
+    for (let i = 0; i < 5; i++) {
+      const next = nextRotation(own);
+      seen.push(next === 'default' ? 'default' : rotationKind(next));
+      own = next === 'default' ? undefined : next;
+    }
+    expect(seen).toEqual(['fixed', 'half', 'quarter', 'free', 'default']);
+    expect(nextRotation({ kind: 'discrete', degrees: [0, 45] })).toBe('default');
   });
 });
 
