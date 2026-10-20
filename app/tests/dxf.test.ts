@@ -124,3 +124,11 @@ it('reads parts that share a cut line as neighbours, and still refuses overlappi
   const touchingInside=importDXF(dxf(poly([[0,0],[30,0],[30,30],[0,30]])+left),'inside.dxf',options);
   expect(touchingInside.issues?.join(' ')).toContain('intersecting');
 });
+
+it('reads parts that overlap by a rounding sliver as neighbours',()=>{
+  // The second part reaches a millionth of a millimetre into the first, as drawings rounded to a few decimals do.
+  const left=poly([[0,0],[10,0],[10,10],[0,10]]),right=poly([[9.999999,2],[20,2],[20,8],[9.999999,8]]);
+  const shared=importDXF(dxf(left+right),'sliver.dxf',options);
+  expect(shared.issues).toEqual([]);
+  expect(shared.document.parts).toHaveLength(2);
+});

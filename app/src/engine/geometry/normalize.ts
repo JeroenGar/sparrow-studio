@@ -40,10 +40,17 @@ export function isSimpleRing(ring: Ring): boolean {
   }
   return true;
 }
-/** Whether two rings whose edges meet only touch: their insides overlap by no more than rounding. */
-export function onlyTouch(a: Ring, b: Ring): boolean {
-  const overlap = polygonClipping.intersection([a], [b]).reduce((sum, polygon) => sum + polygon.reduce((n, ring, i) => n + (i ? -1 : 1) * Math.abs(area(ring as Ring)), 0), 0);
-  return overlap <= 1e-9 * Math.min(Math.abs(area(a)), Math.abs(area(b)));
+/**
+ * Whether two rings whose edges meet only touch: where their insides overlap at all, the overlap
+ * is a sliver thinner than `tolerance`, such as rounding where a drawing puts parts against each other.
+ */
+export function onlyTouch(a: Ring, b: Ring, tolerance: number): boolean {
+  return polygonClipping.intersection([a], [b]).every((polygon) => {
+    const overlap = polygon.reduce((n, ring, i) => n + (i ? -1 : 1) * Math.abs(area(ring as Ring)), 0);
+    const [x0, y0, x1, y1] = bounds(polygon[0] as Ring);
+    // A sliver's area over its length is its thickness.
+    return overlap <= tolerance * Math.max(x1 - x0, y1 - y0);
+  });
 }
 export function normalizeRing(value: unknown): Ring {
   if (!Array.isArray(value) || value.length > LIMITS.verticesPerPart + 1) throw Error('Contour exceeds 5,000 vertices or is not an array.');
