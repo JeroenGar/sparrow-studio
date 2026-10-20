@@ -18,28 +18,55 @@ const materialBox = (job: Job, layout: DrawnLayout, length: number): Box =>
     : [0, 0, length, job.settings.materialWidthMm];
 
 /**
- * Where several layouts are drawn: one below the other, in order, with room between. Each layout
- * is moved up or down by its shift; `boxes` are the moved materials, and `extent` holds them all.
+ * Where several layouts are drawn: in order, in rows from left to right and top to bottom, as
+ * parts are on the Parts canvas. The number per row fits them best into a view of `aspect`,
+ * width over height. Each layout is moved by its offset; `boxes` are the moved materials, and
+ * `extent` holds them all.
  */
-export function stackLayouts(job: Job, layouts: DrawnLayout[], lengths: number[]) {
+export function arrangeLayouts(
+  job: Job,
+  layouts: DrawnLayout[],
+  lengths: number[],
+  aspect: number,
+) {
   const own = layouts.map((layout, i) => materialBox(job, layout, lengths[i]));
-  const gap = Math.max(...own.map((box) => box[3] - box[1]), 1) * 0.15;
-  const shifts: number[] = [];
-  const boxes: Box[] = [];
-  own.forEach((box, i) => {
-    const shift = i === 0 ? 0 : boxes[i - 1][1] - gap - box[3];
-    shifts.push(shift);
-    boxes.push([box[0], box[1] + shift, box[2], box[3] + shift]);
-  });
-  const extent: Box = boxes.length
-    ? [
-        Math.min(...boxes.map((box) => box[0])),
-        Math.min(...boxes.map((box) => box[1])),
-        Math.max(...boxes.map((box) => box[2])),
-        Math.max(...boxes.map((box) => box[3])),
-      ]
-    : [0, 0, 100, 100];
-  return { shifts, boxes, extent };
+  if (!own.length) return { offsets: [], boxes: [], extent: [0, 0, 100, 100] as Box };
+  const gap = Math.max(...own.map((box) => Math.max(box[2] - box[0], box[3] - box[1])), 1) * 0.12;
+  let best: { offsets: [number, number][]; boxes: Box[]; extent: Box; size: number } | undefined;
+  for (let columns = 1; columns <= own.length; columns++) {
+    const offsets: [number, number][] = [];
+    const boxes: Box[] = [];
+    let top = 0;
+    for (let start = 0; start < own.length; start += columns) {
+      const row = own.slice(start, start + columns);
+      const height = Math.max(...row.map((box) => box[3] - box[1]));
+      let x = 0;
+      for (const box of row) {
+        // Rows hang from their top, and grow downward.
+        const offset: [number, number] = [x - box[0], top - box[3]];
+        offsets.push(offset);
+        boxes.push([
+          box[0] + offset[0],
+          box[1] + offset[1],
+          box[2] + offset[0],
+          box[3] + offset[1],
+        ]);
+        x += box[2] - box[0] + gap;
+      }
+      top -= height + gap;
+    }
+    const extent: Box = [
+      Math.min(...boxes.map((box) => box[0])),
+      Math.min(...boxes.map((box) => box[1])),
+      Math.max(...boxes.map((box) => box[2])),
+      Math.max(...boxes.map((box) => box[3])),
+    ];
+    // The height the view must show: the larger of the two, the width taken at the view's aspect.
+    const size = Math.max((extent[2] - extent[0]) / aspect, extent[3] - extent[1]);
+    if (!best || size < best.size) best = { offsets, boxes, extent, size };
+  }
+  const { offsets, boxes, extent } = best!;
+  return { offsets, boxes, extent };
 }
 
 /** A sheet: its outline and holes, the regions parts avoid, and where it is cut. */
@@ -77,8 +104,8 @@ function SheetMaterial({ sheet, upp }: { sheet: Sheet; upp: number }) {
 
 /**
  * A layout on its sheet or strip: the parts as placed, optional overlaps in red, and the cut.
- * With `highlight`, the copies of that part type stand out and the others fade. `shift` moves it
- * up or down, to stand among other layouts.
+ * With `highlight`, the copies of that part type stand out and the others fade. `offset` moves
+ * it, to stand among other layouts.
  */
 // Memoized: the Live tab redraws it only when the layout or the zoom changes.
 export const LayoutDrawing = memo(function LayoutDrawing({
@@ -87,7 +114,7 @@ export const LayoutDrawing = memo(function LayoutDrawing({
   sheet,
   usedLength,
   upp,
-  shift = 0,
+  offset = [0, 0],
   label,
   overlaps = [],
   highlight,
@@ -102,7 +129,7 @@ export const LayoutDrawing = memo(function LayoutDrawing({
   /** How much of the strip is used. */
   usedLength: number;
   upp: number;
-  shift?: number;
+  offset?: [number, number];
   /** A name shown above the material. */
   label?: string;
   overlaps?: Ring[][];
@@ -117,7 +144,7 @@ export const LayoutDrawing = memo(function LayoutDrawing({
   const top = sheet ? bounds(outline(sheet.shape).outer)[3] : width;
   const left = sheet ? bounds(outline(sheet.shape).outer)[0] : 0;
   return (
-    <g transform={shift ? `translate(0 ${-shift})` : undefined}>
+    <g transform={`translate(${offset[0]} ${-offset[1]})`}>
       {sheet ? (
         <SheetMaterial sheet={sheet} upp={upp} />
       ) : (

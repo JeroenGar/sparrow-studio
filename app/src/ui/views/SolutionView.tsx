@@ -12,7 +12,7 @@ import { explainDiagnostic } from '../explain';
 import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
 import { serializeProject } from '../../project/file';
 import { RunBar } from '../RunBar';
-import { LayoutDrawing, placementKey, stackLayouts } from './LayoutDrawing';
+import { arrangeLayouts, LayoutDrawing, placementKey } from './LayoutDrawing';
 import { PartThumb } from './PartsView';
 
 type Format = 'svg' | 'dxf' | 'pdf';
@@ -52,15 +52,17 @@ export function SolutionView() {
     () => drawn?.layouts.map((layout) => worldParts(drawn.job, layout.result)) ?? [],
     [drawn],
   );
+  const [aspect, setAspect] = useState(4 / 3);
   const stack = useMemo(
     () =>
       drawn &&
-      stackLayouts(
+      arrangeLayouts(
         drawn.job,
         drawn.layouts,
         drawn.layouts.map((layout) => layout.result.usedLengthMm),
+        aspect,
       ),
-    [drawn],
+    [drawn, aspect],
   );
   const stale = useMemo(() => !!document && isStale(project, document), [document, project]);
 
@@ -324,6 +326,7 @@ export function SolutionView() {
       </section>
       <Canvas
         label="Solution layout"
+        onAspect={setAspect}
         extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         focus={
           chosen.solution === solution.id && stack.boxes[index]
@@ -362,7 +365,7 @@ export function SolutionView() {
               sheet={l.sheet}
               usedLength={l.result.usedLengthMm}
               upp={upp}
-              shift={stack.shifts[i]}
+              offset={stack.offsets[i]}
               label={onSheets ? `${i + 1} · ${l.name}` : undefined}
               highlight={highlight}
               hovered={hovered && placementKey(hovered)}

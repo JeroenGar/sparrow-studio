@@ -55,6 +55,7 @@ export function Canvas({
   overlay,
   onBackgroundClick,
   tool,
+  onAspect,
   children,
 }: {
   extent: Box;
@@ -65,6 +66,8 @@ export function Canvas({
   overlay?: ReactNode;
   onBackgroundClick?: () => void;
   tool?: CanvasTool;
+  /** Hears the drawing's width over its height, whenever it changes. */
+  onAspect?: (aspect: number) => void;
   children: (view: CanvasView) => ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -83,6 +86,8 @@ export function Canvas({
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => onAspect?.(size.width / size.height), [size.width, size.height]);
 
   const fit = useCallback(() => setView(fitBox(extent, size, 0.08)), [extent, size]);
   const extentKey = extent.join(',');

@@ -14,7 +14,7 @@ import { formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
 import { elapsed, useNow, type Run } from '../useJob';
-import { LayoutDrawing, stackLayouts } from './LayoutDrawing';
+import { arrangeLayouts, LayoutDrawing } from './LayoutDrawing';
 import { useNames } from './SolutionView';
 import { explainJobError } from '../explain';
 
@@ -161,7 +161,8 @@ export function LiveView() {
         ? Math.max(0, ...worlds[i].flatMap((part) => part.outer.map(([x]) => x)))
         : layout.result.usedLengthMm,
     ) ?? [];
-  const stack = shown && stackLayouts(shown.job, shown.layouts, lengths);
+  const [aspect, setAspect] = useState(4 / 3);
+  const stack = shown && arrangeLayouts(shown.job, shown.layouts, lengths, aspect);
   // Keep the view still while the layout shrinks: fit to everything this run has shown.
   const seen = useRef<{ request?: unknown; extent?: Box }>({});
   if (seen.current.request !== run?.request) seen.current = { request: run?.request };
@@ -237,6 +238,7 @@ export function LiveView() {
       </section>
       <Canvas
         label="Live layout"
+        onAspect={setAspect}
         extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         toolbar={
           run && (
@@ -275,7 +277,7 @@ export function LiveView() {
               overlaps={showLive ? frame.geometry[i].overlaps : undefined}
               usedLength={lengths[i]}
               upp={upp}
-              shift={stack.shifts[i]}
+              offset={stack.offsets[i]}
               label={onSheets ? `${i + 1} · ${layout.name}` : undefined}
             />
           ))
