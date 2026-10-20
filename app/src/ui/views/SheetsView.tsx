@@ -39,8 +39,10 @@ type Selection = {
 
 /** Moves a sheet entry to `to`, its place in the list without it. */
 function moveSheet(project: ProjectDocument, id: string, to: number): ProjectDocument {
-  const sheet = project.stock.sheets.find((other) => other.id === id);
-  if (!sheet) return project;
+  const from = project.stock.sheets.findIndex((other) => other.id === id);
+  const sheet = project.stock.sheets[from];
+  // Unchanged, it is no edit: undo and redo stay as they are.
+  if (!sheet || from === to) return project;
   const rest = project.stock.sheets.filter((other) => other.id !== id);
   return withStock(project, { sheets: [...rest.slice(0, to), sheet, ...rest.slice(to)] });
 }
@@ -555,6 +557,7 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
         ? {
             down: (point) => setDraft({ corners: [], from: local(point), at: local(point) }),
             move: (point) => setDraft((d) => (d.from ? { ...d, at: local(point) } : d)),
+            cancel: () => setDraft({ corners: [] }),
             up: (point) => {
               const from = draft.from;
               const [ax, ay] = local(point);
@@ -591,8 +594,6 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
 
   // Without a defect tool, dragging a sheet moves it in the nesting order; a click selects it.
   const [moving, setMoving] = useState<{ id: string; from: Point; at: Point; moved: boolean }>();
-  const hit = ([x, y]: Point) =>
-    arrangement.placed.findIndex((b) => x >= b[0] && x <= b[2] && y >= b[1] && y <= b[3]);
   const others = moving ? arrangement.placed.filter((_, i) => sheets[i].id !== moving.id) : [];
   const movingIndex = moving ? sheets.findIndex((sheet) => sheet.id === moving.id) : -1;
   // Where the moved sheet would go: after every other sheet whose middle lies left of its own.
@@ -605,11 +606,13 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
         })()
       : -1;
   const reorder: CanvasTool = {
-    down: (point) => {
-      const i = hit(point);
-      if (i < 0) return false;
-      setMoving({ id: sheets[i].id, from: point, at: point, moved: false });
+    // The sheet drawn under the pointer, its outline, copies or label; elsewhere the canvas pans.
+    down: (point, event) => {
+      const id = (event.target as Element).closest<SVGElement>('[data-sheet]')?.dataset.sheet;
+      if (!id) return false;
+      setMoving({ id, from: point, at: point, moved: false });
     },
+    cancel: () => setMoving(undefined),
     move: (point) =>
       setMoving(
         (m) =>
@@ -672,6 +675,7 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
             return (
               <g
                 key={sheet.id}
+                data-sheet={sheet.id}
                 opacity={sheet.quantity ? (lifted ? 0.7 : 1) : 0.4}
                 transform={
                   lifted

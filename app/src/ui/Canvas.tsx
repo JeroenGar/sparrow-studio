@@ -28,6 +28,8 @@ export type CanvasTool = {
   move?: (point: [number, number], event: ReactPointerEvent) => void;
   up?: (point: [number, number], event: ReactPointerEvent) => void;
   double?: (point: [number, number]) => void;
+  /** A press that ended without a release, such as when the browser took the pointer. */
+  cancel?: () => void;
 };
 
 /** A world box (y up) as an SVG box (y down), padded and stretched to the element's aspect ratio. */
@@ -192,7 +194,10 @@ export function Canvas({
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
-        onPointerCancel={up}
+        onPointerCancel={() => {
+          tool?.cancel?.();
+          drag.current = null;
+        }}
         onClickCapture={(event) => {
           if (suppressClick.current) {
             event.stopPropagation();
