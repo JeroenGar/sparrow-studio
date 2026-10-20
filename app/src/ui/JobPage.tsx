@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { jobInput, type ProjectJob } from '../project/model';
-import { isStale } from '../project/solution';
+import { jobInput, jobNames, type ProjectJob } from '../project/model';
+import { isStale, projectInput } from '../project/solution';
+import { describeChanges } from './changes';
 import { client, usesSparrowPro } from './client';
 import { useStudio } from './context';
 import { Dialog } from './Dialog';
@@ -32,13 +33,20 @@ function useCredits(job: ProjectJob | undefined) {
 
 /** One job of the project: live while it runs, its result once it ended, and its inputs. */
 export function JobPage({ number, view }: { number: number; view: JobView }) {
-  const { projectId, project, runner, startRun, removeJob } = useStudio();
+  const { projectId, project, unit, runner, startRun, removeJob, copyJob } = useStudio();
   const submitting = useSubmitting(runner, projectId);
   const job = project.jobs.find((job) => job.number === number);
   const run = useRun(runner, job?.stage === 'running' ? job.id : undefined);
   const credits = useCredits(job);
   const [removing, setRemoving] = useState(false);
   const stale = useMemo(() => !!job && isStale(project, jobInput(job)), [project, job]);
+  // What changed since, named as the job named it, or as the project names what it added.
+  const changes = useMemo(() => {
+    if (!job || !stale) return [];
+    const now = jobNames(project);
+    const name = (id: string) => job.names[id] ?? now[id] ?? 'A part';
+    return describeChanges(jobInput(job), projectInput(project), name, unit);
+  }, [project, job, stale, unit]);
   if (!job)
     return (
       <div className="boot stack">
@@ -90,13 +98,18 @@ export function JobPage({ number, view }: { number: number; view: JobView }) {
             <strong>
               {project.name} has changed since job #{number}.
             </strong>{' '}
-            Its parts, sheets or settings are not what this job ran with.
+            {changes.length
+              ? `${changes.join('. ')}.`
+              : 'Its inputs are not what this job ran with.'}
           </span>
           <a className="button small" href={href({ page: 'project', id: projectId, tab: 'parts' })}>
             Open project
           </a>
           <button className="small" disabled={submitting} onClick={startRun}>
             {submitting ? 'Starting…' : 'Run the project now'}
+          </button>
+          <button className="small" onClick={() => copyJob(number)}>
+            New project from this job
           </button>
         </div>
       )}

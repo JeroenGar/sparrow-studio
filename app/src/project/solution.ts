@@ -2,13 +2,27 @@ import type { Input, JobRequest, Schemas } from '../api/client';
 import { moveShape, outline } from '../engine/geometry/contour';
 import { bounds } from '../engine/geometry/normalize';
 import { worldParts } from '../engine/geometry/world';
-import type { Job, Part, Result, Sheet } from '../engine/model';
+import {
+  newId,
+  type Job,
+  type Part,
+  type Result,
+  type RotationRule,
+  type Sheet,
+} from '../engine/model';
 import {
   activeMachine,
   boundaryOf,
+  commonRotations,
+  jobInput,
   resolvedParts,
+  ruleKey,
+  TIME_LIMITS,
   usedSheets,
+  type PartSettings,
   type ProjectDocument,
+  type ProjectJob,
+  type ProjectPart,
 } from './model';
 
 /**
@@ -67,6 +81,103 @@ export function projectRequest(project: ProjectDocument): JobRequest {
       time_limit_seconds: project.settings.timeLimitSeconds,
       auto_termination: project.settings.autoTermination,
     },
+  };
+}
+
+/**
+ * A new project with a job's inputs: its parts, material, distances and time, named as they were
+ * when it started. The settings most parts share become the part defaults. What the job's format
+ * does not hold, such as the other machine presets, comes from `project`, the job's own.
+ */
+export function projectFromJob(project: ProjectDocument, job: ProjectJob): ProjectDocument {
+  const input = jobInput(job);
+  const settings = job.stage === 'ended' ? job.document.settings : job.request.settings;
+  const shapes = new Map(input.geometries.map((geometry) => [geometry.id, geometry.shape]));
+  const name = (id: string, fallback: string) => job.names[id] ?? fallback;
+  const parts = input.parts.map((part, index) => {
+    const rotation = part.orientation.rotation;
+    const rotations: RotationRule =
+      rotation.type === 'continuous'
+        ? { kind: 'continuous' }
+        : { kind: 'discrete', degrees: rotation.angles };
+    return {
+      part: {
+        id: part.id,
+        name: name(part.id, `Part ${index + 1}`),
+        source: { format: 'sparrow' as const },
+        shape: shapes.get(part.geometry_id)!,
+        approximationToleranceMm: 0,
+        quantity: part.quantity,
+      },
+      settings: {
+        rotations,
+        reflection: !!part.orientation.reflection?.includes('x_axis'),
+        nestInHoles: part.hole_mode === 'nestable',
+      } satisfies PartSettings,
+    };
+  });
+  const most = (flag: 'reflection' | 'nestInHoles') =>
+    parts.filter((part) => part.settings[flag]).length * 2 > parts.length;
+  const partDefaults: PartSettings = {
+    rotations: commonRotations(
+      parts.map(({ part, settings }) => ({ ...part, rotations: settings.rotations })),
+      project.partDefaults.rotations,
+    ),
+    reflection: most('reflection'),
+    nestInHoles: most('nestInHoles'),
+  };
+  // A part keeps a setting of its own only where it differs from the defaults.
+  const own = (settings: PartSettings): Partial<PartSettings> => ({
+    ...(ruleKey(settings.rotations) !== ruleKey(partDefaults.rotations) && {
+      rotations: settings.rotations,
+    }),
+    ...(settings.reflection !== partDefaults.reflection && { reflection: settings.reflection }),
+    ...(settings.nestInHoles !== partDefaults.nestInHoles && {
+      nestInHoles: settings.nestInHoles,
+    }),
+  });
+  const problem = input.problem;
+  const separation = input.minimum_separation_distance;
+  const machine = {
+    id: newId(),
+    name: `Job #${job.number}`,
+    gapMm: separation.parts,
+    ...(separation.boundary !== separation.parts && { boundaryMm: separation.boundary }),
+  };
+  // A time limit studio does not offer becomes the nearest one it does.
+  const limit = TIME_LIMITS.reduce((best, seconds) =>
+    Math.abs(seconds - settings.time_limit_seconds) < Math.abs(best - settings.time_limit_seconds)
+      ? seconds
+      : best,
+  );
+  return {
+    ...project,
+    name: `${project.name} (from #${job.number})`,
+    parts: parts.map(({ part, settings }): ProjectPart => ({ ...part, ...own(settings) })),
+    partDefaults,
+    stock:
+      problem.type === 'minimize_strip_length'
+        ? {
+            packing: 'strip',
+            strip: { ...project.stock.strip, widthMm: problem.height },
+            sheets: [],
+          }
+        : {
+            packing: 'sheets',
+            strip: project.stock.strip,
+            sheets: problem.sheets.map((sheet, index) => ({
+              id: sheet.id,
+              name: name(sheet.id, `Sheet ${index + 1}`),
+              shape: shapes.get(sheet.geometry_id)!,
+              quantity: sheet.quantity ?? 1,
+              ...(sheet.defects?.length && { defects: sheet.defects }),
+            })),
+          },
+    machines: [machine, ...project.machines],
+    machineId: machine.id,
+    settings: { timeLimitSeconds: limit, autoTermination: !!settings.auto_termination },
+    jobs: [],
+    seenTabs: undefined,
   };
 }
 

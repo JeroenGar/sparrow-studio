@@ -25,10 +25,12 @@ import {
 import {
   drawable,
   isStale,
+  projectFromJob,
   projectInput,
   projectRequest,
   sideBySide,
 } from '../src/project/solution';
+import { describeChanges } from '../src/ui/changes';
 import { historyReducer, initialHistory } from '../src/ui/history';
 import { nextRotation, parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
 import { outline, polygonShape } from '../src/engine/geometry/contour';
@@ -214,6 +216,54 @@ describe('project document', () => {
     expect(isStale({ ...project, parts: [{ ...project.parts[0], quantity: 2 }] }, document)).toBe(
       true,
     );
+  });
+
+  it('makes a new project from a job, with the inputs it ran with', () => {
+    let project = addParts(newProject('Shop'), [
+      { ...square(10, 2), name: 'Plate' },
+      { ...square(20, 3), name: 'Bracket' },
+      { ...square(30), name: 'Odd one' },
+    ]);
+    const odd = project.parts[2].id;
+    project = setPartSetting(project, [odd], 'reflection', true);
+    project = setPartSetting(project, [odd], 'rotations', { kind: 'continuous' });
+    project = { ...project, settings: { timeLimitSeconds: 30, autoTermination: false } };
+    const request = projectRequest(project);
+    const job = addJob(project, 'job_1', request, jobNames(project)).jobs[0];
+    // The project changes after the job; the new project has what the job ran with.
+    const later = { ...project, name: 'Shop', parts: project.parts.slice(1) };
+    const copy = projectFromJob(later, job);
+    expect(copy.name).toBe('Shop (from #1)');
+    expect(projectInput(copy)).toEqual(request.input);
+    expect(copy.parts.map((part) => part.name)).toEqual(['Plate', 'Bracket', 'Odd one']);
+    // The settings most parts share are the defaults; the odd one keeps its own.
+    expect(copy.parts.filter(differsFromDefaults).map((part) => part.id)).toEqual([odd]);
+    expect(copy.settings).toEqual({ timeLimitSeconds: 30, autoTermination: false });
+    expect(copy.jobs).toEqual([]);
+  });
+
+  it('says what changed since a job', () => {
+    const project = addParts(newProject('Shop'), [
+      { ...square(10, 4), name: 'Plate' },
+      { ...square(20), name: 'Bracket' },
+    ]);
+    const before = projectInput(project);
+    const names = (id: string) => jobNames(project)[id] ?? 'A part';
+    const [plate, bracket] = project.parts;
+    const now = projectInput({
+      ...project,
+      parts: [{ ...plate, quantity: 6 }],
+      machines: [{ ...project.machines[0], gapMm: 2 }],
+    });
+    expect(describeChanges(before, now, names, 'mm')).toEqual([
+      'Bracket removed',
+      'Plate: 4 copies, now 6',
+      'Gap 0 mm, now 2 mm',
+      // The distance to the edge follows the gap.
+      'Distance to the edge 0 mm, now 2 mm',
+    ]);
+    expect(describeChanges(before, before, names, 'mm')).toEqual([]);
+    expect(bracket.name).toBe('Bracket');
   });
 
   it('draws a layout in the format as copies of the project parts', () => {

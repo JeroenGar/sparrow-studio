@@ -28,6 +28,8 @@ export type Studio = {
   startRun: () => void;
   /** Removes a job that is no longer running, with its result. */
   removeJob: (number: number) => void;
+  /** Makes a new project with a job's inputs, and opens it. */
+  copyJob: (number: number) => void;
 };
 
 export const StudioContext = createContext<Studio | null>(null);

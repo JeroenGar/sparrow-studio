@@ -14,6 +14,7 @@ import type { Preferences } from '../project/preferences';
 import { StudioContext, type Studio, type Tab } from './context';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
 import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
+import { projectFromJob } from '../project/solution';
 import { explain } from './explain';
 import { JobPage } from './JobPage';
 import { go, href, type JobView } from './route';
@@ -89,6 +90,17 @@ export function ProjectPage({
       (reason) => showError(explain(reason)),
     );
   }
+  const copyJob = useCallback(
+    (number: number) => {
+      const job = project.jobs.find((job) => job.number === number);
+      if (!job) return;
+      workspace.create(projectFromJob(project, job)).then(
+        (copy) => go({ page: 'project', id: copy, tab: 'parts' }),
+        (reason) => showError(explain(reason)),
+      );
+    },
+    [workspace, project, showError],
+  );
   const removeJob = useCallback(
     (number: number) =>
       workspace.results(id, (present) => ({
@@ -161,9 +173,22 @@ export function ProjectPage({
       runner,
       startRun,
       removeJob,
+      copyJob,
     }),
     // startRun reads the current project; it is recreated with it.
-    [id, project, edit, preferences, setPreferences, setTab, openPro, showError, runner, removeJob],
+    [
+      id,
+      project,
+      edit,
+      preferences,
+      setPreferences,
+      setTab,
+      openPro,
+      showError,
+      runner,
+      removeJob,
+      copyJob,
+    ],
   );
   const running = runningJobs(project).length;
 
