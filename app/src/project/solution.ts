@@ -1,5 +1,5 @@
 import type { Input, JobDocument, JobRequest, Schemas } from '../api/client';
-import { outline } from '../engine/geometry/contour';
+import { moveShape, outline } from '../engine/geometry/contour';
 import { bounds } from '../engine/geometry/normalize';
 import { worldParts } from '../engine/geometry/world';
 import type { Job, Part, Result, Sheet } from '../engine/model';
@@ -163,4 +163,29 @@ export function drawable(
     };
   });
   return { job, layouts };
+}
+
+/**
+ * Every layout of a solution in one drawing, for downloads: the sheets side by side in nesting
+ * order, a gap apart, with their parts, defects and cuts moved with them; or else the strip.
+ */
+export function sideBySide(layouts: DrawnLayout[]): { result: Result; sheets?: Sheet[] } {
+  if (!layouts.some((layout) => layout.sheet))
+    return { result: layouts[0]?.result ?? { usedLengthMm: 0, placements: [] } };
+  const boxes = layouts.map((layout) => bounds(outline(layout.sheet!.shape).outer));
+  const gap = Math.max(...boxes.map((box) => box[3] - box[1])) * 0.1;
+  let x = 0;
+  const placements: Result['placements'] = [];
+  const sheets = layouts.map((layout, i): Sheet => {
+    const dx = x - boxes[i][0];
+    x += boxes[i][2] - boxes[i][0] + gap;
+    const sheet = layout.sheet!;
+    placements.push(...layout.result.placements.map((p) => ({ ...p, xMm: p.xMm + dx })));
+    return {
+      shape: moveShape(sheet.shape, [dx, 0]),
+      defects: sheet.defects.map((defect) => moveShape({ outer: defect }, [dx, 0]).outer),
+      cutX: sheet.cutX === null ? null : sheet.cutX + dx,
+    };
+  });
+  return { result: { usedLengthMm: x - gap, placements }, sheets };
 }

@@ -6,11 +6,12 @@ import {bounds} from '../geometry/normalize';
 
 export const STUDIO_CREDIT='nested with sparrow studio · https://sparrowstudio.app';
 
-/** The layout as DXF: on its sheet, with its defects and cut, or else on the strip up to `stripLengthMm`. */
-export function exportDXF(doc:Job,world:WorldPart[],stripLengthMm:number,sheet?:Sheet):string {
+/** The layout as DXF: on its sheets, with their defects and cuts, or else on the strip up to `stripLengthMm`. */
+export function exportDXF(doc:Job,world:WorldPart[],stripLengthMm:number,sheets?:Sheet[]):string {
+  if(sheets&&!sheets.length)sheets=undefined;
   const stripWidth=doc.settings.materialWidthMm;
-  const material:Ring[]=sheet
-    ?[sheet.shape.outer,...(sheet.shape.holes??[]),...sheet.defects].map(c=>flattenContour(c,.001))
+  const material:Ring[]=sheets
+    ?sheets.flatMap(sheet=>[sheet.shape.outer,...(sheet.shape.holes??[]),...sheet.defects]).map(c=>flattenContour(c,.001))
     :[[[0,0],[stripLengthMm,0],[stripLengthMm,stripWidth],[0,stripWidth]]];
   const rings=[...material,...world.flatMap(p=>[p.outer,...p.holes])];
   if(rings.some(ring=>ring.length<3||ring.flat().some(v=>!Number.isFinite(v))))throw Error('DXF contour is invalid.');
@@ -40,10 +41,10 @@ export function exportDXF(doc:Job,world:WorldPart[],stripLengthMm:number,sheet?:
     if(at[0]!==c.start[0]||at[1]!==c.start[1])vertices.push({point:at,bulge:0});
     dxf.addLWPolyline(vertices.map(({point:[x,y],bulge})=>({point:point2d(x,y),bulge})),{flags:LWPolylineFlags.Closed,layerName});
   };
-  if(!sheet)polyline(material[0],SHEET_LAYER);
-  else {
+  if(!sheets)polyline(material[0],SHEET_LAYER);
+  else for(const sheet of sheets) {
     for(const c of [sheet.shape.outer,...(sheet.shape.holes??[]),...sheet.defects])contour(c,SHEET_LAYER);
-    if(sheet.cutX!==null){const [,y0,,y1]=bounds(material[0]);dxf.addLine(point3d(sheet.cutX,y0),point3d(sheet.cutX,y1),{layerName:SHEET_LAYER});}
+    if(sheet.cutX!==null){const [,y0,,y1]=bounds(flattenContour(sheet.shape.outer,.001));dxf.addLine(point3d(sheet.cutX,y0),point3d(sheet.cutX,y1),{layerName:SHEET_LAYER});}
   }
   // Holes on their part's layer: an outline inside another of the same layer is its hole.
   for(const p of world){contour(p.shape.outer,'PARTS');for(const hole of p.shape.holes??[])contour(hole,'PARTS');}

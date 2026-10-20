@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { worldParts, type WorldPart } from '../../engine/geometry/world';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { projectFileName } from '../../project/file';
-import { drawable, isStale } from '../../project/solution';
+import { drawable, isStale, sideBySide } from '../../project/solution';
+import type { Result, Sheet } from '../../engine/model';
 import { Canvas } from '../Canvas';
 import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
@@ -112,31 +113,43 @@ export function SolutionView() {
   const [x0, y0, x1, y1] = stack.extent;
   const pad = Math.max(x1 - x0, y1 - y0) * 0.05;
 
+  /** Downloads every sheet of the solution: in one drawing, or one page per sheet for PDF. */
   async function exportLayout(format: Format) {
-    if (!layout) return;
+    if (!layouts.length) return;
     setBusy(format);
     try {
-      const reply = await geometryTask({
-        type: 'export',
-        runId: 1,
-        documentRevision: 1,
-        document: { ...job, name: project.name },
-        result: layout.result,
-        utilization: (layout.stats?.density ?? stats.density) * 100,
-        sheet: layout.sheet,
-      });
-      if (reply.type !== 'export-result') throw Error('Could not export the layout.');
-      const base = layouts.length > 1 ? `${project.name} sheet ${index + 1}` : project.name;
-      const name = projectFileName(base, format);
+      const exported = async (result: Result, sheets: Sheet[] | undefined, density: number) => {
+        const reply = await geometryTask({
+          type: 'export',
+          runId: 1,
+          documentRevision: 1,
+          document: { ...job, name: project.name },
+          result,
+          utilization: density * 100,
+          sheets,
+        });
+        if (reply.type !== 'export-result') throw Error('Could not export the layout.');
+        return reply.bundle;
+      };
+      const name = projectFileName(project.name, format);
       if (format === 'pdf') {
         const { exportPDF } = await import('../../engine/export/pdf');
-        download(name, await exportPDF(reply.bundle.svg), 'application/pdf');
-      } else
-        download(
-          name,
-          reply.bundle[format],
-          format === 'svg' ? 'image/svg+xml' : 'application/dxf',
+        const pages = await Promise.all(
+          layouts.map(async (l) => {
+            const bundle = await exported(
+              l.result,
+              l.sheet && [l.sheet],
+              l.stats?.density ?? stats.density,
+            );
+            return bundle.svg;
+          }),
         );
+        download(name, await exportPDF(pages), 'application/pdf');
+      } else {
+        const { result, sheets } = sideBySide(layouts);
+        const bundle = await exported(result, sheets, stats.density);
+        download(name, bundle[format], format === 'svg' ? 'image/svg+xml' : 'application/dxf');
+      }
     } catch (error) {
       showError(error instanceof Error ? error.message : String(error));
     } finally {
@@ -248,15 +261,13 @@ export function SolutionView() {
                 solution.
               </p>
             )}
-            <span className="label">
-              Download {layouts.length > 1 ? `sheet ${index + 1}` : 'the layout'}
-            </span>
+            <span className="label">Export solution</span>
             <div className="downloads">
               {(['svg', 'dxf', 'pdf'] as Format[]).map((format) => (
                 <button
                   key={format}
                   aria-label={`Download ${format.toUpperCase()}`}
-                  disabled={!!busy || !layout}
+                  disabled={!!busy || !layouts.length}
                   onClick={() => void exportLayout(format)}
                 >
                   {busy === format ? 'Preparing…' : format.toUpperCase()}

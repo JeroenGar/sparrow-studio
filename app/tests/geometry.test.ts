@@ -162,7 +162,7 @@ it('mirrors curves with their copies: arcs keep bulging outward',()=>{
 it('exports a layout on its sheet: outline, defects and cut drawn, and only the parts reimported',()=>{
   const {doc,result}=fixture();
   const sheet={shape:{outer:{type:'polygon' as const,points:[[0,0],[4,0],[4,3],[0,3]]},holes:[{type:'circle' as const,center:[3,2],radius:.5}]},defects:[{type:'rectangle' as const,x_min:3.5,y_min:0,width:.5,height:1}],cutX:2.5};
-  const {svg,dxf}=exportSVG(doc,{...result,usedLengthMm:2.5},50,sheet);
+  const {svg,dxf}=exportSVG(doc,{...result,usedLengthMm:2.5},50,[sheet]);
   // The frame is the sheet, not the strip.
   expect(svg).toContain('width="4.4mm" height="3.3mm"');
   const imported=importSVG(svg,'sheet.svg',{scale:1,tolerance:.01});
@@ -184,4 +184,14 @@ it('finds the pole of inaccessibility inside the material, where the middle of t
   const inRing=pole(ring);
   expect(Math.min(inRing.point[0],inRing.point[1],100-inRing.point[0],100-inRing.point[1])).toBeLessThan(20);
   expect(inRing.radius).toBeGreaterThan(9);
+});
+
+it('exports every sheet of a layout in one drawing',()=>{
+  const {doc,result}=fixture();
+  const plate=(x:number)=>({shape:{outer:{type:'rectangle' as const,x_min:x,y_min:0,width:2,height:2}},defects:[],cutX:null});
+  const {svg,dxf}=exportSVG(doc,result,50,[plate(0),plate(3)]);
+  // Five wide: both plates and the gap between them.
+  expect(svg).toContain('width="5.5mm"');
+  const sheetEntities=(parseString(dxf) as {entities:{layer:string}[]}).entities.filter(e=>e.layer===SHEET_LAYER);
+  expect(sheetEntities).toHaveLength(2);
 });

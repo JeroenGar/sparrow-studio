@@ -34,7 +34,7 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         reply={...ids,type:'import-review',review:{document,sheets:reviews.flatMap(r=>r.sheets??[]),warnings:reviews.flatMap(r=>r.warnings),issues:reviews.flatMap(r=>r.issues??[]),layers,roles,outlines}};
         break;
       }
-      case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result,data.utilization,data.sheet)}; break;
+      case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result,data.utilization,data.sheets)}; break;
       case 'live-preview':reply={...ids,type:'live-frame',sequence:data.sequence,geometry:data.results.map(result=>liveGeometry(data.document,result))};break;
     }
     self.postMessage(reply);

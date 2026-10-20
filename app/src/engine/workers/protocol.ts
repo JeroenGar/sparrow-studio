@@ -9,7 +9,7 @@ export type GeometryRequest = Identity & (
   // Drawings are read by the roles of their layers: those given, else suggested, with `kind` for
   // layers whose names say nothing; identical outlines merge unless `merge` is false.
   | { type:'import'; files:ImportFile[]; scale:number; tolerance?:number; curves?:'keep'|'flatten'; kind?:'parts'|'sheets'; roles?:Record<string,Role>; merge?:boolean }
-  | { type:'export'; document:Job; result:Result; utilization:number; sheet?:Sheet }
+  | { type:'export'; document:Job; result:Result; utilization:number; sheets?:Sheet[] }
   // One result per layout: parts on different sheets never overlap.
   | { type:'live-preview'; sequence:number; document:Job; results:Result[] }
 );

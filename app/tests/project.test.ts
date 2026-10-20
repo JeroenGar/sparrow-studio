@@ -17,7 +17,13 @@ import {
   INPUT_TABS,
   unseenTabs,
 } from '../src/project/model';
-import { drawable, isStale, projectInput, projectRequest } from '../src/project/solution';
+import {
+  drawable,
+  isStale,
+  projectInput,
+  projectRequest,
+  sideBySide,
+} from '../src/project/solution';
 import { historyReducer, initialHistory } from '../src/ui/history';
 import { nextRotation, parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
 import { outline, polygonShape } from '../src/engine/geometry/contour';
@@ -278,6 +284,42 @@ describe('project document', () => {
     expect(() =>
       parseProject({ ...project, stock: { ...project.stock, sheets: [sheet] } }),
     ).toThrow('invalid sheet');
+  });
+
+  it('puts every sheet of a solution side by side for downloads, parts and cuts with them', () => {
+    const plate = { ...newSheet('Plate', 100, 50), quantity: 2 };
+    let project = addParts(newProject('Job'), [square(10, 2)]);
+    project = {
+      ...project,
+      stock: { packing: 'sheets', strip: project.stock.strip, sheets: [plate] },
+    };
+    const id = project.parts[0].id;
+    const at = (x: number) => ({
+      part_id: id,
+      transformation: { reflection: 'none' as const, rotation: 0, translation: [x, 0] },
+    });
+    const stats = (cut_x: number | null) => ({
+      cut_x,
+      consumed_area: 1,
+      placed_area: 1,
+      density: 1,
+    });
+    const { layouts } = drawable(
+      projectInput(project),
+      {
+        layouts: [
+          { sheet_id: plate.id, placements: [at(0)] },
+          { sheet_id: plate.id, placements: [at(0)] },
+        ],
+      },
+      new Map(),
+      { consumed_area: 2, placed_area: 2, density: 1, layouts: [stats(null), stats(20)] },
+    );
+    const { result, sheets } = sideBySide(layouts);
+    // The second plate starts a tenth of the plates' height past the first.
+    expect(result.placements.map((p) => p.xMm)).toEqual([0, 105]);
+    expect(sheets?.map((sheet) => sheet.cutX)).toEqual([null, 125]);
+    expect(result.usedLengthMm).toBe(205);
   });
 
   it('upgrades version 4, which had no sheets', () => {
