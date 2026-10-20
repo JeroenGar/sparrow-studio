@@ -101,8 +101,11 @@ export function outline(shape: Shape): Outline {
   return result;
 }
 
-/** A shape with every point mapped by `p`, and lengths scaled by `factor`: a similarity. */
-function mapShape(shape: Shape, p: (point: number[]) => Point, factor: number): Shape {
+/**
+ * A shape with every point mapped by `p`, and lengths scaled by `factor`: a similarity, which
+ * reverses arcs when it `mirrors`.
+ */
+function mapShape(shape: Shape, p: (point: number[]) => Point, factor: number, mirrors = false): Shape {
   const contour = (c: Contour): Contour => {
     switch (c.type) {
       case 'polygon':
@@ -121,8 +124,9 @@ function mapShape(shape: Shape, p: (point: number[]) => Point, factor: number): 
           segments: c.segments.map((s): Segment => {
             switch (s.type) {
               case 'line':
-              case 'arc':
                 return { ...s, to: p(s.to) };
+              case 'arc':
+                return { ...s, to: p(s.to), bulge: mirrors ? -s.bulge : s.bulge };
               case 'quadratic':
                 return { ...s, control: p(s.control), to: p(s.to) };
               case 'cubic':
@@ -141,16 +145,24 @@ function mapShape(shape: Shape, p: (point: number[]) => Point, factor: number): 
 export const moveShape = (shape: Shape, [dx, dy]: Point, factor = 1) =>
   mapShape(shape, (q) => [q[0] * factor + dx, q[1] * factor + dy], factor);
 
-/** A shape turned by `angleDeg` about the origin, then moved by `[dx, dy]`: a placed copy. */
-export function placeShape(shape: Shape, angleDeg: number, [dx, dy]: Point): Shape {
+/**
+ * A shape mirrored across its x-axis when `mirrored`, turned by `angleDeg` about the origin, then
+ * moved by `[dx, dy]`: a placed copy.
+ */
+export function placeShape(shape: Shape, angleDeg: number, [dx, dy]: Point, mirrored = false): Shape {
   const angle = (angleDeg * Math.PI) / 180;
   const [c, s] = [Math.cos(angle), Math.sin(angle)];
-  const turned = (q: number[]): Point => [q[0] * c - q[1] * s + dx, q[0] * s + q[1] * c + dy];
+  const f = mirrored ? -1 : 1;
+  const turned = (q: number[]): Point => [
+    q[0] * c - f * q[1] * s + dx,
+    q[0] * s + f * q[1] * c + dy,
+  ];
   const asPolygon = (contour: Contour): Contour =>
     contour.type === 'rectangle' ? polygon(flattenContour(contour, 0)) : contour;
   return mapShape(
     { outer: asPolygon(shape.outer), ...(shape.holes && { holes: shape.holes.map(asPolygon) }) },
     turned,
     1,
+    mirrored,
   );
 }

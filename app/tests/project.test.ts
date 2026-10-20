@@ -9,8 +9,9 @@ import {
   newMachine,
   newProject,
   resolvedParts,
-  setDefaultRotations,
-  setPartRotations,
+  setPartDefault,
+  setPartSetting,
+  followDefaults,
   startBlockers,
   INPUT_TABS,
   unseenTabs,
@@ -19,6 +20,7 @@ import { drawable, isStale, projectInput, projectRequest } from '../src/project/
 import { historyReducer, initialHistory } from '../src/ui/history';
 import { parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
 import { outline, polygonShape } from '../src/engine/geometry/contour';
+import { worldParts } from '../src/engine/geometry/world';
 
 const square = (size: number, quantity = 1): Part => ({
   ...newPart(
@@ -47,7 +49,7 @@ describe('project document', () => {
   it('rejects other formats and versions', () => {
     const project = newProject('Shop job');
     expect(() => parseProject({ ...project, format: 'other' })).toThrow('unknown format');
-    expect(() => parseProject({ ...project, version: 4 })).toThrow('version 4');
+    expect(() => parseProject({ ...project, version: 5 })).toThrow('version 5');
   });
 
   it('upgrades version 2, whose parts store polygons as outer and holes', () => {
@@ -59,6 +61,17 @@ describe('project document', () => {
       parts: [{ ...part, outer: outline(shape).outer, holes: [] }],
     };
     expect(parseProject(old)).toEqual(project);
+  });
+
+  it('upgrades version 3, whose parts neither reflect nor nest inside holes', () => {
+    const project = addParts(newProject('Shop job'), [square(10)]);
+    const { rotations } = project.partDefaults;
+    const upgraded = parseProject({ ...project, version: 3, partDefaults: { rotations } });
+    expect(upgraded.partDefaults).toEqual({ rotations, reflection: false, nestInHoles: false });
+    expect(projectInput(upgraded).parts[0].hole_mode).toBe('solid');
+    expect(() =>
+      parseProject({ ...project, parts: [{ ...project.parts[0], reflection: 'yes' }] }),
+    ).toThrow('part settings');
   });
 
   it('upgrades version 1, keeping its time limit and dropping its solutions', () => {
@@ -91,7 +104,7 @@ describe('project document', () => {
         geometry_id: project.parts[0].id,
         quantity: 2,
         orientation: { rotation: { type: 'discrete', angles: [0, 180] } },
-        hole_mode: 'solid',
+        hole_mode: 'nestable',
       },
     ]);
     expect(input.geometries.map((geometry) => geometry.id)).toEqual([project.parts[0].id]);
@@ -131,6 +144,31 @@ describe('project document', () => {
     ]);
     // Turned a quarter, the second copy reaches from x = 20 to 30.
     expect(result.usedLengthMm).toBeCloseTo(30);
+  });
+
+  it('draws mirrored copies mirrored across their own x-axis before turning them', () => {
+    const triangle = newPart(
+      polygonShape([
+        [0, 0],
+        [10, 0],
+        [0, 5],
+      ]),
+    );
+    const project = addParts(newProject('Job'), [triangle]);
+    const id = project.parts[0].id;
+    const mirrored = {
+      part_id: id,
+      transformation: { reflection: 'x_axis' as const, rotation: 90, translation: [0, 0] },
+    };
+    const { job, result } = drawable(projectInput(project), {
+      layouts: [{ sheet_id: 'strip', placements: [mirrored] }],
+    });
+    expect(result.placements[0].mirrored).toBe(true);
+    // (0, 5) mirrors to (0, −5), which a quarter turn takes to (5, 0).
+    const [placed] = worldParts(job, result);
+    expect(placed.outer[2][0]).toBeCloseTo(5);
+    expect(placed.outer[2][1]).toBeCloseTo(0);
+    expect(outline(placed.shape).outer[2][0]).toBeCloseTo(5);
   });
 
   it('asks for each input tab before the first run of a new project, and only then', () => {
@@ -233,7 +271,7 @@ describe('part defaults', () => {
     let project = addParts(newProject('Job'), [square(10), { ...square(20), rotations: free }]);
     expect(project.parts.map(differsFromDefaults)).toEqual([false, true]);
     expect(project.parts[0].rotations).toBeUndefined();
-    project = setDefaultRotations(project, { kind: 'discrete', degrees: [0] });
+    project = setPartDefault(project, 'rotations', { kind: 'discrete', degrees: [0] });
     expect(rules(project)).toEqual([{ kind: 'discrete', degrees: [0] }, free]);
     expect(projectInput(project).parts.map((part) => part.orientation.rotation)).toEqual([
       { type: 'discrete', angles: [0] },
@@ -244,9 +282,9 @@ describe('part defaults', () => {
   it('can give a part its own rule and take it back', () => {
     let project = addParts(newProject('Job'), [square(10)]);
     const id = project.parts[0].id;
-    project = setPartRotations(project, [id], free);
+    project = setPartSetting(project, [id], 'rotations', free);
     expect(differsFromDefaults(project.parts[0])).toBe(true);
-    project = setPartRotations(project, [id], 'default');
+    project = setPartSetting(project, [id], 'rotations', 'default');
     expect(differsFromDefaults(project.parts[0])).toBe(false);
     expect(rules(project)).toEqual([half]);
   });
@@ -254,6 +292,40 @@ describe('part defaults', () => {
   it('round-trips parts that follow the defaults through a project file', () => {
     const project = addParts(newProject('Job'), [square(10), { ...square(20), rotations: free }]);
     expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
+  });
+
+  it('sends reflection and nesting inside holes as each part has them', () => {
+    let project = addParts(newProject('Job'), [square(10), square(20)]);
+    const [a, b] = project.parts.map((part) => part.id);
+    // A new project nests inside holes, and does not reflect.
+    expect(projectInput(project).parts.map((part) => [part.orientation, part.hole_mode])).toEqual([
+      [{ rotation: { type: 'discrete', angles: [0, 180] } }, 'nestable'],
+      [{ rotation: { type: 'discrete', angles: [0, 180] } }, 'nestable'],
+    ]);
+    project = setPartDefault(project, 'reflection', true);
+    project = setPartSetting(project, [b], 'nestInHoles', false);
+    const parts = projectInput(project).parts;
+    expect(parts.map((part) => part.orientation.reflection)).toEqual([
+      ['none', 'x_axis'],
+      ['none', 'x_axis'],
+    ]);
+    expect(parts.map((part) => part.hole_mode)).toEqual(['nestable', 'solid']);
+    expect(project.parts.map(differsFromDefaults)).toEqual([false, true]);
+    project = followDefaults(project, [a, b]);
+    expect(project.parts.map(differsFromDefaults)).toEqual([false, false]);
+  });
+
+  it('keeps the settings of parts taken from another project that differ from the defaults', () => {
+    const source = setPartSetting(
+      addParts(newProject('Source'), [square(10), square(20)]),
+      [],
+      'reflection',
+      true,
+    );
+    const [first, second] = resolvedParts(source);
+    const project = addParts(newProject('Job'), [first, { ...second, reflection: true }]);
+    expect(project.parts.map((part) => part.reflection)).toEqual([undefined, true]);
+    expect(project.parts.map((part) => part.nestInHoles)).toEqual([undefined, undefined]);
   });
 
   it('takes the most common rule as the defaults of a set of parts', () => {

@@ -78,7 +78,18 @@ export function parseProject(stored: unknown): ProjectDocument {
         Array.isArray(rule.degrees) &&
         rule.degrees.length > 0 &&
         rule.degrees.every(finite)));
-  if (!validRule) return fail('invalid part defaults.');
+  const flags = ['reflection', 'nestInHoles'] as const;
+  if (
+    !validRule ||
+    !flags.every((flag) => typeof (defaults as Record<string, unknown>)[flag] === 'boolean')
+  )
+    return fail('invalid part defaults.');
+  for (const part of value.parts)
+    if (
+      !isRecord(part) ||
+      flags.some((flag) => !['boolean', 'undefined'].includes(typeof part[flag]))
+    )
+      return fail('invalid part settings.');
   const project = value as unknown as ProjectDocument;
   // Check each part with the rule it solves with, then keep only what it stores itself.
   const parts = project.parts.map((part) => {
@@ -95,7 +106,8 @@ export function parseProject(stored: unknown): ProjectDocument {
  * Older versions, upgraded one step at a time. Version 1 had settings for the browser's solver
  * alone, and solutions in studio's own format: its runs stopped once the search stalled, without
  * a time limit or within the one chosen, and its solutions are dropped. Version 2 stored a part's
- * outline as `outer` and `holes` polygons, which become its shape.
+ * outline as `outer` and `holes` polygons, which become its shape. Version 3 had no reflection
+ * or nesting inside holes: its parts keep solving as they did, without either.
  */
 function upgrade(project: Record<string, unknown>): Record<string, unknown> {
   if (project.version === 1) {
@@ -111,15 +123,25 @@ function upgrade(project: Record<string, unknown>): Record<string, unknown> {
       solutions: [],
     });
   }
-  if (project.version === 2 && Array.isArray(project.parts))
+  if (project.version === 3)
     return {
+      ...project,
+      version: 4,
+      partDefaults: {
+        reflection: false,
+        nestInHoles: false,
+        ...(isRecord(project.partDefaults) && project.partDefaults),
+      },
+    };
+  if (project.version === 2 && Array.isArray(project.parts))
+    return upgrade({
       ...project,
       version: 3,
       parts: project.parts.map((part: Record<string, unknown>) => {
         const { outer, holes, ...rest } = part;
         return { ...rest, shape: polygonShape(outer as Ring, (holes as Ring[]) ?? []) };
       }),
-    };
+    });
   return project;
 }
 

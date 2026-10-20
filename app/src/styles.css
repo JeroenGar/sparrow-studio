@@ -220,6 +220,25 @@ input[aria-invalid='true'] {
 .choice input {
   margin-top: 2px;
 }
+.flag-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+.flag-field .small-note {
+  flex-basis: 100%;
+}
+.field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.small-note {
+  font-size: 12px;
+}
 .choice.disabled {
   color: var(--muted);
 }
@@ -696,6 +715,16 @@ input[aria-invalid='true'] {
 }
 .badge {
   fill: var(--ink);
+}
+.reflection-symbol {
+  fill: var(--panel);
+  stroke: var(--panel);
+}
+.legend-symbol {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
 }
 .badge-text {
   fill: var(--panel);

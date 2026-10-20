@@ -16,7 +16,8 @@ export type TimeLimit = 10 | 30 | 60 | 120 | 300 | 600 | null;
 export type JobSettings = { solverPreset: Preset; materialWidthMm: number; clearanceMm: number; timeLimitSeconds: TimeLimit };
 /** One complete nesting problem, as the solver and the geometry checks read it. */
 export type Job = { name: string; parts: Part[]; settings: JobSettings };
-export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: number; angleDeg: number };
+/** A placed copy: mirrored across its own x-axis first when `mirrored`, then turned, then moved. */
+export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: number; angleDeg: number; mirrored?: boolean };
 /** A layout as studio's drawings and exports read it: each copy placed, and the strip's length used. */
 export type Result = { usedLengthMm: number; placements: Placement[] };
 export const DEFAULT_SETTINGS: JobSettings = { solverPreset: 'standard', materialWidthMm: 1000, clearanceMm: 0, timeLimitSeconds: null };

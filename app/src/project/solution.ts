@@ -26,9 +26,10 @@ export function projectInput(project: ProjectDocument): Input {
           part.rotations.kind === 'continuous'
             ? { type: 'continuous' }
             : { type: 'discrete', angles: part.rotations.degrees },
+        // Left out without reflection, as the format's default, so earlier solutions stay current.
+        ...(part.reflection && { reflection: ['none', 'x_axis'] }),
       },
-      // Nesting parts inside holes needs Sparrow Pro, and studio has no setting for it yet.
-      hole_mode: 'solid',
+      hole_mode: part.nestInHoles ? 'nestable' : 'solid',
     })),
     minimum_separation_distance: { parts: gap, boundary: gap },
     problem: { type: 'minimize_strip_length', height: project.stock.strip.widthMm },
@@ -87,7 +88,9 @@ export function drawable(
     const copyIndex = copies.get(part_id) ?? 0;
     copies.set(part_id, copyIndex + 1);
     const [xMm, yMm] = transformation.translation;
-    return { partId: part_id, copyIndex, xMm, yMm, angleDeg: transformation.rotation };
+    const angleDeg = transformation.rotation;
+    const mirrored = transformation.reflection === 'x_axis';
+    return { partId: part_id, copyIndex, xMm, yMm, angleDeg, ...(mirrored && { mirrored }) };
   });
   const job: Job = {
     name: '',

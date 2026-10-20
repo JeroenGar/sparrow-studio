@@ -14,7 +14,7 @@ import { importSVG } from '../src/engine/import/svg';
 import { area,bounds } from '../src/engine/geometry/normalize';
 import { pathData } from '../src/engine/geometry/path';
 import parseString from 'dxf/lib/parseString';
-import { flattenContour, outline, polygonShape } from '../src/engine/geometry/contour';
+import { flattenContour, outline, placeShape, polygonShape, type Shape } from '../src/engine/geometry/contour';
 import { shapePath } from '../src/engine/geometry/path';
 import { contour } from '../src/engine/import/paths';
 
@@ -145,4 +145,15 @@ it('writes even an almost straight arc, and NURBS far from the origin',()=>{
 it('leaves out segments that go nowhere',()=>{
   const kept=contour({start:[0,0],segments:[{type:'arc',to:[0,0],bulge:1},{type:'line',to:[10,0]},{type:'arc',to:[0,10],bulge:.4}]},[[0,0],[10,0],[0,10]]);
   expect(kept.type==='path'&&kept.segments.map(s=>s.type)).toEqual(['line','arc']);
+});
+
+it('mirrors curves with their copies: arcs keep bulging outward',()=>{
+  // A half disc above its diameter: the arc runs counterclockwise from (10, 0) to (−10, 0).
+  const shape:Shape={outer:{type:'path',start:[-10,0],segments:[{type:'line',to:[10,0]},{type:'arc',to:[-10,0],bulge:1}]}};
+  const mirrored=placeShape(shape,0,[0,0],true);
+  const ring=flattenContour(mirrored.outer,.01);
+  // Mirrored, it lies below its diameter, and every point stays on its circle.
+  expect(Math.min(...ring.map(([,y])=>y))).toBeCloseTo(-10);
+  expect(Math.max(...ring.map(([,y])=>y))).toBeCloseTo(0);
+  for(const [x,y] of ring)expect(Math.hypot(x,y)).toBeLessThanOrEqual(10+1e-9);
 });

@@ -2,14 +2,14 @@
 //!
 //! Open-source sparrow solves one problem: polygons on a strip of fixed height, with a minimum
 //! separation between parts and a set of permitted rotations. [`check`] refuses every other
-//! feature of the format as unavailable; [`instance`] turns what is left into a sparrow
+//! feature of the format as unavailable, except nesting inside holes: parts are solid instead; [`instance`] turns what is left into a sparrow
 //! instance, and [`Mapping`] turns sparrow's layouts back into the format.
 
 use jagua_rs::io::ext_repr::{ExtItem as BaseItem, ExtSPolygon, ExtShape};
 use jagua_rs::probs::spp::io::ext_repr::{ExtItem, ExtSPInstance, ExtSPSolution};
 use serde::Serialize;
 use sparrow_pro_schema::v1::{
-    Contour, FieldError, HoleMode, Input, Layout, LayoutStats, Placement, Problem, Reflection,
+    Contour, FieldError, Input, Layout, LayoutStats, Placement, Problem, Reflection,
     Rotation, Segment, Solution, Stats, Transformation, ValidationError, validate,
 };
 
@@ -54,10 +54,6 @@ pub fn check(input: &Input) -> Result<(), Refusal> {
     for (index, part) in input.parts.iter().enumerate() {
         if part.orientation.reflection != [Reflection::None] {
             errors.push(unavailable(format!("/parts/{index}/orientation/reflection"), "Reflecting parts"));
-        }
-        let has_holes = input.geometries.iter().any(|g| g.id == part.geometry_id && !g.shape.holes.is_empty());
-        if part.hole_mode == HoleMode::Nestable && has_holes {
-            errors.push(unavailable(format!("/parts/{index}/hole_mode"), "Nesting parts inside holes"));
         }
     }
     if errors.is_empty() { Ok(()) } else { Err(Refusal::new("feature_unavailable", errors)) }
@@ -331,6 +327,7 @@ fn area(points: &[Point]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sparrow_pro_schema::v1::HoleMode;
     use jagua_rs::Instant;
     use jagua_rs::io::import::Importer;
     use jagua_rs::probs::spp::io::{export, import_instance};
@@ -392,13 +389,13 @@ mod tests {
         let mut reflected = input(json!({}));
         reflected.parts[1].orientation.reflection = vec![Reflection::None, Reflection::XAxis];
         assert_eq!(refusal(&reflected), ("feature_unavailable", vec!["/input/parts/1/orientation/reflection".into()]));
+    }
+
+    #[test]
+    fn solves_parts_that_allow_nesting_inside_their_holes_as_solid() {
         let mut nestable = input(json!({}));
         nestable.parts[0].hole_mode = HoleMode::Nestable;
-        assert_eq!(refusal(&nestable), ("feature_unavailable", vec!["/input/parts/0/hole_mode".into()]));
-        // Without holes, nesting inside them changes nothing.
-        let mut holeless = input(json!({}));
-        holeless.parts[1].hole_mode = HoleMode::Nestable;
-        assert_eq!(check(&holeless), Ok(()));
+        assert_eq!(check(&nestable), Ok(()));
     }
 
     fn on_circle(points: &[Point], center: Point, radius: f64) -> f64 {

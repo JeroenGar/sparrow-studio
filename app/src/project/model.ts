@@ -3,7 +3,7 @@ import { LIMITS, newId, type Part, type RotationRule } from '../engine/model';
 
 /** Identifies a sparrow studio project document, in browser storage and in files. */
 export const PROJECT_FORMAT = 'sparrow-studio-project';
-export const PROJECT_VERSION = 3;
+export const PROJECT_VERSION = 4;
 
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };
@@ -15,10 +15,22 @@ export type MachinePreset = { id: string; name: string; gapMm: number };
 export type SolverSettings = { timeLimitSeconds: number; autoTermination: boolean };
 /** A finished job as the API records it, with its input, so it stays valid when the project changes. */
 export type Solution = { id: string; createdAt: string; document: JobDocument };
-/** Settings every part follows unless it has its own. Reflection and nesting in holes join later. */
-export type PartDefaults = { rotations: RotationRule };
+/** The settings a part solves with: the project's defaults, or its own. */
+export type PartSettings = {
+  rotations: RotationRule;
+  /** Whether copies may also be placed mirrored. */
+  reflection: boolean;
+  /** Whether other parts may be placed inside this part's holes. */
+  nestInHoles: boolean;
+};
+export type PartSetting = keyof PartSettings;
+export const PART_SETTINGS: PartSetting[] = ['rotations', 'reflection', 'nestInHoles'];
+/** Settings every part follows unless it has its own. */
+export type PartDefaults = PartSettings;
 /** A part as the project stores it: a setting is present only when the part has its own. */
-export type ProjectPart = Omit<Part, 'rotations'> & { rotations?: RotationRule };
+export type ProjectPart = Omit<Part, 'rotations'> & Partial<PartSettings>;
+/** A part with every setting filled in, as the solver and the drawings use it. */
+export type ResolvedPart = Part & PartSettings;
 export type ProjectDocument = {
   format: typeof PROJECT_FORMAT;
   version: typeof PROJECT_VERSION;
@@ -77,7 +89,11 @@ export function newProject(name: string, machine: MachinePreset = newMachine()):
     version: PROJECT_VERSION,
     name,
     parts: [],
-    partDefaults: { rotations: { kind: 'discrete', degrees: [0, 180] } },
+    partDefaults: {
+      rotations: { kind: 'discrete', degrees: [0, 180] },
+      reflection: false,
+      nestInHoles: true,
+    },
     stock: { packing: 'strip', strip: { id: newId(), name: 'Material strip', widthMm: 1000 } },
     machines: [copy],
     machineId: copy.id,
@@ -121,45 +137,67 @@ export function ruleKey(rule: RotationRule): string {
   return [...new Set(rule.degrees.map(turn))].sort((a, b) => a - b).join(',');
 }
 
-export const differsFromDefaults = (part: ProjectPart) => part.rotations !== undefined;
+/** Whether two values of a setting allow the same: rotation rules by their angles. */
+const sameSetting = <K extends PartSetting>(key: K, a: PartSettings[K], b: PartSettings[K]) =>
+  key === 'rotations' ? ruleKey(a as RotationRule) === ruleKey(b as RotationRule) : a === b;
 
-/** The rule a part solves with: its own, or the defaults. */
-export const effectiveRotations = (project: ProjectDocument, part: ProjectPart): RotationRule =>
-  part.rotations ?? project.partDefaults.rotations;
+export const differsFromDefaults = (part: ProjectPart) =>
+  PART_SETTINGS.some((key) => part[key] !== undefined);
 
 /** The parts with every setting filled in, as the solver and the drawings use them. */
-export const resolvedParts = (project: ProjectDocument): Part[] =>
-  project.parts.map((part) => ({ ...part, rotations: effectiveRotations(project, part) }));
+export const resolvedParts = (project: ProjectDocument): ResolvedPart[] =>
+  project.parts.map((part) => ({ ...project.partDefaults, ...withoutUndefined(part) }));
 
-export const setDefaultRotations = (
+const withoutUndefined = <T extends object>(value: T): T =>
+  Object.fromEntries(Object.entries(value).filter(([, v]) => v !== undefined)) as T;
+
+export const setPartDefault = <K extends PartSetting>(
   project: ProjectDocument,
-  rotations: RotationRule,
-): ProjectDocument => ({ ...project, partDefaults: { ...project.partDefaults, rotations } });
+  key: K,
+  value: PartSettings[K],
+): ProjectDocument => ({ ...project, partDefaults: { ...project.partDefaults, [key]: value } });
 
-/** Give parts their own rotations, or `'default'` to follow the defaults again. */
-export function setPartRotations(
+/** Give parts their own value of a setting, or `'default'` to follow the defaults again. */
+export function setPartSetting<K extends PartSetting>(
   project: ProjectDocument,
   ids: string[],
-  rotations: RotationRule | 'default',
+  key: K,
+  value: PartSettings[K] | 'default',
 ): ProjectDocument {
   const chosen = new Set(ids);
   return {
     ...project,
     parts: project.parts.map((part) => {
       if (!chosen.has(part.id)) return part;
-      const { rotations: _, ...rest } = part;
-      return rotations === 'default' ? rest : { ...rest, rotations };
+      const changed: ProjectPart = { ...part, [key]: value };
+      if (value === 'default') delete changed[key];
+      return changed;
     }),
   };
 }
 
-/** Add parts. A part whose rule matches the defaults follows them; any other keeps its own. */
-export function addParts(project: ProjectDocument, parts: Part[]): ProjectDocument {
-  const defaultKey = ruleKey(project.partDefaults.rotations);
-  const added = parts.map(
-    ({ rotations, ...rest }): ProjectPart =>
-      ruleKey(rotations) === defaultKey ? rest : { ...rest, rotations },
+/** Make parts follow the defaults in every setting. */
+export function followDefaults(project: ProjectDocument, ids: string[]): ProjectDocument {
+  return PART_SETTINGS.reduce(
+    (current, key) => setPartSetting(current, ids, key, 'default'),
+    project,
   );
+}
+
+/** Add parts. A setting that matches the defaults follows them; any other is the part's own. */
+export function addParts(
+  project: ProjectDocument,
+  parts: (Part & Partial<PartSettings>)[],
+): ProjectDocument {
+  const added = parts.map((part): ProjectPart => {
+    const own = { ...part } as ProjectPart;
+    for (const key of PART_SETTINGS) {
+      const value = part[key];
+      if (value === undefined || sameSetting(key, value, project.partDefaults[key]))
+        delete own[key];
+    }
+    return own;
+  });
   return { ...project, parts: [...project.parts, ...added] };
 }
 
