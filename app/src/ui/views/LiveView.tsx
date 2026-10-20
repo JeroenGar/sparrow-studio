@@ -3,7 +3,7 @@ import type { Input, Schemas } from '../../api/client';
 import { worldParts } from '../../engine/geometry/world';
 import type { LiveGeometry } from '../../engine/geometry/live';
 import type { GeometryReply } from '../../engine/workers/protocol';
-import { activeMachine, copyCount, describeSheets } from '../../project/model';
+import { activeMachine, copyCount, describeSheets, latestResult } from '../../project/model';
 import { drawable, type DrawnLayout } from '../../project/solution';
 import type { Job } from '../../engine/model';
 import type { Box } from '../../project/layout';
@@ -190,7 +190,7 @@ export function LiveView() {
         </div>
         <div className="list-scroll">
           {!run ? (
-            <NextRun onSolution={project.solutions.length ? () => setTab('solution') : undefined} />
+            <NextRun onSolution={latestResult(project) ? () => setTab('solution') : undefined} />
           ) : (
             <div className="summary">
               <div className="metrics">
@@ -219,7 +219,7 @@ export function LiveView() {
               <RunClock run={run} running={running} />
               {run.history.length > 1 && <LiveChart run={run} running={running} />}
               {failure && <p className="field-error">{failure}</p>}
-              {!running && best && project.solutions.length > 0 && (
+              {!running && best && latestResult(project) && (
                 <button className="primary" onClick={() => setTab('solution')}>
                   Show the solution
                 </button>

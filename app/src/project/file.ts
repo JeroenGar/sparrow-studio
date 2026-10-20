@@ -22,7 +22,7 @@ const finite = (value: unknown) => typeof value === 'number' && Number.isFinite(
 
 /**
  * Check a project document from a file or from storage. Part geometry goes through the same
- * normalization as imports. Solutions are kept as they are: they carry their own job.
+ * normalization as imports. Jobs are kept as they are: they carry their own input.
  */
 export function parseProject(stored: unknown): ProjectDocument {
   if (!isRecord(stored)) return fail('expected an object.');
@@ -82,13 +82,9 @@ export function parseProject(stored: unknown): ProjectDocument {
     typeof settings.autoTermination !== 'boolean'
   )
     return fail('invalid solver settings.');
-  if (
-    !Array.isArray(value.solutions) ||
-    !value.solutions.every((solution) => isRecord(solution) && isRecord(solution.document))
-  )
-    return fail('invalid solutions.');
-  if (value.runningJobId !== undefined && typeof value.runningJobId !== 'string')
-    return fail('invalid running job.');
+  if (!Array.isArray(value.jobs) || !value.jobs.every(validJob)) return fail('invalid jobs.');
+  const numbers = value.jobs.map((job) => job.number);
+  if (new Set(numbers).size !== numbers.length) return fail('two jobs have the same number.');
   if (
     value.seenTabs !== undefined &&
     (!Array.isArray(value.seenTabs) ||
@@ -128,15 +124,62 @@ export function parseProject(stored: unknown): ProjectDocument {
   return { ...project, parts };
 }
 
+/** Whether a stored job has the fields of its stage; its request or document is the backend's. */
+function validJob(job: unknown): boolean {
+  if (
+    !isRecord(job) ||
+    !Number.isInteger(job.number) ||
+    (job.number as number) < 1 ||
+    typeof job.submittedAt !== 'string' ||
+    !isRecord(job.names) ||
+    !Object.values(job.names).every((name) => typeof name === 'string')
+  )
+    return false;
+  switch (job.stage) {
+    case 'running':
+    case 'lost':
+      return typeof job.id === 'string' && isRecord(job.request) && isRecord(job.request.input);
+    case 'ended':
+      return (
+        (job.id === undefined || typeof job.id === 'string') &&
+        isRecord(job.document) &&
+        isRecord(job.document.input)
+      );
+    default:
+      return false;
+  }
+}
+
 /**
  * Older versions, upgraded one step at a time. Version 1 had settings for the browser's solver
  * alone, and solutions in studio's own format: its runs stopped once the search stalled, without
  * a time limit or within the one chosen, and its solutions are dropped. Version 2 stored a part's
  * outline as `outer` and `holes` polygons, which become its shape. Version 3 had no reflection
  * or nesting inside holes: its parts keep solving as they did, without either. Version 4 had no
- * sheets.
+ * sheets. Version 5 kept the latest solution alone, which becomes job #1, and the ID of a job
+ * running, which is let go: studio did not keep what it asked.
  */
 function upgrade(project: Record<string, unknown>): Record<string, unknown> {
+  if (project.version === 5) {
+    const { solutions, runningJobId: _, ...rest } = project;
+    const solution = Array.isArray(solutions) ? solutions[0] : undefined;
+    return {
+      ...rest,
+      version: 6,
+      jobs:
+        isRecord(solution) && isRecord(solution.document)
+          ? [
+              {
+                number: 1,
+                submittedAt: solution.createdAt,
+                names: namesOf(rest),
+                stage: 'ended',
+                document: solution.document,
+              },
+            ]
+          : [],
+    };
+  }
   if (project.version === 1) {
     const settings = isRecord(project.settings) ? project.settings : {};
     const limit = settings.timeLimitSeconds;
@@ -151,11 +194,11 @@ function upgrade(project: Record<string, unknown>): Record<string, unknown> {
     });
   }
   if (project.version === 4)
-    return {
+    return upgrade({
       ...project,
       version: 5,
       stock: { ...(isRecord(project.stock) && project.stock), sheets: [] },
-    };
+    });
   if (project.version === 3)
     return upgrade({
       ...project,
@@ -176,6 +219,21 @@ function upgrade(project: Record<string, unknown>): Record<string, unknown> {
       }),
     });
   return project;
+}
+
+/** The names of a stored project's parts and sheets, by ID, as far as it has them. */
+function namesOf(project: Record<string, unknown>): Record<string, string> {
+  const items = [
+    ...(Array.isArray(project.parts) ? project.parts : []),
+    ...(isRecord(project.stock) && Array.isArray(project.stock.sheets) ? project.stock.sheets : []),
+  ];
+  return Object.fromEntries(
+    items.flatMap((item) =>
+      isRecord(item) && typeof item.id === 'string' && typeof item.name === 'string'
+        ? [[item.id, item.name]]
+        : [],
+    ),
+  );
 }
 
 /** Whether a stored shape can be drawn, as far as studio can tell; the backend checks the rest. */

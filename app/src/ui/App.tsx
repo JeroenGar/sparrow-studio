@@ -3,9 +3,12 @@ import { newId } from '../engine/model';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
 import {
+  addJob,
   addParts,
+  endJob,
   INPUT_TABS,
   newProject,
+  runningJobs,
   startBlockers,
   unseenTabs,
   type InputTab,
@@ -184,7 +187,7 @@ function StudioShell({
   const seenTabs = history.present.seenTabs;
   useEffect(() => {
     if (seenTabs && INPUT_TABS.includes(tab as InputTab) && !seenTabs.includes(tab as InputTab))
-      dispatch({ type: 'results', results: { seenTabs: [...seenTabs, tab as InputTab] } });
+      dispatch({ type: 'results', change: () => ({ seenTabs: [...seenTabs, tab as InputTab] }) });
   }, [tab, seenTabs]);
   const [dialog, setDialog] = useState<Dialogs>();
   const [error, setError] = useState('');
@@ -192,35 +195,34 @@ function StudioShell({
   const version = useRef(stored.version);
   const saved = useRef(stored.document);
   const fileInput = useRef<HTMLInputElement>(null);
-  // The project remembers its running job, so a page closed meanwhile picks it up on opening; a
-  // job that completed with a layout becomes the project's solution.
+  // The project records its jobs, so a page closed while one runs picks it up on opening; a job
+  // that ends records its document.
   const job = useJob(
     client,
     {
-      // Jobs in this browser end with the page, so only Sparrow Pro's are remembered.
-      submitted: (jobId) =>
-        usesSparrowPro && dispatch({ type: 'results', results: { runningJobId: jobId } }),
-      resumed: () => setTab('live'),
-      ended: (document) => {
-        const completed = document?.state.status === 'completed' && !!document.outcome;
+      submitted: (jobId, request) =>
         dispatch({
           type: 'results',
-          results: {
-            runningJobId: undefined,
-            ...(completed && {
-              solutions: [{ id: newId(), createdAt: new Date().toISOString(), document }],
-            }),
-          },
+          change: (present) => ({ jobs: addJob(present, jobId, request).jobs }),
+        }),
+      resumed: () => setTab('live'),
+      ended: (jobId, document) => {
+        dispatch({
+          type: 'results',
+          change: (present) => ({ jobs: endJob(present, jobId, document).jobs }),
         });
-        if (completed) setTab((current) => (current === 'live' ? 'solution' : current));
+        if (document?.state.status === 'completed' && document.outcome)
+          setTab((current) => (current === 'live' ? 'solution' : current));
       },
     },
     // Jobs in this browser end with the page, so leaving the project stops them.
     { stopOnLeave: !usesSparrowPro },
   );
+  // A job in this browser that was running when the page closed has ended with it; following it
+  // finds it gone, and records it as lost.
+  const remembered = runningJobs(stored.document).at(-1);
   useEffect(() => {
-    const jobId = stored.document.runningJobId;
-    if (jobId && usesSparrowPro) void job.resume(jobId);
+    if (remembered) void job.resume(remembered.id);
     // Once, for the job the project remembered when it was opened.
   }, []);
   const running = job.running;
@@ -277,8 +279,8 @@ function StudioShell({
   useEffect(() => {
     if (project === saved.current) return;
     setSaveState((state) => (state === 'conflict' ? state : 'saving'));
-    // A newly remembered job is saved at once: closing the page must not lose it.
-    const now = project.runningJobId !== saved.current.runningJobId;
+    // A job started or ended is saved at once: closing the page must not lose it.
+    const now = project.jobs !== saved.current.jobs;
     const timer = setTimeout(() => void flush(), now ? 0 : 400);
     return () => clearTimeout(timer);
   }, [project, flush]);
@@ -297,7 +299,7 @@ function StudioShell({
   function startRun() {
     if (
       running ||
-      project.runningJobId ||
+      runningJobs(project).length ||
       startBlockers(project).length ||
       unseenTabs(project).length
     )
@@ -359,6 +361,7 @@ function StudioShell({
     setDialog(undefined);
   };
 
+  const following = runningJobs(project).at(-1);
   const studio: Studio = useMemo(
     () => ({
       project,
@@ -379,8 +382,7 @@ function StudioShell({
       running,
       // A remembered job not being followed, such as after a lost connection, is reconnected to
       // rather than replaced.
-      reconnect:
-        project.runningJobId && !running ? () => void job.resume(project.runningJobId!) : undefined,
+      reconnect: following && !running ? () => void job.resume(following.id) : undefined,
       startRun,
       stopRun: job.stop,
     }),
@@ -419,9 +421,10 @@ function StudioShell({
                 );
               else if (action === 'open-file') fileInput.current?.click();
               else if (action === 'duplicate')
-                void leave(() => create({ ...project, name: `${project.name} copy` })).catch(
-                  failed,
-                );
+                // A copy has the project's inputs; its jobs stay with the project.
+                void leave(() =>
+                  create({ ...project, name: `${project.name} copy`, jobs: [] }),
+                ).catch(failed);
               else setDialog({ type: action });
             }}
           />

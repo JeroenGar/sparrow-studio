@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { worldParts, type WorldPart } from '../../engine/geometry/world';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { projectFileName } from '../../project/file';
+import { latestResult } from '../../project/model';
 import { drawable, isStale, sideBySide } from '../../project/solution';
 import type { Result, Sheet } from '../../engine/model';
 import { Canvas } from '../Canvas';
@@ -33,15 +34,16 @@ export function useNames() {
 
 export function SolutionView() {
   const { project, unit, showError } = useStudio();
-  const solution = project.solutions[0];
+  const solution = latestResult(project);
   const document = solution?.document;
   const outcome = document?.outcome;
   const [highlight, setHighlight] = useState<string>();
   const [hover, setHover] = useState<Hover>();
   const [busy, setBusy] = useState<Format>();
-  // The layout chosen in the list: downloads are of it, and the canvas zooms to it.
-  const [chosen, setChosen] = useState({ index: 0, serial: 0, solution: '' });
-  const names = useNames();
+  // The layout chosen in the list: the canvas zooms to it.
+  const [chosen, setChosen] = useState({ index: 0, serial: 0, solution: 0 });
+  // The names the parts and sheets had when the job started.
+  const names = useMemo(() => new Map(Object.entries(solution?.names ?? {})), [solution]);
   const drawn = useMemo(
     () =>
       document && outcome
@@ -93,7 +95,9 @@ export function SolutionView() {
   const onSheets = document.input.problem.type === 'minimize_sheets_in_order';
   // A choice belongs to its solution: a new one starts at its first sheet.
   const index =
-    chosen.solution === solution.id ? Math.min(chosen.index, Math.max(0, layouts.length - 1)) : 0;
+    chosen.solution === solution.number
+      ? Math.min(chosen.index, Math.max(0, layouts.length - 1))
+      : 0;
   const layout = layouts[index];
   const waste = stats.consumed_area - stats.placed_area;
   const state = document.state;
@@ -171,14 +175,14 @@ export function SolutionView() {
       .flatMap((l) => l.result.placements)
       .find((p) => placementKey(p) === placementKey(hovered));
   const choose = (i: number) =>
-    setChosen(({ serial }) => ({ index: i, serial: serial + 1, solution: solution.id }));
+    setChosen(({ serial }) => ({ index: i, serial: serial + 1, solution: solution.number }));
 
   return (
     <div className="view">
       <section className="list-panel" aria-label="Solution">
         <div className="list-head">
-          <span className="label">Solution</span>
-          <span className="muted">{new Date(solution.createdAt).toLocaleString()}</span>
+          <span className="label">Solution · #{solution.number}</span>
+          <span className="muted">{new Date(solution.submittedAt).toLocaleString()}</span>
         </div>
         <div className="list-scroll">
           <div className="summary">
@@ -340,7 +344,7 @@ export function SolutionView() {
         onAspect={setAspect}
         extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         focus={
-          chosen.solution === solution.id && stack.boxes[index]
+          chosen.solution === solution.number && stack.boxes[index]
             ? { box: stack.boxes[index], key: `${index}:${chosen.serial}`, margin: 0.08 }
             : undefined
         }

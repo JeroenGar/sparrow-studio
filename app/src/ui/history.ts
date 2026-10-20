@@ -1,8 +1,8 @@
 import type { ProjectDocument } from '../project/model';
 
 /**
- * Undo history for project edits. A project's results, its solutions and the job running for it,
- * and the tabs opened so far are not edits: undo never removes or restores them.
+ * Undo history for project edits. A project's jobs and the tabs opened so far are not edits: undo
+ * never removes or restores them.
  */
 export type History = {
   present: ProjectDocument;
@@ -15,17 +15,17 @@ export type History = {
 export type HistoryAction =
   | { type: 'load'; project: ProjectDocument }
   | { type: 'edit'; project: ProjectDocument; key?: string; at: number }
-  | { type: 'results'; results: Partial<Results> }
+  /** Changes the results, from the present project: results arrive while edits go on. */
+  | { type: 'results'; change: (present: ProjectDocument) => Partial<Results> }
   | { type: 'undo' }
   | { type: 'redo' };
 
-type Results = Pick<ProjectDocument, 'solutions' | 'runningJobId' | 'seenTabs'>;
+type Results = Pick<ProjectDocument, 'jobs' | 'seenTabs'>;
 
 /** A project from the history with the present results. */
 const withResults = (project: ProjectDocument, present: ProjectDocument): ProjectDocument => ({
   ...project,
-  solutions: present.solutions,
-  runningJobId: present.runningJobId,
+  jobs: present.jobs,
   seenTabs: present.seenTabs,
 });
 
@@ -58,7 +58,7 @@ export function historyReducer(state: History, action: HistoryAction): History {
       };
     }
     case 'results':
-      return { ...state, present: { ...state.present, ...action.results } };
+      return { ...state, present: { ...state.present, ...action.change(state.present) } };
     case 'undo': {
       const previous = state.past.at(-1);
       if (!previous) return state;

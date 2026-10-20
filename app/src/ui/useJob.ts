@@ -55,12 +55,15 @@ function tick(run: Run, job: Job, seconds?: number): Run['clock'] {
 const FINAL = ['completed', 'cancelled', 'failed'];
 export const isFinal = (job?: Job) => !!job && FINAL.includes(job.state.status);
 
-/** What a run tells its owner: a job submitted, one picked up again, and one over, with its document if it has one. */
+/**
+ * What a run tells its owner: a job submitted, one picked up again, and one over, with its
+ * document, or without one when the backend no longer has the job.
+ */
 export type JobEvents = {
-  submitted: (jobId: string) => void;
+  submitted: (jobId: string, request: JobRequest) => void;
   /** A remembered job is running still, and is followed again. */
   resumed: () => void;
-  ended: (document?: JobDocument) => void;
+  ended: (jobId: string, document?: JobDocument) => void;
 };
 
 /**
@@ -134,7 +137,7 @@ export function useJob(
       const document = await client.getJobDocument(job.id);
       // A newer run, or leaving, makes this one's result too late to keep.
       if (controller.signal.aborted) return;
-      owner.current.ended(document);
+      owner.current.ended(job.id, document);
       update((run) => ({ ...run, done: true }));
     },
     [client],
@@ -146,7 +149,7 @@ export function useJob(
       try {
         const job = await client.submitJob(request, crypto.randomUUID());
         runner.mine.id = job.id;
-        owner.current.submitted(job.id);
+        owner.current.submitted(job.id, request);
         runner.update((run) => ({ ...run, job }));
         if (runner.mine.stopping) await client.stopJob(job.id);
         await follow(job, runner);
@@ -178,13 +181,13 @@ export function useJob(
         if (controller.signal.aborted) return;
         setResuming(false);
         if (reason instanceof ApiError && (reason.status === 404 || reason.status === 410))
-          owner.current.ended();
+          owner.current.ended(jobId);
         return;
       }
       // A newer run, or leaving, cancels picking up.
       if (controller.signal.aborted) return;
       setResuming(false);
-      if (FINAL.includes(document.state.status)) return owner.current.ended(document);
+      if (FINAL.includes(document.state.status)) return owner.current.ended(jobId, document);
       const stopping = current.current.stopping;
       const runner = begin({ input: document.input, settings: document.settings }, true);
       runner.mine.id = jobId;

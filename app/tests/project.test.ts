@@ -3,8 +3,12 @@ import { newPart, type Part } from '../src/engine/model';
 import { parseProject, projectFileName, serializeProject } from '../src/project/file';
 import { arrangeParts } from '../src/project/layout';
 import {
+  addJob,
   addParts,
   commonRotations,
+  endJob,
+  nextJobNumber,
+  runningJobs,
   differsFromDefaults,
   newMachine,
   newProject,
@@ -47,16 +51,41 @@ describe('project document', () => {
     expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
   });
 
-  it('keeps the job running for the project', () => {
-    const project = { ...newProject('Shop job'), runningJobId: 'job_7' };
-    expect(parseProject(JSON.parse(serializeProject(project))).runningJobId).toBe('job_7');
-    expect(() => parseProject({ ...project, runningJobId: 7 })).toThrow('running job');
+  it('keeps its jobs, numbered, each with the fields of its stage', () => {
+    const project = addParts(newProject('Shop job'), [square(10, 3)]);
+    const request = projectRequest(project);
+    let withJobs = addJob(addJob(project, 'job_1', request, 'then'), 'job_2', request, 'now');
+    expect(withJobs.jobs.map((job) => [job.number, job.stage, job.id])).toEqual([
+      [1, 'running', 'job_1'],
+      [2, 'running', 'job_2'],
+    ]);
+    expect(withJobs.jobs[0].names).toEqual({ [project.parts[0].id]: 'Part' });
+    const document = { ...request, schema_version: 1, state: { status: 'cancelled' } } as never;
+    withJobs = endJob(endJob(withJobs, 'job_1', document), 'job_2');
+    expect(withJobs.jobs.map((job) => job.stage)).toEqual(['ended', 'lost']);
+    expect(withJobs.jobs[0]).toMatchObject({ number: 1, id: 'job_1', document });
+    expect(withJobs.jobs[0]).not.toHaveProperty('request');
+    // A job that is no longer running stays as it ended.
+    expect(endJob(withJobs, 'job_1')).toBe(withJobs);
+    expect(runningJobs(withJobs)).toEqual([]);
+    expect(nextJobNumber(withJobs)).toBe(3);
+    expect(parseProject(JSON.parse(serializeProject(withJobs)))).toEqual(withJobs);
+    const [first, second] = withJobs.jobs;
+    expect(() => parseProject({ ...withJobs, jobs: [first, { ...second, number: 1 }] })).toThrow(
+      'same number',
+    );
+    expect(() => parseProject({ ...withJobs, jobs: [{ ...second, stage: 'ended' }] })).toThrow(
+      'invalid jobs',
+    );
+    expect(() => parseProject({ ...withJobs, jobs: [{ ...first, number: 0 }] })).toThrow(
+      'invalid jobs',
+    );
   });
 
   it('rejects other formats and versions', () => {
     const project = newProject('Shop job');
     expect(() => parseProject({ ...project, format: 'other' })).toThrow('unknown format');
-    expect(() => parseProject({ ...project, version: 6 })).toThrow('version 6');
+    expect(() => parseProject({ ...project, version: 7 })).toThrow('version 7');
   });
 
   it('upgrades version 2, whose parts store polygons as outer and holes', () => {
@@ -81,6 +110,31 @@ describe('project document', () => {
     ).toThrow('part settings');
   });
 
+  it('upgrades version 5, whose latest solution becomes job #1', () => {
+    const project = addParts(newProject('Shop job'), [square(10)]);
+    const { jobs: _, ...rest } = project;
+    const document = { input: projectInput(project) };
+    const old = {
+      ...rest,
+      version: 5,
+      solutions: [{ id: 's', createdAt: 'then', document }],
+      runningJobId: 'job_7',
+    };
+    expect(parseProject(old)).toEqual({
+      ...project,
+      jobs: [
+        {
+          number: 1,
+          submittedAt: 'then',
+          names: { [project.parts[0].id]: 'Part' },
+          stage: 'ended',
+          document,
+        },
+      ],
+    });
+    expect(parseProject({ ...old, solutions: [] }).jobs).toEqual([]);
+  });
+
   it('upgrades version 1, keeping its time limit and dropping its solutions', () => {
     const project = newProject('Shop job');
     const old = {
@@ -92,7 +146,6 @@ describe('project document', () => {
     expect(parseProject(old)).toEqual({
       ...project,
       settings: { timeLimitSeconds: 30, autoTermination: true },
-      solutions: [],
     });
     const unlimited = { ...old, settings: { ...old.settings, timeLimitSeconds: null } };
     expect(parseProject(unlimited).settings.timeLimitSeconds).toBe(600);
@@ -336,10 +389,8 @@ describe('project document', () => {
       'sheets',
     ]);
     expect(unseenTabs({ ...project, seenTabs: [...INPUT_TABS] })).toEqual([]);
-    // Once it has a solution, or for a project from before the rule, no tab is asked for.
-    expect(
-      unseenTabs({ ...project, solutions: [{ id: 's', createdAt: '', document: {} as never }] }),
-    ).toEqual([]);
+    // Once it has a job, or for a project from before the rule, no tab is asked for.
+    expect(unseenTabs(addJob(project, 'job_1', projectRequest(project)))).toEqual([]);
     const { seenTabs: _, ...older } = project;
     expect(unseenTabs(older)).toEqual([]);
   });
@@ -431,23 +482,22 @@ describe('cycling rotations', () => {
 });
 
 describe('undo history', () => {
-  it('coalesces edits with the same key and keeps solutions through undo', () => {
+  it('coalesces edits with the same key and keeps jobs through undo', () => {
     const start = newProject('Job');
     let state = initialHistory(start);
     const named = (name: string) => ({ ...state.present, name });
     state = historyReducer(state, { type: 'edit', project: named('A'), key: 'name', at: 1000 });
     state = historyReducer(state, { type: 'edit', project: named('AB'), key: 'name', at: 1500 });
     expect(state.past).toHaveLength(1);
-    const solution = { id: 's', createdAt: '', document: {} as never };
+    const request = projectRequest(start);
     state = historyReducer(state, {
       type: 'results',
-      results: { solutions: [solution], runningJobId: 'job_1' },
+      change: (present) => ({ jobs: addJob(present, 'job_1', request).jobs }),
     });
+    const { jobs } = state.present;
     state = historyReducer(state, { type: 'undo' });
     expect(state.present.name).toBe('Job');
-    expect(state.present.solutions).toEqual([solution]);
-    // The job running for the project is no edit either.
-    expect(state.present.runningJobId).toBe('job_1');
+    expect(state.present.jobs).toBe(jobs);
     state = historyReducer(state, { type: 'redo' });
     expect(state.present.name).toBe('AB');
   });

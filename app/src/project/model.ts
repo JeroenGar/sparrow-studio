@@ -1,10 +1,10 @@
-import type { JobDocument } from '../api/client';
+import type { JobDocument, JobRequest } from '../api/client';
 import type { Contour, Shape } from '../engine/geometry/contour';
 import { LIMITS, newId, type Part, type RotationRule } from '../engine/model';
 
 /** Identifies a sparrow studio project document, in browser storage and in files. */
 export const PROJECT_FORMAT = 'sparrow-studio-project';
-export const PROJECT_VERSION = 5;
+export const PROJECT_VERSION = 6;
 
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };
@@ -59,8 +59,24 @@ export type MachinePreset = { id: string; name: string; gapMm: number; boundaryM
 export const boundaryOf = (machine: MachinePreset) => machine.boundaryMm ?? machine.gapMm;
 /** How long the solver searches, as the API's settings. */
 export type SolverSettings = { timeLimitSeconds: number; autoTermination: boolean };
-/** A finished job as the API records it, with its input, so it stays valid when the project changes. */
-export type Solution = { id: string; createdAt: string; document: JobDocument };
+/**
+ * One run of the project's inputs as they were when it started, numbered within the project. It
+ * never changes once it ends. Until then it holds what was asked; once it ends, the job's document,
+ * which holds that too, so the job stays whole when the project changes or the API deletes it.
+ */
+export type ProjectJob = {
+  /** From 1, one more than the highest number of the project's jobs. */
+  number: number;
+  submittedAt: string;
+  /** The names of the parts and sheets as they were, by ID. */
+  names: Record<string, string>;
+} & (
+  | { stage: 'running'; id: string; request: JobRequest }
+  /** The API's ID links the job to the account's record of it; absent for one studio kept before. */
+  | { stage: 'ended'; id?: string; document: JobDocument }
+  /** The backend no longer has the job, and studio did not keep how it ended. */
+  | { stage: 'lost'; id: string; request: JobRequest }
+);
 /** The settings a part solves with: the project's defaults, or its own. */
 export type PartSettings = {
   rotations: RotationRule;
@@ -87,13 +103,11 @@ export type ProjectDocument = {
   machines: MachinePreset[];
   machineId: string;
   settings: SolverSettings;
-  /** Holds at most one solution for now; sparrow pro will return several. */
-  solutions: Solution[];
   /**
-   * The job running for this project, when one is. A page closed while it runs finds it here on
-   * opening, follows it again, and records its solution.
+   * The project's jobs, oldest first. A page closed while one runs finds it here on opening,
+   * follows it again, and records how it ended.
    */
-  runningJobId?: string;
+  jobs: ProjectJob[];
   /**
    * The input tabs opened so far: a new project's first run waits until each was opened once.
    * Absent in projects from before this rule, which count as seen.
@@ -118,9 +132,9 @@ export const TAB_NAMES: Record<InputTab, string> = {
   settings: 'Settings',
 };
 
-/** The input tabs still to open before a project's first run; none once it has a solution. */
+/** The input tabs still to open before a project's first run; none once it has a job. */
 export function unseenTabs(project: ProjectDocument): InputTab[] {
-  if (!project.seenTabs || project.solutions.length) return [];
+  if (!project.seenTabs || project.jobs.length) return [];
   return INPUT_TABS.filter((tab) => !project.seenTabs!.includes(tab));
 }
 
@@ -148,10 +162,72 @@ export function newProject(name: string, machine: MachinePreset = newMachine()):
     machines: [copy],
     machineId: copy.id,
     settings: { ...DEFAULT_SOLVER_SETTINGS },
-    solutions: [],
+    jobs: [],
     seenTabs: [],
   };
 }
+
+/** The number the project's next job gets. */
+export const nextJobNumber = (project: ProjectDocument) =>
+  Math.max(0, ...project.jobs.map((job) => job.number)) + 1;
+
+/** Records a job just submitted for the project's inputs, as its next job. */
+export function addJob(
+  project: ProjectDocument,
+  id: string,
+  request: JobRequest,
+  submittedAt = new Date().toISOString(),
+): ProjectDocument {
+  const names = Object.fromEntries(
+    [...project.parts, ...project.stock.sheets].map((item) => [item.id, item.name]),
+  );
+  const job: ProjectJob = {
+    number: nextJobNumber(project),
+    submittedAt,
+    names,
+    stage: 'running',
+    id,
+    request,
+  };
+  return { ...project, jobs: [...project.jobs, job] };
+}
+
+/**
+ * Records how a running job ended: with its document, or lost without one. A job the project no
+ * longer has running, such as one removed meanwhile, stays as it is.
+ */
+export function endJob(
+  project: ProjectDocument,
+  id: string,
+  document?: JobDocument,
+): ProjectDocument {
+  if (!project.jobs.some((job) => job.stage === 'running' && job.id === id)) return project;
+  return {
+    ...project,
+    jobs: project.jobs.map((job): ProjectJob => {
+      if (job.stage !== 'running' || job.id !== id) return job;
+      const { number, submittedAt, names } = job;
+      return document
+        ? { number, submittedAt, names, stage: 'ended', id, document }
+        : { ...job, stage: 'lost' };
+    }),
+  };
+}
+
+/** The project's running jobs. */
+export const runningJobs = (project: ProjectDocument) =>
+  project.jobs.filter(
+    (job): job is Extract<ProjectJob, { stage: 'running' }> => job.stage === 'running',
+  );
+
+/** The project's newest job that completed with a layout. */
+export const latestResult = (project: ProjectDocument) =>
+  [...project.jobs]
+    .reverse()
+    .find(
+      (job): job is Extract<ProjectJob, { stage: 'ended' }> =>
+        job.stage === 'ended' && !!job.document.outcome,
+    );
 
 export function activeMachine(project: ProjectDocument): MachinePreset {
   return (
