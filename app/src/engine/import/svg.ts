@@ -37,6 +37,8 @@ function compound(contours:Contour[],rule:'evenodd'|'nonzero'):Contour[] {
     return best;
   });
   return contours.filter((c,i)=>{
+    // An outline that is no valid polygon stays, for the import to report.
+    if(!rings[i])return true;
     let winding=0,p=parent[i];
     while(p!==-1){winding+=Math.sign(area(contours[p].ring));p=parent[p];}
     return (winding===0)!==(winding+Math.sign(area(c.ring))===0);

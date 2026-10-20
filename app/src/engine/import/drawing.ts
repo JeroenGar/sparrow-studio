@@ -1,6 +1,15 @@
 import polygonClipping from 'polygon-clipping';
-import { DEFAULT_SETTINGS, newPart, SHEET_LAYER, type Part, type Ring } from '../model';
-import { area, bounds, inside, normalizePart, normalizeRing, onlyTouch, ringCrosses } from '../geometry/normalize';
+import { DEFAULT_SETTINGS, newPart, SHEET_LAYER, type Part, type Point, type Ring } from '../model';
+import { pointSegmentDistance } from '../geometry/world';
+import {
+  area,
+  bounds,
+  inside,
+  normalizePart,
+  normalizeRing,
+  onlyTouch,
+  ringCrosses,
+} from '../geometry/normalize';
 import { moveShape, type Contour, type Shape } from '../geometry/contour';
 import type { ImportReview } from './sparrow';
 
@@ -46,7 +55,10 @@ export const defaultRoles = (layers: string[]): Record<string, Role> =>
 /** Words in layer names that say what a layer holds, in the order they are tried. */
 const ROLE_WORDS: [RegExp, Role][] = [
   [/defect|flaw|damage|clamp|keep.?out|exclu/i, 'defects'],
-  [/cutting.?line|text|dim|note|annot|label|title|border|frame|offcut|remnant.?line|viewport/i, 'ignored'],
+  [
+    /cutting.?line|text|dim|note|annot|label|title|border|frame|offcut|remnant.?line|viewport/i,
+    'ignored',
+  ],
   [/sheet|plate|stock|material|blank|remnant|hide|bin/i, 'sheets'],
 ];
 
@@ -68,51 +80,92 @@ export function suggestRoles(layers: string[], fallback: 'parts' | 'sheets'): Re
 type Kept = Outline & { ring: Ring };
 type Item = { outline: Kept; holes: Kept[] };
 
+/** A ring without corners that lie on the straight line between their neighbours. */
+function corners(ring: Ring, tolerance: number): Ring {
+  const kept = ring.filter((p, i) => {
+    const [a, b] = [ring[(i + ring.length - 1) % ring.length], ring[(i + 1) % ring.length]];
+    return pointSegmentDistance(p, a, b) > tolerance * 1e-3;
+  });
+  return kept.length >= 3 ? kept : ring;
+}
+
+const middle = (ring: Ring): Point => [
+  ring.reduce((n, p) => n + p[0], 0) / ring.length,
+  ring.reduce((n, p) => n + p[1], 0) / ring.length,
+];
+
+/** The turn about the middles that best lays `from` onto `to`, corner for corner. */
+function bestTurn(from: Ring, to: Ring, offset: number, [ax, ay]: Point, [bx, by]: Point): number {
+  let [dot, cross] = [0, 0];
+  from.forEach(([x, y], i) => {
+    const [u, v] = to[(i + offset) % to.length];
+    dot += (x - ax) * (u - bx) + (y - ay) * (v - by);
+    cross += (x - ax) * (v - by) - (y - ay) * (u - bx);
+  });
+  return Math.atan2(cross, dot);
+}
+
+/** Whether every one of `left` can be paired with its own one of `right`, by `fits`. */
+function pairable(left: number, right: number, fits: (i: number, j: number) => boolean): boolean {
+  const owner = new Array<number>(right).fill(-1);
+  const claim = (i: number, seen: Set<number>): boolean => {
+    for (let j = 0; j < right; j++) {
+      if (seen.has(j) || !fits(i, j)) continue;
+      seen.add(j);
+      if (owner[j] < 0 || claim(owner[j], seen)) {
+        owner[j] = i;
+        return true;
+      }
+    }
+    return false;
+  };
+  for (let i = 0; i < left; i++) if (!claim(i, new Set())) return false;
+  return true;
+}
+
 /**
  * Whether two items have the same shape up to a move and a turn, every corner within `tolerance`.
- * Mirrored copies are not the same: a part may differ on its two sides.
+ * Corners on a straight edge do not count. Mirrored copies are not the same: a part may differ on
+ * its two sides.
  */
 export function congruent(a: Item, b: Item, tolerance: number): boolean {
-  const [ra, rb] = [a.outline.ring, b.outline.ring];
+  const [ra, rb] = [corners(a.outline.ring, tolerance), corners(b.outline.ring, tolerance)];
   if (ra.length !== rb.length || a.holes.length !== b.holes.length) return false;
-  const perimeter = ra.reduce((n, p, i) => n + Math.hypot(...minus(ra[(i + 1) % ra.length], p)), 0);
-  if (Math.abs(Math.abs(area(ra)) - Math.abs(area(rb))) > tolerance * perimeter) return false;
+  const holesA = a.holes.map((hole) => corners(hole.ring, tolerance));
+  const holesB = b.holes.map((hole) => corners(hole.ring, tolerance));
   const [ca, cb] = [middle(ra), middle(rb)];
-  const angleOf = (p: [number, number], c: [number, number]) => Math.atan2(p[1] - c[1], p[0] - c[0]);
+  // Corners within the tolerance keep areas within it along the perimeter, and the middles of
+  // holes as far from the middle of the outline: quick ways to tell shapes apart before turning.
+  const perimeter = ra.reduce((n, p, i) => n + Math.hypot(...minus(ra[(i + 1) % ra.length], p)), 0);
+  const slack = tolerance * perimeter + (ra.length * tolerance ** 2) / 2;
+  if (Math.abs(Math.abs(area(ra)) - Math.abs(area(rb))) > slack) return false;
+  const reach = (hole: Ring, c: Point) => Math.hypot(...minus(middle(hole), c));
+  const byNumber = (x: number, y: number) => x - y;
+  const da = holesA.map((h) => reach(h, ca)).sort(byNumber);
+  const db = holesB.map((h) => reach(h, cb)).sort(byNumber);
+  if (da.some((d, i) => Math.abs(d - db[i]) > 2 * tolerance)) return false;
   for (let shift = 0; shift < rb.length; shift++) {
-    const turn = angleOf(rb[shift], cb) - angleOf(ra[0], ca);
+    const turn = bestTurn(ra, rb, shift, ca, cb);
     const [cos, sin] = [Math.cos(turn), Math.sin(turn)];
-    const place = ([x, y]: [number, number]): [number, number] => [
+    const place = ([x, y]: Point): Point => [
       cb[0] + (x - ca[0]) * cos - (y - ca[1]) * sin,
       cb[1] + (x - ca[0]) * sin + (y - ca[1]) * cos,
     ];
     const matches = (from: Ring, to: Ring, offset: number) =>
-      from.every((p, i) => {
-        const [x, y] = place(p);
-        const q = to[(i + offset) % to.length];
-        return Math.hypot(x - q[0], y - q[1]) <= tolerance;
-      });
-    if (!matches(ra, rb, shift)) continue;
-    // Every hole lands on a hole of the other, in any order, from any corner.
-    const free = [...b.holes];
-    const holesMatch = a.holes.every((hole) => {
-      const at = free.findIndex(
-        (other) =>
-          other.ring.length === hole.ring.length &&
-          other.ring.some((_, k) => matches(hole.ring, other.ring, k)),
+      from.every(
+        (p, i) => Math.hypot(...minus(place(p), to[(i + offset) % to.length])) <= tolerance,
       );
-      return at >= 0 && free.splice(at, 1).length === 1;
-    });
-    if (holesMatch) return true;
+    if (!matches(ra, rb, shift)) continue;
+    // Every hole lands on its own hole of the other, from any corner.
+    const fits = (i: number, j: number) =>
+      holesA[i].length === holesB[j].length &&
+      holesB[j].some((_, k) => matches(holesA[i], holesB[j], k));
+    if (pairable(holesA.length, holesB.length, fits)) return true;
   }
   return false;
 }
 
-const minus = (p: [number, number], q: [number, number]): [number, number] => [p[0] - q[0], p[1] - q[1]];
-const middle = (ring: Ring): [number, number] => [
-  ring.reduce((n, p) => n + p[0], 0) / ring.length,
-  ring.reduce((n, p) => n + p[1], 0) / ring.length,
-];
+const minus = (p: Point, q: Point): Point => [p[0] - q[0], p[1] - q[1]];
 
 /** What an outline became: shown on the import's drawing. */
 export type Mark = {
@@ -198,7 +251,8 @@ export function classify(
           issues.push(
             `${outlines[j].id} and ${outlines[i].id}: they overlap, or one touches the other from inside. Leave one out or repair the source.`,
           );
-          for (const k of [i, j]) Object.assign(marks.get(outlines[k].id)!, { kind: 'issue', message });
+          for (const k of [i, j])
+            Object.assign(marks.get(outlines[k].id)!, { kind: 'issue', message });
         }
       }
     // The smallest outline around each: entirely inside, as they neither cross nor only touch.
@@ -240,7 +294,12 @@ export function classify(
   const defectsOf = new Map<Item, Kept[]>(sheetItems.map((item) => [item, []]));
   for (const defect of kept.filter((outline) => outline.role === 'defects')) {
     const over = sheetItems.filter(
-      (sheet) => polygonClipping.intersection([defect.ring], [sheet.outline.ring]).length > 0,
+      // The sheet's material: a defect within one of its holes is on no material of it.
+      (sheet) =>
+        polygonClipping.intersection(
+          [defect.ring],
+          [sheet.outline.ring, ...sheet.holes.map((hole) => hole.ring)],
+        ).length > 0,
     );
     if (!over.length) fail(defect.id, 'this defect overlaps no sheet.');
     else marks.get(defect.id)!.kind = 'defect';
@@ -248,7 +307,9 @@ export function classify(
   }
 
   // Items of the same shape, as one with a quantity.
-  const groups: { role: 'parts' | 'sheets'; item: Item; count: number }[] = [];
+  // A group approximates curves when any of its copies does.
+  const curvedItem = (item: Item) => item.outline.curved || item.holes.some((hole) => hole.curved);
+  const groups: { role: 'parts' | 'sheets'; item: Item; count: number; curved: boolean }[] = [];
   for (const { role: kind, item } of items) {
     const alone = kind === 'sheets' && defectsOf.get(item)!.length > 0;
     const same =
@@ -260,8 +321,10 @@ export function classify(
               congruent(group.item, item, tolerance),
           )
         : undefined;
-    if (same) same.count++;
-    else groups.push({ role: kind, item, count: 1 });
+    if (same) {
+      same.count++;
+      same.curved ||= curvedItem(item);
+    } else groups.push({ role: kind, item, count: 1, curved: curvedItem(item) });
   }
 
   const shapeOf = (item: Item): Shape => ({
@@ -270,7 +333,7 @@ export function classify(
   });
   const parts: Part[] = [];
   const sheets: ImportedSheet[] = [];
-  for (const { role: kind, item, count } of groups) {
+  for (const { role: kind, item, count, curved } of groups) {
     // Moved so the outline starts at the origin, defects with it.
     const [x, y] = bounds(item.outline.ring);
     const shape = moveShape(shapeOf(item), [-x, -y]);
@@ -281,7 +344,6 @@ export function classify(
       sheets.push({ name: item.outline.id, shape, quantity: count, defects: own });
       continue;
     }
-    const curved = item.outline.curved || item.holes.some((hole) => hole.curved);
     const part: Part = {
       ...newPart(shape, item.outline.id),
       quantity: count,
@@ -305,14 +367,21 @@ export function review(
 ): ImportReview {
   const { parts, sheets, issues, marks } = classify(drawing, roles, options);
   return {
-    document: { name: drawing.name.replace(/\.(dxf|svg)$/i, ''), parts, settings: { ...DEFAULT_SETTINGS } },
+    document: {
+      name: drawing.name.replace(/\.(dxf|svg)$/i, ''),
+      parts,
+      settings: { ...DEFAULT_SETTINGS },
+    },
     sheets,
     warnings: drawing.warnings,
     issues,
     layers: drawing.layers,
     roles,
     outlines: Object.fromEntries(
-      drawing.layers.map((layer) => [layer, drawing.outlines.filter((o) => o.layer === layer).length]),
+      drawing.layers.map((layer) => [
+        layer,
+        drawing.outlines.filter((o) => o.layer === layer).length,
+      ]),
     ),
     marks,
   };

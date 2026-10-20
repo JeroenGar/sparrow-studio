@@ -121,4 +121,55 @@ describe('importing a drawing', () => {
     });
     expect(suggestRoles(['0'], 'sheets')).toEqual({ '0': 'sheets' });
   });
+
+  it('merges copies that differ by corners on a straight edge, or by rounding at their first corner', () => {
+    const plain = square(0, 0, 10);
+    const split = ring([
+      [100, 0],
+      [105, 0],
+      [110, 0],
+      [110, 10],
+      [100, 10],
+    ]);
+    const triangle = ring([
+      [0, 0],
+      [100, 1],
+      [-100, 1],
+    ]);
+    const nudged = ring([
+      [500.009, 0],
+      [600, 1],
+      [400, 1],
+    ]);
+    const { parts } = classify(
+      drawing([drawn('A', plain), drawn('A', split), drawn('B', triangle), drawn('B', nudged)]),
+      { A: 'parts', B: 'parts' },
+    );
+    expect(parts.map((part) => part.quantity)).toEqual([2, 2]);
+  });
+
+  it('pairs holes in any order', () => {
+    const plate = (x: number, holes: number[]) => [
+      drawn('CUT', square(x, 0, 40)),
+      ...holes.map((h) => drawn('CUT', square(x + h, 10, 2))),
+    ];
+    const { parts } = classify(
+      drawing([...plate(0, [10, 20.008]), ...plate(100, [20.004, 10.003])]),
+      { CUT: 'parts' },
+    );
+    expect(parts.map((part) => part.quantity)).toEqual([2]);
+  });
+
+  it('finds no sheet for a defect inside a sheet hole', () => {
+    const { sheets, issues } = classify(
+      drawing([
+        drawn('Sheet', square(0, 0, 100)),
+        drawn('Sheet', square(20, 20, 50)),
+        drawn('Defects', square(30, 30, 5)),
+      ]),
+      { Sheet: 'sheets', Defects: 'defects' },
+    );
+    expect(sheets.map((sheet) => sheet.defects.length)).toEqual([0]);
+    expect(issues.join(' ')).toContain('overlaps no sheet');
+  });
 });
