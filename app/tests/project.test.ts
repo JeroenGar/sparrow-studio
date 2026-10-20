@@ -199,6 +199,22 @@ describe('project document', () => {
     };
     expect(startBlockers(wide)).toEqual(['The gap must be smaller than the strip width.']);
     expect(startBlockers({ ...seen, parts: [square(10)] })).toEqual([]);
+    // How many copies a job may have is the backend's to say.
+    expect(startBlockers({ ...seen, parts: [square(10, 4000)] })).toEqual([]);
+  });
+
+  it('keeps parts the gap away from the material edge, unless the machine has its own distance', () => {
+    const machine = newMachine('Laser', 2);
+    const project = addParts(newProject('Job', machine), [square(10)]);
+    expect(projectInput(project).minimum_separation_distance).toEqual({ parts: 2, boundary: 2 });
+    const own = { ...project, machines: [{ ...project.machines[0], boundaryMm: 5 }] };
+    expect(projectInput(own).minimum_separation_distance).toEqual({ parts: 2, boundary: 5 });
+    expect(parseProject(JSON.parse(serializeProject(own))).machines[0].boundaryMm).toBe(5);
+    const negative = { ...project, machines: [{ ...project.machines[0], boundaryMm: -1 }] };
+    expect(startBlockers(negative)[0]).toMatch('material edge');
+    expect(() =>
+      parseProject({ ...project, machines: [{ ...project.machines[0], boundaryMm: 'far' }] }),
+    ).toThrow('machine preset');
   });
 
   it('makes safe file names', () => {

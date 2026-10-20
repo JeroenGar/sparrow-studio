@@ -53,7 +53,7 @@ export function normalizeRing(value: unknown): Ring {
 }
 export function normalizePart(part: Part): Part {
   if (typeof part.id !== 'string' || !part.id || typeof part.name !== 'string' || !part.source || !['svg','dxf','sparrow'].includes(part.source.format)) throw Error('Invalid part identity or provenance.');
-  if (!Number.isInteger(part.quantity) || part.quantity < 0 || part.quantity > LIMITS.copies) throw Error('Quantity must be a whole number from 0 to 500.');
+  if (!Number.isInteger(part.quantity) || part.quantity < 0 || part.quantity > LIMITS.copies) throw Error(`Quantity must be a whole number from 0 to ${LIMITS.copies.toLocaleString('en')}.`);
   if (!Number.isFinite(part.approximationToleranceMm) || part.approximationToleranceMm < 0 || part.approximationToleranceMm > 100) throw Error('Invalid approximation tolerance.');
   if (!part.rotations || (part.rotations.kind !== 'continuous' && (part.rotations.kind !== 'discrete' || !Array.isArray(part.rotations.degrees) || !part.rotations.degrees.length || !part.rotations.degrees.every(Number.isFinite)))) throw Error('Discrete rotations require a nonempty list of finite degrees.');
   // Checked as drawn: polygons as they are, curves through their outline.
@@ -81,6 +81,6 @@ export function normalizeJob(doc: Job, allowEmpty=false): Job {
   if(!['standard','fast'].includes(s.solverPreset))throw Error('Invalid solver preset.');
   const parts = doc.parts.map(normalizePart);
   if (new Set(parts.map(p=>p.id)).size !== parts.length) throw Error('Part IDs must be unique.');
-  if (parts.reduce((n,p)=>n+p.quantity,0) > LIMITS.copies || parts.reduce((n,p)=>{const o=outline(p.shape);return n+p.quantity*(o.outer.length+o.holes.reduce((m,h)=>m+h.length,0));},0) > LIMITS.verticesTotal) throw Error('Project exceeds 500 copies or 100,000 demanded vertices.');
+  if (parts.reduce((n,p)=>n+p.quantity,0) > LIMITS.copies) throw Error(`Project exceeds ${LIMITS.copies.toLocaleString('en')} copies.`);
   return { ...doc, parts };
 }

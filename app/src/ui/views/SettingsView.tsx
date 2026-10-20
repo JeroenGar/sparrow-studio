@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TIME_LIMITS, type SolverSettings } from '../../project/model';
 import { useStudio } from '../context';
+import { useLimits } from '../limits';
 import { RunBar } from '../RunBar';
 import { Explanation } from './Explanation';
 
@@ -12,6 +13,7 @@ const timeLabel = (limit: number) =>
 export function SettingsView() {
   const { project, edit } = useStudio();
   const settings = project.settings;
+  const longest = useLimits()?.max_time_limit_seconds ?? Infinity;
   const [selected, setSelected] = useState<Item | undefined>('time');
   const update = (change: Partial<SolverSettings>) =>
     edit((current) => ({ ...current, settings: { ...current.settings, ...change } }));
@@ -42,8 +44,9 @@ export function SettingsView() {
                   onChange={(event) => update({ timeLimitSeconds: Number(event.target.value) })}
                 >
                   {TIME_LIMITS.map((limit) => (
-                    <option key={limit} value={limit}>
+                    <option key={limit} value={limit} disabled={limit > longest}>
                       {timeLabel(limit)}
+                      {limit > longest ? ' · more than allowed' : ''}
                     </option>
                   ))}
                 </select>

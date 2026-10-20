@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { newId } from '../../engine/model';
-import { activeMachine, newMachine, type MachinePreset } from '../../project/model';
+import { activeMachine, boundaryOf, newMachine, type MachinePreset } from '../../project/model';
 import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
 import { formatLength } from '../format';
@@ -41,7 +41,8 @@ export function MachineView() {
   };
   const isDefault = (machine: MachinePreset) =>
     preferences.defaultMachine?.name === machine.name &&
-    preferences.defaultMachine.gapMm === machine.gapMm;
+    preferences.defaultMachine.gapMm === machine.gapMm &&
+    preferences.defaultMachine.boundaryMm === machine.boundaryMm;
   return (
     <div className="view">
       <section className="list-panel" aria-label="Machine presets">
@@ -69,6 +70,8 @@ export function MachineView() {
                   <span>{machine.name}</span>
                   <span className="muted mono">
                     Gap {formatLength(machine.gapMm, unit, 3)} {unit}
+                    {machine.boundaryMm !== undefined &&
+                      ` · edge ${formatLength(machine.boundaryMm, unit, 3)} ${unit}`}
                   </span>
                 </span>
                 {machine.id === project.machineId && <span className="pill good">In use</span>}
@@ -92,10 +95,39 @@ export function MachineView() {
                     allowZero
                     onChange={(gapMm) => update(chosen.id, { gapMm }, `machine-gap:${chosen.id}`)}
                   />
-                  <span className="muted">
-                    In the browser, sparrow keeps the same gap at the strip edges.
-                  </span>
-                  <ProRow>Separate distance to the sheet boundary</ProRow>
+                  <label className="choice">
+                    <input
+                      type="checkbox"
+                      checked={chosen.boundaryMm === undefined}
+                      onChange={(event) =>
+                        update(
+                          chosen.id,
+                          { boundaryMm: event.target.checked ? undefined : chosen.gapMm },
+                          `machine-boundary:${chosen.id}`,
+                        )
+                      }
+                    />
+                    Keep the same distance to the edge of the material
+                  </label>
+                  {chosen.boundaryMm !== undefined && (
+                    <LengthInput
+                      label="Distance to the material edge"
+                      value={chosen.boundaryMm}
+                      min={0}
+                      max={1000}
+                      allowZero
+                      onChange={(boundaryMm) =>
+                        update(chosen.id, { boundaryMm }, `machine-boundary:${chosen.id}`)
+                      }
+                    />
+                  )}
+                  {chosen.boundaryMm !== undefined &&
+                    chosen.boundaryMm > 0 &&
+                    chosen.boundaryMm < chosen.gapMm / 2 && (
+                      <span className="muted small-note">
+                        A distance above zero but below half the gap counts as half the gap.
+                      </span>
+                    )}
                   <ProRow>Machine bed and clamps</ProRow>
                   <div className="row-actions wrap">
                     {chosen.id !== project.machineId && (
@@ -155,17 +187,16 @@ export function MachineView() {
             {formatLength(active.gapMm, unit, 3)} {unit}
           </text>
           <text x="145" y="40" className="accent-text small-text">
-            {formatLength(active.gapMm, unit, 3)} {unit} at the edge
+            {formatLength(boundaryOf(active), unit, 3)} {unit} at the edge
           </text>
         </svg>
         <p>
-          The gap is the smallest distance between two parts. In the browser, sparrow keeps the same
-          distance to the strip edges. It is not cutting kerf.
+          The gap is the smallest distance between two parts. Parts keep the same distance to the
+          edge of the material, unless the preset sets its own. Neither is cutting kerf.
         </p>
         <p className="muted">
           A machine preset holds the settings that belong to a machine, so you can reuse them across
-          projects. sparrow pro adds the machine bed, clamp zones and a separate distance to the
-          sheet boundary.
+          projects. sparrow pro will add the machine bed and clamp zones.
         </p>
       </Explanation>
     </div>

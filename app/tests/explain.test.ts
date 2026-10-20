@@ -16,6 +16,11 @@ describe('errors in studio’s words', () => {
     expect(
       explain(refusal(422, { code: 'limit_exceeded', limit: { name: 'max_projects', value: 5 } })),
     ).toMatch(/Delete one/);
+    expect(
+      explain(
+        refusal(422, { code: 'limit_exceeded', limit: { name: 'max_part_copies', value: 5000 } }),
+      ),
+    ).toBe('Reduce the quantities to 5,000 copies or fewer, as many as your plan allows.');
     expect(explain(refusal(503, { code: 'unavailable' }))).toMatch(/Sparrow Pro had a problem/);
     expect(explain(new TypeError('Failed to fetch'))).toMatch(/cannot be reached/);
   });

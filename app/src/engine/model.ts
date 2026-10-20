@@ -22,7 +22,8 @@ export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: n
 export type Result = { usedLengthMm: number; placements: Placement[] };
 export const DEFAULT_SETTINGS: JobSettings = { solverPreset: 'standard', materialWidthMm: 1000, clearanceMm: 0, timeLimitSeconds: null };
 export const SOLVER_REVISION = '7f0e10f946f70a86138d3938548a13ee46464f39';
-export const LIMITS = { copies: 500, verticesPerPart: 5000, verticesTotal: 100000, extent: 100000 };
+// Bounds on what studio reads, for its own sake; how many copies a job may have is the backend's limit.
+export const LIMITS = { copies: 100000, verticesPerPart: 5000, extent: 100000 };
 // DXF exports draw the sheet on this layer; DXF import leaves it out unless chosen, so exports reimport as their parts.
 export const SHEET_LAYER = 'SPARROW_SHEET';
 export const defaultDXFLayers = (layers: string[]) => layers.filter((layer) => layer !== SHEET_LAYER);

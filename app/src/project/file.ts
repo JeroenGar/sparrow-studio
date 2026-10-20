@@ -45,7 +45,8 @@ export function parseProject(stored: unknown): ProjectDocument {
       !isRecord(machine) ||
       typeof machine.id !== 'string' ||
       typeof machine.name !== 'string' ||
-      !finite(machine.gapMm)
+      !finite(machine.gapMm) ||
+      (machine.boundaryMm !== undefined && !finite(machine.boundaryMm))
     )
       return fail('invalid machine preset.');
   if (typeof value.machineId !== 'string') return fail('missing active machine.');

@@ -1,5 +1,6 @@
 import { ApiError, withCode, type Schemas } from '../api/client';
 import { usesSparrowPro } from './client';
+import { formatSeconds } from './format';
 
 /**
  * What went wrong, in studio's words. The API's messages are written for developers, so studio
@@ -19,9 +20,16 @@ export function explain(reason: unknown): string {
     withCode(error, 'invalid_job_input')?.field_errors[0];
   if (field) return field.message;
   const limit = withCode(error, 'limit_exceeded')?.limit;
-  if (limit?.name === 'max_projects')
-    return 'You have as many projects as your plan allows. Delete one to make room.';
-  if (limit) return 'This is more than your plan allows.';
+  const allows = usesSparrowPro ? 'your plan allows' : 'nesting in this browser allows';
+  switch (limit?.name) {
+    case 'max_projects':
+      return 'You have as many projects as your plan allows. Delete one to make room.';
+    case 'max_part_copies':
+      return `Reduce the quantities to ${limit.value.toLocaleString('en')} copies or fewer, as many as ${allows}.`;
+    case 'max_time_limit_seconds':
+      return `Choose a time limit of ${formatSeconds(limit.value)} or less, the longest ${allows}.`;
+  }
+  if (limit) return `This is more than ${allows}.`;
   switch (error?.code) {
     case 'version_conflict':
       return 'This project was changed somewhere else, such as in another tab. Reload it to continue; changes made here since then are not saved.';

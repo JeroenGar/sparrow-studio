@@ -266,6 +266,14 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
         <dd>
           {formatLength(machine.gapMm, unit, 3)} {unit} · {machine.name}
         </dd>
+        {machine.boundaryMm !== undefined && (
+          <>
+            <dt>Edge</dt>
+            <dd>
+              {formatLength(machine.boundaryMm, unit, 3)} {unit} to the edge of the material
+            </dd>
+          </>
+        )}
         <dt>Stops</dt>
         <dd>
           after {formatSeconds(settings.timeLimitSeconds)} at most

@@ -9,8 +9,14 @@ export const PROJECT_VERSION = 4;
 export type Strip = { id: string; name: string; widthMm: number };
 /** What the parts are nested into. Sheets (bin packing) arrive with sparrow pro. */
 export type Stock = { packing: 'strip'; strip: Strip };
-/** Machine-specific solver inputs. Clamps and a separate sheet boundary distance come later. */
-export type MachinePreset = { id: string; name: string; gapMm: number };
+/**
+ * Machine-specific solver inputs: the gap between parts, and the distance from parts to the edge
+ * of the material, which is the gap unless the preset has its own. Clamps come later.
+ */
+export type MachinePreset = { id: string; name: string; gapMm: number; boundaryMm?: number };
+
+/** The distance from parts to the edge of the material. */
+export const boundaryOf = (machine: MachinePreset) => machine.boundaryMm ?? machine.gapMm;
 /** How long the solver searches, as the API's settings. */
 export type SolverSettings = { timeLimitSeconds: number; autoTermination: boolean };
 /** A finished job as the API records it, with its input, so it stays valid when the project changes. */
@@ -120,11 +126,12 @@ export function startBlockers(project: ProjectDocument): string[] {
   const copies = copyCount(project.parts);
   if (!project.parts.length) reasons.push('Import parts to nest.');
   else if (copies === 0) reasons.push('Give at least one part a quantity above zero.');
-  if (copies > LIMITS.copies)
-    reasons.push(`Reduce the quantities to ${LIMITS.copies} copies or fewer.`);
   if (!Number.isFinite(width) || width <= 0 || width > LIMITS.extent)
     reasons.push('Set a strip width in the Sheets tab.');
   if (!Number.isFinite(gap) || gap < 0) reasons.push('Set a valid gap in the Machine tab.');
+  const boundary = boundaryOf(activeMachine(project));
+  if (!Number.isFinite(boundary) || boundary < 0)
+    reasons.push('Set a valid distance to the material edge in the Machine tab.');
   else if (Number.isFinite(width) && gap >= width)
     reasons.push('The gap must be smaller than the strip width.');
   return reasons;

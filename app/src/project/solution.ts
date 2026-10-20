@@ -1,16 +1,16 @@
 import type { Input, JobDocument, JobRequest, Schemas } from '../api/client';
 import { worldParts } from '../engine/geometry/world';
 import type { Job, Part, Result } from '../engine/model';
-import { activeMachine, resolvedParts, type ProjectDocument } from './model';
+import { activeMachine, boundaryOf, resolvedParts, type ProjectDocument } from './model';
 
 /**
- * The job input for a project, in the API's format: one geometry per part, the gap as the
- * separation between parts and from the strip's edges, and the strip as the problem. Parts
+ * The job input for a project, in the API's format: one geometry per part, the machine's gap and
+ * distance to the material edge as the separations, and the strip as the problem. Parts
  * without copies are left out, as the format counts copies from one.
  */
 export function projectInput(project: ProjectDocument): Input {
   const parts = resolvedParts(project).filter((part) => part.quantity > 0);
-  const gap = activeMachine(project).gapMm;
+  const machine = activeMachine(project);
   return {
     schema_version: 1,
     geometries: parts.map((part) => ({
@@ -31,7 +31,7 @@ export function projectInput(project: ProjectDocument): Input {
       },
       hole_mode: part.nestInHoles ? 'nestable' : 'solid',
     })),
-    minimum_separation_distance: { parts: gap, boundary: gap },
+    minimum_separation_distance: { parts: machine.gapMm, boundary: boundaryOf(machine) },
     problem: { type: 'minimize_strip_length', height: project.stock.strip.widthMm },
   };
 }
