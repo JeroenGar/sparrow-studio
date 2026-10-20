@@ -108,6 +108,14 @@ describe('the runner', () => {
     expect(runner.get(shared)?.projectId).toBe(third);
     await workspace.reload(third);
     await until(() => project(third).jobs[1].stage === 'ended');
+
+    // Deleted while the other holder reloads: the job is still held.
+    await runner.start(third);
+    const fourth = await workspace.create(project(third));
+    const reloading = workspace.reload(fourth);
+    await workspace.remove(third);
+    await reloading;
+    await until(() => project(fourth).jobs[2].stage === 'ended');
     const id = await workspace.create(addParts(newProject('Again'), [square()]));
 
     await runner.start(id);

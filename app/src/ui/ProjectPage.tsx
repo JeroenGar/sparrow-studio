@@ -16,7 +16,7 @@ import { StudioContext, type Studio, type Tab } from './context';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
 import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
 import { parseProject, serializeProject } from '../project/file';
-import { isStale, projectFromJob } from '../project/solution';
+import { beyondProject, projectFromJob } from '../project/solution';
 import { explain } from './explain';
 import { JobPage } from './JobPage';
 import { go, href, type JobView } from './route';
@@ -99,9 +99,9 @@ export function ProjectPage({
       // A job from a project file may ask what a project cannot hold, such as locked placements.
       let copy: ProjectDocument;
       try {
+        const beyond = beyondProject(jobInput(job));
+        if (beyond) throw Error(`${beyond}.`);
         copy = parseProject(JSON.parse(serializeProject(projectFromJob(project, job))));
-        if (isStale(copy, jobInput(job)))
-          throw Error('it asks for more than a project can hold, such as locked placements.');
       } catch (reason) {
         showError(`This job's inputs cannot become a project: ${explain(reason)}`);
         return;

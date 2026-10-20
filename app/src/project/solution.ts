@@ -190,6 +190,10 @@ export function normalInput(input: Input): Input {
   const problem = input.problem;
   return {
     ...input,
+    geometries: input.geometries.map((geometry) => ({
+      ...geometry,
+      shape: { ...geometry.shape, holes: geometry.shape.holes ?? [] },
+    })),
     parts: input.parts.map((part) => ({
       ...part,
       hole_mode: part.hole_mode ?? 'nestable',
@@ -209,8 +213,21 @@ export function normalInput(input: Input): Input {
             })),
             locked_parts: problem.locked_parts ?? [],
           }
-        : problem,
+        : { ...problem, locked_parts: problem.locked_parts ?? [] },
   };
+}
+
+/**
+ * What a job asks that a project cannot hold, so a project made from it would ask less; nothing
+ * when a project can hold all of it.
+ */
+export function beyondProject(input: Input): string | undefined {
+  if (input.problem.locked_parts?.length) return 'it has locked placements';
+  const reflections = input.parts.map((part) =>
+    [...(part.orientation.reflection ?? ['none'])].sort().join(),
+  );
+  if (reflections.some((set) => set !== 'none' && set !== 'none,x_axis'))
+    return 'a part is only ever placed mirrored';
 }
 
 /** A value as text with its keys in order, so the order they were written in does not count. */

@@ -23,6 +23,7 @@ import {
   unseenTabs,
 } from '../src/project/model';
 import {
+  beyondProject,
   drawable,
   isStale,
   projectFromJob,
@@ -270,6 +271,37 @@ describe('project document', () => {
       {},
     ).jobs[0];
     expect(projectFromJob(project, job).partDefaults.nestInHoles).toBe(true);
+    // Empty holes and empty locks are no holes and no locks.
+    const empty = {
+      ...input,
+      geometries: input.geometries.map((g) => ({ ...g, shape: { ...g.shape, holes: [] } })),
+      problem: { ...input.problem, locked_parts: [] },
+    };
+    expect(isStale(project, empty)).toBe(false);
+  });
+
+  it('knows what a job asks that a project cannot hold', () => {
+    const project = addParts(newProject('Shop'), [square(10, 2)]);
+    const input = projectInput(project);
+    expect(beyondProject(input)).toBeUndefined();
+    // A geometry named apart from its part is fine: the project names it after the part.
+    const renamed = {
+      ...input,
+      geometries: input.geometries.map((g) => ({ ...g, id: 'g' })),
+      parts: input.parts.map((p) => ({ ...p, geometry_id: 'g' })),
+    };
+    expect(beyondProject(renamed)).toBeUndefined();
+    const job = addJob(project, 'job_1', { ...projectRequest(project), input: renamed }, {})
+      .jobs[0];
+    expect(projectInput(projectFromJob(project, job)).parts[0].quantity).toBe(2);
+    const mirrored = {
+      ...input,
+      parts: input.parts.map((p) => ({
+        ...p,
+        orientation: { ...p.orientation, reflection: ['x_axis' as const] },
+      })),
+    };
+    expect(beyondProject(mirrored)).toBe('a part is only ever placed mirrored');
   });
 
   it('says what changed since a job', () => {

@@ -164,29 +164,36 @@ export function createRunner(client: Client, workspace: Workspace) {
     }
   }
 
+  // The jobs each project had running when it was last open: a project loading again, or
+  // failing to, still holds them.
+  const held = new Map<string, string[]>();
   // Follow every job the projects record as running and that is not followed yet. One no project
-  // has running any more, such as a job of a project deleted, is stopped and let go.
+  // holds any more, such as a job of a project deleted, is stopped and let go.
   workspace.subscribe(() => {
     const state = workspace.get();
     if (state.status !== 'ready') return;
+    const present = new Set(state.projects.map((entry) => entry.id));
+    for (const id of held.keys()) if (!present.has(id)) held.delete(id);
+    // The open projects holding each job.
     const holders = new Map<string, string[]>();
-    // Projects loading again, or failing to, may still hold the jobs followed for them.
-    const unknown = new Set<string>();
     for (const entry of state.projects) {
-      if (entry.status !== 'open') {
-        unknown.add(entry.id);
-        continue;
-      }
-      for (const job of runningJobs(entry.history.present)) {
+      if (entry.status !== 'open') continue;
+      const jobs = runningJobs(entry.history.present);
+      held.set(
+        entry.id,
+        jobs.map((job) => job.id),
+      );
+      for (const job of jobs) {
         holders.set(job.id, [...(holders.get(job.id) ?? []), entry.id]);
         if (!runs.has(job.id)) void follow(entry.id, job.id, job.request, true);
       }
     }
+    const kept = new Set([...held.values()].flat());
     for (const [jobId, run] of [...runs]) {
-      const held = holders.get(jobId);
+      const open = holders.get(jobId);
       // A job a project file opened twice holds is followed for a project that holds it still.
-      if (held && !held.includes(run.projectId)) runs.set(jobId, { ...run, projectId: held[0] });
-      else if (!held && !unknown.has(run.projectId)) {
+      if (open && !open.includes(run.projectId)) runs.set(jobId, { ...run, projectId: open[0] });
+      else if (!kept.has(jobId)) {
         void patiently(() => client.stopJob(jobId)).catch(() => {});
         forget(jobId);
       }
