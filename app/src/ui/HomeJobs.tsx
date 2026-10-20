@@ -2,11 +2,12 @@ import { useMemo } from 'react';
 import type { DisplayUnit } from '../engine/units';
 import { jobInput, runningJobs, type ProjectJob } from '../project/model';
 import { isStale } from '../project/solution';
+import { usesSparrowPro } from './client';
 import { formatSeconds, formatWhen } from './format';
 import { JobThumb } from './JobThumb';
 import { href } from './route';
 import { elapsed, useNow, useRun, type Run, type Runner } from './runs';
-import { jobFigures, jobNote, jobStatus } from './views/JobsView';
+import { JobDot, jobFigures, jobNote, jobStatus } from './views/JobsView';
 import type { OpenEntry } from './workspace';
 
 /** How many of a project's newest jobs Home shows. */
@@ -62,6 +63,9 @@ export function HomeJobs({
           </section>
         );
       })}
+      {!usesSparrowPro && (
+        <p className="muted">Jobs in this browser run only while studio is open.</p>
+      )}
     </>
   );
 }
@@ -103,13 +107,13 @@ function JobLine({
       <td>
         {job.stage === 'running' ? (
           <span className="job-progress">
-            <i className="live-dot" aria-hidden="true" />
+            <JobDot job={job} />
             <strong>Running</strong>
             {run && <Progress run={run} />}
           </span>
         ) : (
           <span className="job-progress">
-            <i className={failed ? 'status-dot failed' : 'status-dot'} aria-hidden="true" />
+            <JobDot job={job} />
             {job.stage === 'ended' && job.document.state.status === 'completed'
               ? `${jobStatus(job) === 'stopped' ? 'Stopped' : 'Finished'} after ${formatSeconds(job.document.state.solver_seconds)}`
               : jobStatus(job).replace(/^./, (c) => c.toUpperCase())}

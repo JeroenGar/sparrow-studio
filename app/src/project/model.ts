@@ -239,15 +239,6 @@ export const runningJobs = (project: ProjectDocument) =>
     (job): job is Extract<ProjectJob, { stage: 'running' }> => job.stage === 'running',
   );
 
-/** The project's newest job that completed with a layout. */
-export const latestResult = (project: ProjectDocument) =>
-  [...project.jobs]
-    .reverse()
-    .find(
-      (job): job is Extract<ProjectJob, { stage: 'ended' }> =>
-        job.stage === 'ended' && !!job.document.outcome,
-    );
-
 export function activeMachine(project: ProjectDocument): MachinePreset {
   return (
     project.machines.find((machine) => machine.id === project.machineId) ?? project.machines[0]

@@ -1,5 +1,5 @@
 import { ApiError, withCode, type Client, type Schemas } from '../api/client';
-import { InvalidProject, parseProject } from '../project/file';
+import { parseProject } from '../project/file';
 import type { ProjectDocument } from '../project/model';
 
 /** A project as studio holds it: its document, the version a save must start from, and when it last changed. */
@@ -63,10 +63,6 @@ export async function deleteProject(client: Client, id: string, version: string)
 
 /** Whether the API has no such project, such as one deleted in another tab. */
 export const isMissing = (reason: unknown) => reason instanceof ApiError && reason.status === 404;
-
-/** Whether a project cannot be opened for what it is, rather than for a failing request. */
-export const isUnreadable = (reason: unknown) =>
-  reason instanceof InvalidProject || (reason instanceof ApiError && reason.status === 404);
 
 /** Whether a save failed because the project changed since, such as in another tab. */
 export const isConflict = (reason: unknown) =>
