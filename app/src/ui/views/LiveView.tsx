@@ -14,7 +14,7 @@ import { formatLength, formatPercent, formatSeconds } from '../format';
 import { rulerStep } from '../rulers';
 import { elapsed, useNow, type Run } from '../runs';
 import { arrangeLayouts, LayoutDrawing } from './LayoutDrawing';
-import { explainJobError } from '../explain';
+import { explain, explainJobError } from '../explain';
 
 /**
  * The layouts the search is working on, with their overlaps, worked out off the main thread for one
@@ -140,7 +140,7 @@ export function LiveView({
   job: Extract<ProjectJob, { stage: 'running' }>;
   run?: Run;
 }) {
-  const { unit, runner } = useStudio();
+  const { unit, runner, showError } = useStudio();
   const running = !!run && !run.error;
   const [mode, setMode] = useState<'live' | 'best'>('live');
   // The names the parts and sheets had when the job started.
@@ -246,7 +246,7 @@ export function LiveView({
               <button
                 className="primary"
                 disabled={!running || run.stopping}
-                onClick={() => runner.stop(job.id)}
+                onClick={() => runner.stop(job.id).catch((reason) => showError(explain(reason)))}
               >
                 {run?.stopping ? 'Stopping…' : 'Stop'}
               </button>

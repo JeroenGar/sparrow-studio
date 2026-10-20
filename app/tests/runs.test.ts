@@ -90,6 +90,23 @@ describe('the runner', () => {
     expect(await runner.start(id)).toBe(2);
   });
 
+  it('records a job in every project that has it, and lets go of one no project has', async () => {
+    const { workspace, runner, project } = page();
+    await workspace.load();
+    const first = await workspace.create(addParts(newProject('Job'), [square()]));
+    await runner.start(first);
+    // The same project opened from its file holds the same running job.
+    const second = await workspace.create(project(first));
+    await until(() => project(first).jobs[0].stage === 'ended');
+    await until(() => project(second).jobs[0].stage === 'ended');
+
+    await runner.start(first);
+    const jobId = project(first).jobs[1].id!;
+    expect(runner.get(jobId)).toBeDefined();
+    await workspace.remove(first);
+    expect(runner.get(jobId)).toBeUndefined();
+  });
+
   it('finds a job in this browser gone after the page closed, and records it as lost', async () => {
     const first = page();
     await first.workspace.load();

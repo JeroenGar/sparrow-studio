@@ -1,6 +1,14 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { ApiError, type Client, type Job, type JobRequest, type Schemas } from '../api/client';
-import { addJob, endJob, hasEnded, jobNames, nextJobNumber, runningJobs } from '../project/model';
+import {
+  addJob,
+  endJob,
+  hasEnded,
+  jobNames,
+  nextJobNumber,
+  runningJobs,
+  type EndedDocument,
+} from '../project/model';
 import { projectRequest } from '../project/solution';
 import { explain } from './explain';
 import type { Workspace } from './workspace';
@@ -74,9 +82,26 @@ export function createRunner(client: Client, workspace: Workspace) {
     emit();
   };
   const forget = (jobId: string) => {
+    following.get(jobId)?.abort();
     following.delete(jobId);
     runs.delete(jobId);
     emit();
+  };
+  /**
+   * Records how a job ended, with its document or lost without one, in every project that has it
+   * running: a project file opened twice holds the same job.
+   */
+  const record = (jobId: string, document?: EndedDocument) => {
+    const state = workspace.get();
+    if (state.status !== 'ready') return;
+    for (const entry of state.projects)
+      if (
+        entry.status === 'open' &&
+        runningJobs(entry.history.present).some((job) => job.id === jobId)
+      )
+        workspace.results(entry.id, (present) => ({
+          jobs: endJob(present, jobId, document).jobs,
+        }));
   };
 
   /** Follows a job until it ends, then records its document in its project. */
@@ -91,7 +116,8 @@ export function createRunner(client: Client, workspace: Workspace) {
     try {
       let job = await client.getJob(jobId);
       live((run) => ({ ...run, job, clock: tick(run, job) }));
-      if (runs.get(jobId)?.stopping && !isFinal(job)) await client.stopJob(jobId);
+      if (runs.get(jobId)?.stopping && !isFinal(job))
+        await client.stopJob(jobId).catch(() => live((run) => ({ ...run, stopping: false })));
       if (!isFinal(job)) {
         for await (const event of client.streamJobEvents(jobId, {
           search: true,
@@ -118,15 +144,14 @@ export function createRunner(client: Client, workspace: Workspace) {
       const document = await client.getJobDocument(jobId);
       if (controller.signal.aborted) return;
       if (!hasEnded(document)) throw Error('The job ended, but its record does not say so yet.');
-      workspace.results(projectId, (present) => ({
-        jobs: endJob(present, jobId, document).jobs,
-      }));
+      // Let go first: once recorded, no project has the job running to keep it followed.
       forget(jobId);
+      record(jobId, document);
     } catch (reason) {
       if (controller.signal.aborted) return;
       if (isGone(reason)) {
-        workspace.results(projectId, (present) => ({ jobs: endJob(present, jobId).jobs }));
         forget(jobId);
+        record(jobId);
         return;
       }
       // Following stops here; the job may well run on, and can be followed again.
@@ -138,14 +163,28 @@ export function createRunner(client: Client, workspace: Workspace) {
     }
   }
 
-  // Follow every job the projects record as running and that is not followed yet.
+  // Follow every job the projects record as running and that is not followed yet. One no project
+  // has running any more, such as a job of a project deleted, is stopped and let go.
   workspace.subscribe(() => {
     const state = workspace.get();
     if (state.status !== 'ready') return;
-    for (const entry of state.projects)
-      if (entry.status === 'open')
-        for (const job of runningJobs(entry.history.present))
-          if (!runs.has(job.id)) void follow(entry.id, job.id, job.request, true);
+    const held = new Set<string>();
+    for (const entry of state.projects) {
+      // A project loading again, or failing to, may still hold the jobs followed for it.
+      if (entry.status !== 'open') {
+        for (const [jobId, run] of runs) if (run.projectId === entry.id) held.add(jobId);
+        continue;
+      }
+      for (const job of runningJobs(entry.history.present)) {
+        held.add(job.id);
+        if (!runs.has(job.id)) void follow(entry.id, job.id, job.request, true);
+      }
+    }
+    for (const jobId of [...runs.keys()])
+      if (!held.has(jobId)) {
+        void client.stopJob(jobId).catch(() => {});
+        forget(jobId);
+      }
   });
 
   return {
@@ -156,6 +195,8 @@ export function createRunner(client: Client, workspace: Workspace) {
     /** The run of a job, while it is followed. */
     get: (jobId: string) => runs.get(jobId),
     isSubmitting: (projectId: string) => submitting.has(projectId),
+    /** Whether a job is being submitted: closing the page now could lose it. */
+    pending: () => submitting.size > 0,
     /** Whether a job in this browser is running: it ends with the page. */
     running: () => [...runs.values()].some((run) => !run.error),
 
@@ -166,6 +207,8 @@ export function createRunner(client: Client, workspace: Workspace) {
     async start(projectId: string): Promise<number> {
       const entry = workspace.find(projectId);
       if (entry?.status !== 'open') throw Error('The project is not open.');
+      // One submission per project at a time, so a second click does not submit a second job.
+      if (submitting.has(projectId)) throw Error('A job of this project is being submitted.');
       const project = entry.history.present;
       const request = projectRequest(project);
       const names = jobNames(project);
@@ -192,13 +235,20 @@ export function createRunner(client: Client, workspace: Workspace) {
       }
     },
 
-    /** Asks a job to stop; it ends with the best layout found so far. */
-    stop(jobId: string) {
+    /**
+     * Asks a job to stop; it ends with the best layout found so far. A request that fails leaves
+     * the job running, to be stopped again.
+     */
+    async stop(jobId: string) {
       update(jobId, (run) => ({ ...run, stopping: true }));
-      if (!isFinal(runs.get(jobId)?.job))
-        void client.stopJob(jobId).catch((reason) => {
-          if (!isGone(reason)) update(jobId, (run) => ({ ...run, error: explain(reason) }));
-        });
+      if (isFinal(runs.get(jobId)?.job)) return;
+      try {
+        await client.stopJob(jobId);
+      } catch (reason) {
+        if (isGone(reason)) return;
+        update(jobId, (run) => ({ ...run, stopping: false }));
+        throw reason;
+      }
     },
 
     /** Follows a job again after following it stopped, such as when the connection dropped. */
@@ -214,6 +264,10 @@ export type Runner = ReturnType<typeof createRunner>;
 /** A job's run, kept current; undefined once it is no longer followed. */
 export const useRun = (runner: Runner, jobId: string | undefined) =>
   useSyncExternalStore(runner.subscribe, () => (jobId ? runner.get(jobId) : undefined));
+
+/** A job's best layout so far, kept current; it changes less often than the run. */
+export const useBest = (runner: Runner, jobId: string | undefined) =>
+  useSyncExternalStore(runner.subscribe, () => (jobId ? runner.get(jobId)?.best : undefined));
 
 /** Whether a job of the project is being submitted, kept current. */
 export const useSubmitting = (runner: Runner, projectId: string) =>

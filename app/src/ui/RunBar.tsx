@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { ApiError, withCode } from '../api/client';
 import {
   copyCount,
@@ -9,7 +9,7 @@ import {
   unseenTabs,
 } from '../project/model';
 import { projectRequest } from '../project/solution';
-import { backend, client } from './client';
+import { backend, client, usesSparrowPro } from './client';
 import { useStudio } from './context';
 import { formatLength } from './format';
 import { ProTag } from './ProTag';
@@ -55,9 +55,13 @@ function useRefusal() {
 export function RunBar() {
   const { projectId, project, unit, startRun, setTab, runner } = useStudio();
   const submitting = useSubmitting(runner, projectId);
+  // The browser runs one job at a time.
+  const busy = useSyncExternalStore(runner.subscribe, () => !usesSparrowPro && runner.running());
   const { checking, refusal } = useRefusal();
 
-  const blocker = startBlockers(project)[0];
+  const blocker =
+    startBlockers(project)[0] ??
+    (busy ? 'A job is running in this browser, which runs one at a time.' : undefined);
   // A new project's first run comes after a look through each input tab, one after the other.
   const next = unseenTabs(project)[0];
   if (!blocker && next)

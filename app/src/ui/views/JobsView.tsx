@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { worldParts } from '../../engine/geometry/world';
+import type { Schemas } from '../../api/client';
 import type { DisplayUnit } from '../../engine/units';
 import { jobInput, type ProjectJob } from '../../project/model';
 import { drawable, isStale } from '../../project/solution';
@@ -10,7 +11,7 @@ import { useStudio } from '../context';
 import { formatLength, formatPercent, formatSeconds, formatWhen } from '../format';
 import { href } from '../route';
 import { RunBar } from '../RunBar';
-import { elapsed, useNow, useRun, type Run } from '../runs';
+import { elapsed, useBest, useNow, useRun, type Run } from '../runs';
 import { arrangeLayouts, LayoutDrawing } from './LayoutDrawing';
 
 /** How a job stands, in a few words, for lists. */
@@ -23,9 +24,13 @@ export function jobStatus(job: ProjectJob): string {
 }
 
 /** What a job found, for lists: the utilization and the material used, or so far. */
-export function jobFigures(job: ProjectJob, run: Run | undefined, unit: DisplayUnit) {
+export function jobFigures(
+  job: ProjectJob,
+  live: Schemas['Snapshot'] | undefined,
+  unit: DisplayUnit,
+) {
   const best =
-    job.stage === 'ended' ? job.document.outcome : job.stage === 'running' ? run?.best : undefined;
+    job.stage === 'ended' ? job.document.outcome : job.stage === 'running' ? live : undefined;
   if (!best) return undefined;
   const input = jobInput(job);
   const layouts = best.solution.layouts;
@@ -93,7 +98,7 @@ function JobRow({
 }) {
   const { unit, runner } = useStudio();
   const run = useRun(runner, job.stage === 'running' ? job.id : undefined);
-  const figures = jobFigures(job, run, unit);
+  const figures = jobFigures(job, run?.best, unit);
   return (
     <button
       className={selected ? 'row selected' : 'row'}
@@ -153,9 +158,10 @@ export function JobDot({ job }: { job: ProjectJob }) {
 /** The chosen job drawn: its layout, or the best so far while it runs. */
 function JobPreview({ job }: { job: ProjectJob }) {
   const { projectId, project, unit, runner } = useStudio();
-  const run = useRun(runner, job.stage === 'running' ? job.id : undefined);
+  // The best layout alone: the search moves on many times a second, the best less often.
+  const live = useBest(runner, job.stage === 'running' ? job.id : undefined);
   const input = jobInput(job);
-  const best = job.stage === 'ended' ? job.document.outcome : run?.best;
+  const best = job.stage === 'ended' ? job.document.outcome : live;
   const names = useMemo(() => new Map(Object.entries(job.names)), [job.names]);
   const drawn = useMemo(
     () => best && drawable(input, best.solution, names, best.stats),
@@ -166,19 +172,22 @@ function JobPreview({ job }: { job: ProjectJob }) {
     [drawn],
   );
   const [aspect, setAspect] = useState(4 / 3);
-  const stack =
-    drawn &&
-    arrangeLayouts(
-      drawn.job,
-      drawn.layouts,
-      drawn.layouts.map((layout) => layout.result.usedLengthMm),
-      aspect,
-    );
-  const figures = jobFigures(job, run, unit);
+  const stack = useMemo(
+    () =>
+      drawn &&
+      arrangeLayouts(
+        drawn.job,
+        drawn.layouts,
+        drawn.layouts.map((layout) => layout.result.usedLengthMm),
+        aspect,
+      ),
+    [drawn, aspect],
+  );
+  const figures = jobFigures(job, live, unit);
   const onSheets = input.problem.type === 'minimize_sheets_in_order';
   const [x0, y0, x1, y1] = stack?.extent ?? [0, 0, 1000, 600];
   const pad = Math.max(x1 - x0, y1 - y0) * 0.05;
-  const stale = isStale(project, input);
+  const stale = useMemo(() => isStale(project, input), [project, input]);
   return (
     <section className="job-preview" aria-label={`Job #${job.number}`}>
       <div className="preview-head">

@@ -6,7 +6,7 @@ import { useStudio } from './context';
 import { Dialog } from './Dialog';
 import { formatLength, formatSeconds, formatWhen } from './format';
 import { go, href, type JobView } from './route';
-import { useRun } from './runs';
+import { useRun, useSubmitting } from './runs';
 import { jobNote } from './views/JobsView';
 import { LiveView } from './views/LiveView';
 import { SolutionView, type SolvedJob } from './views/SolutionView';
@@ -33,6 +33,7 @@ function useCredits(job: ProjectJob | undefined) {
 /** One job of the project: live while it runs, its result once it ended, and its inputs. */
 export function JobPage({ number, view }: { number: number; view: JobView }) {
   const { projectId, project, runner, startRun, removeJob } = useStudio();
+  const submitting = useSubmitting(runner, projectId);
   const job = project.jobs.find((job) => job.number === number);
   const run = useRun(runner, job?.stage === 'running' ? job.id : undefined);
   const credits = useCredits(job);
@@ -94,8 +95,8 @@ export function JobPage({ number, view }: { number: number; view: JobView }) {
           <a className="button small" href={href({ page: 'project', id: projectId, tab: 'parts' })}>
             Open project
           </a>
-          <button className="small" onClick={startRun}>
-            Run the project now
+          <button className="small" disabled={submitting} onClick={startRun}>
+            {submitting ? 'Starting…' : 'Run the project now'}
           </button>
         </div>
       )}

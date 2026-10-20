@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
-import { newProject, type ProjectDocument } from '../project/model';
+import { newProject, runningJobs, type ProjectDocument } from '../project/model';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import { backend, client, usesSparrowPro } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
@@ -18,7 +18,7 @@ import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
 import { isProjectLimit } from './projects';
 import { go, href, useRoute } from './route';
-import { createRunner } from './runs';
+import { createRunner, useSubmitting } from './runs';
 import {
   createWorkspace,
   entryName,
@@ -121,17 +121,17 @@ export default function App() {
     };
   }, []);
   const unsaved = state.status === 'ready' && workspace.unsaved();
-  // Jobs in this browser end with the page.
-  const localRuns = useSyncExternalStore(
+  // Jobs in this browser end with the page, and a job being submitted could be lost with it.
+  const leaving = useSyncExternalStore(
     runner.subscribe,
-    () => !usesSparrowPro && runner.running(),
+    () => runner.pending() || (!usesSparrowPro && runner.running()),
   );
   useEffect(() => {
-    if (!unsaved && !localRuns) return;
+    if (!unsaved && !leaving) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [unsaved, localRuns]);
+  }, [unsaved, leaving]);
 
   const entry = route.page === 'home' ? undefined : workspace.find(route.id);
   const open = entry?.status === 'open' ? entry : undefined;
@@ -379,6 +379,7 @@ export default function App() {
 /** Whether the project's edits are saved, and a way to load it again when another tab changed it. */
 function SaveState({ entry }: { entry: OpenEntry }) {
   const { save } = entry;
+  const submitting = useSubmitting(runner, entry.id);
   const label = {
     saved: `Saved ${backend.saves}`,
     saving: 'Saving…',
@@ -395,7 +396,12 @@ function SaveState({ entry }: { entry: OpenEntry }) {
         · {label}
       </span>
       {save.state === 'conflict' && (
-        <button className="small" onClick={() => void workspace.reload(entry.id)}>
+        <button
+          className="small"
+          // Reloading while a job is submitted would leave it nowhere to be recorded.
+          disabled={submitting}
+          onClick={() => void workspace.reload(entry.id)}
+        >
           Reload
         </button>
       )}
@@ -414,6 +420,7 @@ function DeleteDialog({
   onClose: () => void;
 }) {
   const jobs = entry.status === 'open' ? entry.history.present.jobs.length : 0;
+  const running = entry.status === 'open' ? runningJobs(entry.history.present).length : 0;
   return (
     <Dialog
       title="Delete project"
@@ -430,6 +437,7 @@ function DeleteDialog({
       <p>
         Delete <strong>{entryName(entry)}</strong>
         {jobs > 0 && ` and its ${jobs === 1 ? 'job' : `${jobs} jobs`}`}? This cannot be undone.
+        {running > 0 && ` Its running ${running === 1 ? 'job is' : 'jobs are'} stopped.`}
       </p>
     </Dialog>
   );
