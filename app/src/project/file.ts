@@ -1,4 +1,4 @@
-import { normalizePart } from '../engine/geometry/normalize';
+import { isSimpleRing, normalizePart } from '../engine/geometry/normalize';
 import { outline, polygonShape } from '../engine/geometry/contour';
 import type { Ring } from '../engine/model';
 import {
@@ -51,7 +51,12 @@ export function parseProject(stored: unknown): ProjectDocument {
       (sheet.defects !== undefined &&
         !(
           Array.isArray(sheet.defects) &&
-          sheet.defects.every((defect) => isRecord(defect) && drawable({ outer: defect }))
+          sheet.defects.every(
+            (defect) =>
+              isRecord(defect) &&
+              drawable({ outer: defect }) &&
+              (defect.type !== 'polygon' || isSimpleRing(defect.points as Ring)),
+          )
         ))
     )
       return fail('invalid sheet.');

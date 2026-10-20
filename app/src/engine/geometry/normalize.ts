@@ -30,6 +30,15 @@ export function ringCrosses(a: Ring, b: Ring) {
   if (aa[2] < bb[0] || bb[2] < aa[0] || aa[3] < bb[1] || bb[3] < aa[1]) return false;
   return a.some((p,i) => b.some((q,j) => intersects(p,a[(i+1)%a.length],q,b[(j+1)%b.length])));
 }
+/** Whether a ring is a valid polygon of the job format: three corners or more, an area, and no crossing edges. */
+export function isSimpleRing(ring: Ring): boolean {
+  if (ring.length < 3 || Math.abs(area(ring)) <= 1e-10) return false;
+  for (let i=0;i<ring.length;i++) for (let j=i+1;j<ring.length;j++) {
+    if (j === i+1 || (i === 0 && j === ring.length-1)) continue;
+    if (intersects(ring[i],ring[(i+1)%ring.length],ring[j],ring[(j+1)%ring.length])) return false;
+  }
+  return true;
+}
 export function normalizeRing(value: unknown): Ring {
   if (!Array.isArray(value) || value.length > LIMITS.verticesPerPart + 1) throw Error('Contour exceeds 5,000 vertices or is not an array.');
   const ring: Ring = [];

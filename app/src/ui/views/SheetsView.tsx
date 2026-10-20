@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useState } from 'react';
 import { flattenContour, outline, type Contour } from '../../engine/geometry/contour';
-import { bounds } from '../../engine/geometry/normalize';
+import { bounds, isSimpleRing } from '../../engine/geometry/normalize';
 import { netArea } from '../../engine/geometry/world';
 import { LIMITS, newId, type Point } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
@@ -50,8 +50,11 @@ const updateSheet = (
 export function SheetsView() {
   const { project, edit } = useStudio();
   const packing = project.stock.packing;
-  const [selected, setSelected] = useState<string>();
-  const [tool, setTool] = useState<Tool>();
+  const [chosen, setSelected] = useState<string>();
+  const [held, setTool] = useState<Tool>();
+  // A sheet that is gone, such as after undo, is no longer selected, nor drawn on.
+  const selected = project.stock.sheets.some((sheet) => sheet.id === chosen) ? chosen : undefined;
+  const tool = selected ? held : undefined;
   // Choosing another sheet puts the tool down.
   const selection: Selection = {
     selected,
@@ -470,7 +473,7 @@ function describeDefect(defect: Contour, unit: DisplayUnit): string {
 type Draft = { from?: Point; corners: Point[]; at?: Point };
 
 function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
-  const { project, edit } = useStudio();
+  const { project, edit, showError } = useStudio();
   const sheets = project.stock.sheets;
   const arrangement = useMemo(() => arrangeSheets(sheets), [sheets]);
   const [draft, setDraft] = useState<Draft>({ corners: [] });
@@ -525,12 +528,16 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
             move: (point) => setDraft((d) => ({ ...d, at: local(point) })),
             up: (point) => setDraft((d) => ({ ...d, corners: [...d.corners, local(point)] })),
             double: () => {
-              // A double-click also clicked twice: the corner it added twice counts once.
-              const corners = draft.corners.filter(
-                (p, i, all) => i === 0 || p[0] !== all[i - 1][0] || p[1] !== all[i - 1][1],
-              );
+              // A double-click clicked twice: its second click added a corner too many.
+              const corners = draft.corners
+                .slice(0, -1)
+                .filter((p, i, all) => i === 0 || p[0] !== all[i - 1][0] || p[1] !== all[i - 1][1]);
               setDraft({ corners: [] });
-              if (corners.length >= 3) add({ type: 'polygon', points: corners });
+              if (isSimpleRing(corners)) add({ type: 'polygon', points: corners });
+              else
+                showError(
+                  'A freeform defect needs three corners or more, and its edges must not cross. Draw it again.',
+                );
             },
           }
       : undefined;

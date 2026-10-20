@@ -252,6 +252,16 @@ describe('project document', () => {
       problem.type === 'minimize_sheets_in_order' && problem.sheets.map((s) => s.defects),
     ).toEqual([[flaw], undefined]);
     expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
+    const crossing = [
+      [0, 0],
+      [100, 100],
+      [0, 100],
+      [100, 0],
+    ];
+    const crossed = { ...plate, defects: [{ type: 'polygon', points: crossing }] };
+    expect(() =>
+      parseProject({ ...project, stock: { ...project.stock, sheets: [crossed] } }),
+    ).toThrow('invalid sheet');
     const broken = { ...plate, defects: [{ type: 'polygon', points: [[0, 0]] }] };
     expect(() =>
       parseProject({ ...project, stock: { ...project.stock, sheets: [broken] } }),
