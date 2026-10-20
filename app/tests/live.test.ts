@@ -26,3 +26,12 @@ it('keeps other live overlaps when one clip fails',()=>{
     expect(live.errors).toEqual([`Copies ${part.id}:0 and ${part.id}:1: synthetic clip failure`]);
   } finally { clip.mockRestore(); }
 });
+
+it('leaves a part inside another part\'s hole unmarked',()=>{
+  const frame={...newPart(polygonShape([[0,0],[30,0],[30,30],[0,30]],[[[10,10],[10,20],[20,20],[20,10]]]))};
+  const small=newPart(polygonShape([[0,0],[5,0],[5,5],[0,5]]));
+  const doc={name:'Holes',parts:[frame,small],settings:DEFAULT_SETTINGS};
+  const result:Result={usedLengthMm:30,placements:[{partId:frame.id,copyIndex:0,xMm:0,yMm:0,angleDeg:0},{partId:small.id,copyIndex:0,xMm:12,yMm:12,angleDeg:0}]};
+  expect(liveGeometry(doc,result).overlaps).toEqual([]);
+  result.placements[1].xMm=8;expect(liveGeometry(doc,result).overlaps).toHaveLength(1);
+});

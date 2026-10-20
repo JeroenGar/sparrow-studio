@@ -46,10 +46,12 @@ export function PartsView() {
   const rows = useRef(new Map<string, HTMLElement>());
   // Draw and list parts with their effective settings; ask the stored part whether a setting is its own.
   const parts = useMemo(() => resolvedParts(project), [project]);
+  const stored = (id: string) => project.parts.find((part) => part.id === id);
   const differs = (id: string) => {
-    const part = project.parts.find((stored) => stored.id === id);
+    const part = stored(id);
     return !!part && differsFromDefaults(part);
   };
+  const ownRotations = (id: string) => stored(id)?.rotations !== undefined;
   const arrangement = useMemo(() => arrangeParts(parts), [parts]);
   const chosen = parts.find((part) => part.id === selected);
 
@@ -175,7 +177,7 @@ export function PartsView() {
                 part={parts.find((part) => part.id === menu.partId)}
                 onClose={() => setMenu(undefined)}
                 onQuantity={setQuantity}
-                differs={menu && differs(menu.partId)}
+                ownRotations={ownRotations(menu.partId)}
                 defaultRule={project.partDefaults.rotations}
                 onRotation={(part, rule) => setSetting(part.id, 'rotations', rule)}
                 onProperties={(part) => {
@@ -192,6 +194,7 @@ export function PartsView() {
           <PartsDrawing
             parts={parts}
             differs={differs}
+            ownRotations={ownRotations}
             arrangement={arrangement}
             upp={upp}
             selected={selected}
@@ -638,6 +641,7 @@ function DefaultsPanel() {
 function PartsDrawing({
   parts,
   differs,
+  ownRotations,
   arrangement,
   upp,
   selected,
@@ -647,6 +651,7 @@ function PartsDrawing({
 }: {
   parts: ResolvedPart[];
   differs: (id: string) => boolean;
+  ownRotations: (id: string) => boolean;
   arrangement: ReturnType<typeof arrangeParts>;
   upp: number;
   selected?: string;
@@ -668,7 +673,7 @@ function PartsDrawing({
         // it fades in from 30 px and is fully drawn at 60 px.
         const detail = Math.max(0, Math.min(1, (size / upp - 30) / 30));
         const grain =
-          differs(part.id) &&
+          ownRotations(part.id) &&
           detail > 0 &&
           grainPaths(part.rotations, (box[0] + box[2]) / 2, -(box[1] + box[3]) / 2, size * 0.45);
         return (
@@ -791,7 +796,7 @@ function PartMenu({
   part,
   onClose,
   onQuantity,
-  differs,
+  ownRotations,
   defaultRule,
   onRotation,
   onProperties,
@@ -801,7 +806,8 @@ function PartMenu({
   part?: Part;
   onClose: () => void;
   onQuantity: (part: Part, quantity: number) => void;
-  differs?: boolean;
+  /** Whether the part has rotations of its own, rather than the default. */
+  ownRotations: boolean;
   defaultRule: RotationRule;
   onRotation: (part: Part, rule: RotationRule | 'default') => void;
   onProperties: (part: Part) => void;
@@ -839,7 +845,7 @@ function PartMenu({
       <label className="field">
         Rotations
         <select
-          value={differs ? kind : 'default'}
+          value={ownRotations ? kind : 'default'}
           onChange={(event) => {
             const next = event.target.value as Exclude<RotationKind, 'custom'> | 'default';
             onRotation(part, next === 'default' ? 'default' : rotationRule(next));
@@ -851,7 +857,7 @@ function PartMenu({
               {ROTATION_LABELS[option]}
             </option>
           ))}
-          {kind === 'custom' && differs && (
+          {kind === 'custom' && ownRotations && (
             <option value="custom" disabled>
               {ROTATION_LABELS.custom}
             </option>
