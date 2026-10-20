@@ -1,11 +1,14 @@
 import type { Job, Result, Sheet } from '../model';
 import type { ImportReview } from '../import/sparrow';
+import type { Role } from '../import/drawing';
 import type { ExportBundle } from '../export/svg';
 import type { LiveGeometry } from '../geometry/live';
 export type Identity = { runId: number; documentRevision: number };
 export type ImportFile = { name: string; text: string };
 export type GeometryRequest = Identity & (
-  | { type:'import'; files:ImportFile[]; scale:number; tolerance?:number; enclosed?:'holes'|'parts'; layers?:string[]; curves?:'keep'|'flatten' }
+  // Drawings are read by the roles of their layers: those given, else suggested, with `kind` for
+  // layers whose names say nothing; identical outlines merge unless `merge` is false.
+  | { type:'import'; files:ImportFile[]; scale:number; tolerance?:number; curves?:'keep'|'flatten'; kind?:'parts'|'sheets'; roles?:Record<string,Role>; merge?:boolean }
   | { type:'export'; document:Job; result:Result; utilization:number; sheet?:Sheet }
   // One result per layout: parts on different sheets never overlap.
   | { type:'live-preview'; sequence:number; document:Job; results:Result[] }

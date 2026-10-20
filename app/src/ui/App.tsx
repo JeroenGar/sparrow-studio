@@ -551,41 +551,32 @@ function StudioShell({
         <ImportFilesDialog
           kind={dialog.kind}
           onClose={() => setDialog(undefined)}
-          onAdd={(parts, widthMm) => {
-            if (dialog.kind === 'sheets') {
-              // Each outline is a sheet entry, in stock as often as the file says.
-              edit((current) => ({
-                ...current,
-                stock: {
-                  ...current.stock,
-                  sheets: [
-                    ...current.stock.sheets,
-                    ...parts.map((part) => ({
-                      id: newId(),
-                      name: part.name,
-                      shape: part.shape,
-                      quantity: part.quantity,
-                    })),
-                  ],
-                },
-              }));
-              setDialog(undefined);
-              return;
-            }
+          onAdd={(parts, sheets, widthMm) => {
             edit((previous) => {
               const current = addParts(
                 previous,
                 parts.map((part) => ({ ...part, id: newId() })),
               );
+              const added = sheets.map((sheet) => ({
+                id: newId(),
+                name: sheet.name,
+                shape: sheet.shape,
+                quantity: sheet.quantity,
+                ...(sheet.defects.length && { defects: sheet.defects }),
+              }));
               return {
                 ...current,
-                stock: widthMm
-                  ? { ...current.stock, strip: { ...current.stock.strip, widthMm } }
-                  : current.stock,
+                stock: {
+                  ...current.stock,
+                  // Sheets imported are sheets to nest into.
+                  ...(added.length && { packing: 'sheets' as const }),
+                  strip: widthMm ? { ...current.stock.strip, widthMm } : current.stock.strip,
+                  sheets: [...current.stock.sheets, ...added],
+                },
               };
             });
             setDialog(undefined);
-            setTab('parts');
+            setTab(parts.length || !sheets.length ? 'parts' : 'sheets');
           }}
         />
       )}

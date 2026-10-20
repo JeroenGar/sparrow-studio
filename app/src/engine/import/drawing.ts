@@ -43,6 +43,28 @@ export type ImportedSheet = { name: string; shape: Shape; quantity: number; defe
 export const defaultRoles = (layers: string[]): Record<string, Role> =>
   Object.fromEntries(layers.map((layer) => [layer, layer === SHEET_LAYER ? 'ignored' : 'parts']));
 
+/** Words in layer names that say what a layer holds, in the order they are tried. */
+const ROLE_WORDS: [RegExp, Role][] = [
+  [/defect|flaw|damage|clamp|keep.?out|exclu/i, 'defects'],
+  [/cutting.?line|text|dim|note|annot|label|title|border|frame|offcut|remnant.?line|viewport/i, 'ignored'],
+  [/sheet|plate|stock|material|blank|remnant|hide|bin/i, 'sheets'],
+];
+
+/**
+ * Roles to start an import with: from the layer's name where it says what the layer holds, such
+ * as "Sheet" or "Defects"; otherwise `fallback`, the kind of content the import was opened for.
+ */
+export function suggestRoles(layers: string[], fallback: 'parts' | 'sheets'): Record<string, Role> {
+  return Object.fromEntries(
+    layers.map((layer) => [
+      layer,
+      layer === SHEET_LAYER && fallback === 'parts'
+        ? 'ignored'
+        : (ROLE_WORDS.find(([words]) => words.test(layer))?.[1] ?? fallback),
+    ]),
+  );
+}
+
 type Kept = Outline & { ring: Ring };
 type Item = { outline: Kept; holes: Kept[] };
 
@@ -241,5 +263,9 @@ export function review(
     warnings: drawing.warnings,
     issues,
     layers: drawing.layers,
+    roles,
+    outlines: Object.fromEntries(
+      drawing.layers.map((layer) => [layer, drawing.outlines.filter((o) => o.layer === layer).length]),
+    ),
   };
 }

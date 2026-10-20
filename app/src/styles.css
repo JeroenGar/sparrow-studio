@@ -798,6 +798,21 @@ input[aria-invalid='true'] {
 .order-arrow {
   stroke: var(--muted);
 }
+.layer-roles {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 6px 16px;
+}
+.layer-roles legend,
+.layer-roles > .muted {
+  grid-column: 1 / -1;
+}
+.layer-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
 .defect-row {
   display: flex;
   align-items: center;

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { classify, congruent, type Drawing, type Outline } from '../src/engine/import/drawing';
+import {
+  classify,
+  congruent,
+  suggestRoles,
+  type Drawing,
+  type Outline,
+} from '../src/engine/import/drawing';
 import { polygon } from '../src/engine/geometry/contour';
 import { outline } from '../src/engine/geometry/contour';
 import type { Ring } from '../src/engine/model';
@@ -100,5 +106,19 @@ describe('importing a drawing', () => {
       { CUT: 'parts', Notes: 'ignored' },
     );
     expect([parts.length, sheets.length]).toEqual([1, 0]);
+  });
+
+  it('suggests roles from layer names, else the kind of content asked for', () => {
+    expect(
+      suggestRoles(['CUT', 'Sheet', 'Offcut', 'CuttingLine', 'Defects', '0'], 'parts'),
+    ).toEqual({
+      CUT: 'parts',
+      Sheet: 'sheets',
+      Offcut: 'ignored',
+      CuttingLine: 'ignored',
+      Defects: 'defects',
+      '0': 'parts',
+    });
+    expect(suggestRoles(['0'], 'sheets')).toEqual({ '0': 'sheets' });
   });
 });
