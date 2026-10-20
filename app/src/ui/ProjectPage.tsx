@@ -4,6 +4,7 @@ import {
   addParts,
   copyCount,
   INPUT_TABS,
+  jobInput,
   runningJobs,
   startBlockers,
   unseenTabs,
@@ -14,7 +15,8 @@ import type { Preferences } from '../project/preferences';
 import { StudioContext, type Studio, type Tab } from './context';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
 import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
-import { projectFromJob } from '../project/solution';
+import { parseProject, serializeProject } from '../project/file';
+import { isStale, projectFromJob } from '../project/solution';
 import { explain } from './explain';
 import { JobPage } from './JobPage';
 import { go, href, type JobView } from './route';
@@ -94,7 +96,17 @@ export function ProjectPage({
     (number: number) => {
       const job = project.jobs.find((job) => job.number === number);
       if (!job) return;
-      workspace.create(projectFromJob(project, job)).then(
+      // A job from a project file may ask what a project cannot hold, such as locked placements.
+      let copy: ProjectDocument;
+      try {
+        copy = parseProject(JSON.parse(serializeProject(projectFromJob(project, job))));
+        if (isStale(copy, jobInput(job)))
+          throw Error('it asks for more than a project can hold, such as locked placements.');
+      } catch (reason) {
+        showError(`This job's inputs cannot become a project: ${explain(reason)}`);
+        return;
+      }
+      workspace.create(copy).then(
         (copy) => go({ page: 'project', id: copy, tab: 'parts' }),
         (reason) => showError(explain(reason)),
       );

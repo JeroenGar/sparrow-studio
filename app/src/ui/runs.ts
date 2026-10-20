@@ -11,6 +11,7 @@ import {
 } from '../project/model';
 import { projectRequest } from '../project/solution';
 import { explain } from './explain';
+import { patiently } from './patiently';
 import type { Workspace } from './workspace';
 
 /** A job being followed live: what was asked, and what has come back so far. */
@@ -168,23 +169,28 @@ export function createRunner(client: Client, workspace: Workspace) {
   workspace.subscribe(() => {
     const state = workspace.get();
     if (state.status !== 'ready') return;
-    const held = new Set<string>();
+    const holders = new Map<string, string[]>();
+    // Projects loading again, or failing to, may still hold the jobs followed for them.
+    const unknown = new Set<string>();
     for (const entry of state.projects) {
-      // A project loading again, or failing to, may still hold the jobs followed for it.
       if (entry.status !== 'open') {
-        for (const [jobId, run] of runs) if (run.projectId === entry.id) held.add(jobId);
+        unknown.add(entry.id);
         continue;
       }
       for (const job of runningJobs(entry.history.present)) {
-        held.add(job.id);
+        holders.set(job.id, [...(holders.get(job.id) ?? []), entry.id]);
         if (!runs.has(job.id)) void follow(entry.id, job.id, job.request, true);
       }
     }
-    for (const jobId of [...runs.keys()])
-      if (!held.has(jobId)) {
-        void client.stopJob(jobId).catch(() => {});
+    for (const [jobId, run] of [...runs]) {
+      const held = holders.get(jobId);
+      // A job a project file opened twice holds is followed for a project that holds it still.
+      if (held && !held.includes(run.projectId)) runs.set(jobId, { ...run, projectId: held[0] });
+      else if (!held && !unknown.has(run.projectId)) {
+        void patiently(() => client.stopJob(jobId)).catch(() => {});
         forget(jobId);
       }
+    }
   });
 
   return {

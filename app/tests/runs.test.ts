@@ -100,10 +100,20 @@ describe('the runner', () => {
     await until(() => project(first).jobs[0].stage === 'ended');
     await until(() => project(second).jobs[0].stage === 'ended');
 
+    // With the first project deleted, the job stays followed for the second, also while it reloads.
     await runner.start(first);
-    const jobId = project(first).jobs[1].id!;
-    expect(runner.get(jobId)).toBeDefined();
+    const shared = project(first).jobs[1].id!;
+    const third = await workspace.create(project(first));
     await workspace.remove(first);
+    expect(runner.get(shared)?.projectId).toBe(third);
+    await workspace.reload(third);
+    await until(() => project(third).jobs[1].stage === 'ended');
+    const id = await workspace.create(addParts(newProject('Again'), [square()]));
+
+    await runner.start(id);
+    const jobId = project(id).jobs[0].id!;
+    expect(runner.get(jobId)).toBeDefined();
+    await workspace.remove(id);
     expect(runner.get(jobId)).toBeUndefined();
   });
 

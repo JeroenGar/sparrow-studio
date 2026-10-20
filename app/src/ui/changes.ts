@@ -1,5 +1,6 @@
 import type { Input } from '../api/client';
 import type { DisplayUnit } from '../engine/units';
+import { canonical, normalInput } from '../project/solution';
 import { formatLength } from './format';
 
 const SHOWN = 3;
@@ -10,16 +11,19 @@ const SHOWN = 3;
  * parts and sheets, by ID.
  */
 export function describeChanges(
-  before: Input,
-  now: Input,
+  asked: Input,
+  current: Input,
   names: (id: string) => string,
   unit: DisplayUnit,
 ): string[] {
+  // As they ask, however each was written.
+  const before = normalInput(asked);
+  const now = normalInput(current);
   const changes: string[] = [];
   const length = (mm: number) => `${formatLength(mm, unit, 3)} ${unit}`;
   const copies = (n: number) => `${n} ${n === 1 ? 'copy' : 'copies'}`;
   const geometry = (input: Input) =>
-    new Map(input.geometries.map((g) => [g.id, JSON.stringify(g.shape)]));
+    new Map(input.geometries.map((g) => [g.id, canonical(g.shape)]));
   const shapes = { before: geometry(before), now: geometry(now) };
 
   /** The items added, removed and changed, by ID, with how many there are of each. */
@@ -46,8 +50,7 @@ export function describeChanges(
       const { quantity: _p, ...previousRest } = previous;
       if (
         shapes.before.get(previous.geometry_id) !== shapes.now.get(item.geometry_id) ||
-        JSON.stringify({ ...rest, geometry_id: '' }) !==
-          JSON.stringify({ ...previousRest, geometry_id: '' })
+        canonical({ ...rest, geometry_id: '' }) !== canonical({ ...previousRest, geometry_id: '' })
       )
         changes.push(`${names(item.id)} changed`);
     }

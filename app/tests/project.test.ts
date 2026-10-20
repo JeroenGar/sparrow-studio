@@ -242,6 +242,36 @@ describe('project document', () => {
     expect(copy.jobs).toEqual([]);
   });
 
+  it('compares inputs by what they ask, however each was written', () => {
+    const project = addParts(newProject('Shop'), [{ ...square(10, 4), name: 'Plate' }]);
+    const input = projectInput(project);
+    const [part] = input.parts;
+    // The API may write out its defaults, and its keys in another order.
+    const written = {
+      ...input,
+      parts: [
+        {
+          quantity: part.quantity,
+          orientation: { reflection: ['none' as const], rotation: part.orientation.rotation },
+          id: part.id,
+          geometry_id: part.geometry_id,
+          hole_mode: part.hole_mode,
+        },
+      ],
+    };
+    expect(isStale(project, written)).toBe(false);
+    expect(describeChanges(written, input, () => 'Plate', 'mm')).toEqual([]);
+    // A part without a hole mode nests inside its holes, as the format says.
+    const { hole_mode: _, ...open } = part;
+    const job = addJob(
+      project,
+      'job_1',
+      { ...projectRequest(project), input: { ...input, parts: [open] } },
+      {},
+    ).jobs[0];
+    expect(projectFromJob(project, job).partDefaults.nestInHoles).toBe(true);
+  });
+
   it('says what changed since a job', () => {
     const project = addParts(newProject('Shop'), [
       { ...square(10, 4), name: 'Plate' },

@@ -112,7 +112,8 @@ export function projectFromJob(project: ProjectDocument, job: ProjectJob): Proje
       settings: {
         rotations,
         reflection: !!part.orientation.reflection?.includes('x_axis'),
-        nestInHoles: part.hole_mode === 'nestable',
+        // The format nests inside holes unless a part says otherwise.
+        nestInHoles: part.hole_mode !== 'solid',
       } satisfies PartSettings,
     };
   });
@@ -181,9 +182,49 @@ export function projectFromJob(project: ProjectDocument, job: ProjectJob): Proje
   };
 }
 
-/** Whether the project changed since a job of it, in anything its input holds. */
+/**
+ * An input with the format's defaults written out, so two inputs that ask the same compare the
+ * same however each was written.
+ */
+export function normalInput(input: Input): Input {
+  const problem = input.problem;
+  return {
+    ...input,
+    parts: input.parts.map((part) => ({
+      ...part,
+      hole_mode: part.hole_mode ?? 'nestable',
+      orientation: {
+        ...part.orientation,
+        reflection: [...(part.orientation.reflection ?? ['none'])].sort(),
+      },
+    })),
+    problem:
+      problem.type === 'minimize_sheets_in_order'
+        ? {
+            ...problem,
+            sheets: problem.sheets.map((sheet) => ({
+              ...sheet,
+              quantity: sheet.quantity ?? 1,
+              defects: sheet.defects ?? [],
+            })),
+            locked_parts: problem.locked_parts ?? [],
+          }
+        : problem,
+  };
+}
+
+/** A value as text with its keys in order, so the order they were written in does not count. */
+export function canonical(value: unknown): string {
+  return JSON.stringify(value, (_, inner) =>
+    inner && typeof inner === 'object' && !Array.isArray(inner)
+      ? Object.fromEntries(Object.entries(inner).sort(([a], [b]) => (a < b ? -1 : 1)))
+      : inner,
+  );
+}
+
+/** Whether the project changed since a job of it, in anything its input asks. */
 export const isStale = (project: ProjectDocument, input: Input) =>
-  JSON.stringify(projectInput(project)) !== JSON.stringify(input);
+  canonical(normalInput(projectInput(project))) !== canonical(normalInput(input));
 
 /** One layout as studio draws and exports it: its placements, and the sheet it lies on, if not the strip. */
 export type DrawnLayout = {
