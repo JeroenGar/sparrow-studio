@@ -206,7 +206,7 @@ describe('project document', () => {
 
   it('treats renamed projects and parts as the same job, and a quantity change as a new one', () => {
     const project = addParts(newProject('Job'), [square(10)]);
-    const document = { input: projectInput(project) } as Parameters<typeof isStale>[1];
+    const document = projectInput(project);
     expect(isStale({ ...project, name: 'Renamed' }, document)).toBe(false);
     expect(
       isStale({ ...project, parts: [{ ...project.parts[0], name: 'Bracket' }] }, document),

@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 import { worldParts, type WorldPart } from '../../engine/geometry/world';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { projectFileName } from '../../project/file';
-import { latestResult } from '../../project/model';
-import { drawable, isStale, sideBySide } from '../../project/solution';
+import type { ProjectJob } from '../../project/model';
+import { drawable, sideBySide } from '../../project/solution';
 import type { Result, Sheet } from '../../engine/model';
 import { Canvas } from '../Canvas';
 import { ProRow } from '../ProTag';
@@ -13,52 +13,49 @@ import { withKind } from '../../api/client';
 import { explainDiagnostic } from '../explain';
 import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
 import { serializeProject } from '../../project/file';
-import { RunBar } from '../RunBar';
 import { arrangeLayouts, LayoutDrawing, placementKey } from './LayoutDrawing';
 import { PartThumb } from './PartsView';
 
 type Format = 'svg' | 'dxf' | 'pdf';
 type Hover = { part: WorldPart; x: number; y: number };
 
-/** The names of the project's parts and sheet entries, by ID. */
-export function useNames() {
-  const { project } = useStudio();
-  return useMemo(
-    () =>
-      new Map(
-        [...project.parts, ...project.stock.sheets].map((item) => [item.id, item.name] as const),
-      ),
-    [project.parts, project.stock.sheets],
-  );
-}
+/** A job that completed with a layout. */
+export type SolvedJob = Extract<ProjectJob, { stage: 'ended' }> & {
+  document: {
+    outcome: NonNullable<Extract<ProjectJob, { stage: 'ended' }>['document']['outcome']>;
+  };
+};
 
-export function SolutionView() {
+/** A completed job's layouts, its figures, and its downloads. */
+export function SolutionView({
+  job: solution,
+  credits,
+}: {
+  job: SolvedJob;
+  /** What the job cost, from the account's record of it, when known. */
+  credits?: number;
+}) {
   const { project, unit, showError } = useStudio();
-  const solution = latestResult(project);
-  const document = solution?.document;
-  const outcome = document?.outcome;
+  const document = solution.document;
+  const outcome = document.outcome;
   const [highlight, setHighlight] = useState<string>();
   const [hover, setHover] = useState<Hover>();
   const [busy, setBusy] = useState<Format>();
   // The layout chosen in the list: the canvas zooms to it.
-  const [chosen, setChosen] = useState({ index: 0, serial: 0, solution: 0 });
+  const [chosen, setChosen] = useState({ index: 0, serial: 0 });
   // The names the parts and sheets had when the job started.
-  const names = useMemo(() => new Map(Object.entries(solution?.names ?? {})), [solution]);
+  const names = useMemo(() => new Map(Object.entries(solution.names)), [solution.names]);
   const drawn = useMemo(
-    () =>
-      document && outcome
-        ? drawable(document.input, outcome.solution, names, outcome.stats)
-        : undefined,
+    () => drawable(document.input, outcome.solution, names, outcome.stats),
     [document, outcome, names],
   );
   const worlds = useMemo(
-    () => drawn?.layouts.map((layout) => worldParts(drawn.job, layout.result)) ?? [],
+    () => drawn.layouts.map((layout) => worldParts(drawn.job, layout.result)),
     [drawn],
   );
   const [aspect, setAspect] = useState(4 / 3);
   const stack = useMemo(
     () =>
-      drawn &&
       arrangeLayouts(
         drawn.job,
         drawn.layouts,
@@ -67,37 +64,11 @@ export function SolutionView() {
       ),
     [drawn, aspect],
   );
-  const stale = useMemo(() => !!document && isStale(project, document), [document, project]);
-
-  if (!solution || !document || !outcome || !drawn || !stack)
-    return (
-      <div className="view">
-        <section className="list-panel" aria-label="Solution">
-          <div className="list-head">
-            <span className="label">Solution</span>
-          </div>
-          <div className="list-scroll">
-            <div className="empty">
-              <p>No solution yet.</p>
-              <p className="muted">
-                Start nesting. The best valid layout appears here when the run ends.
-              </p>
-            </div>
-          </div>
-          <RunBar />
-        </section>
-        <section className="explanation" aria-label="No solution" />
-      </div>
-    );
 
   const { job, layouts } = drawn;
   const { stats } = outcome;
   const onSheets = document.input.problem.type === 'minimize_sheets_in_order';
-  // A choice belongs to its solution: a new one starts at its first sheet.
-  const index =
-    chosen.solution === solution.number
-      ? Math.min(chosen.index, Math.max(0, layouts.length - 1))
-      : 0;
+  const index = Math.min(chosen.index, Math.max(0, layouts.length - 1));
   const layout = layouts[index];
   const waste = stats.consumed_area - stats.placed_area;
   const state = document.state;
@@ -135,7 +106,7 @@ export function SolutionView() {
         if (reply.type !== 'export-result') throw Error('Could not export the layout.');
         return reply.bundle;
       };
-      const name = projectFileName(project.name, format);
+      const name = projectFileName(`${project.name} #${solution.number}`, format);
       if (format === 'pdf') {
         const { exportPDF } = await import('../../engine/export/pdf');
         const pages = await Promise.all(
@@ -174,15 +145,19 @@ export function SolutionView() {
     layouts
       .flatMap((l) => l.result.placements)
       .find((p) => placementKey(p) === placementKey(hovered));
-  const choose = (i: number) =>
-    setChosen(({ serial }) => ({ index: i, serial: serial + 1, solution: solution.number }));
+  const choose = (i: number) => setChosen(({ serial }) => ({ index: i, serial: serial + 1 }));
 
   return (
     <div className="view">
       <section className="list-panel" aria-label="Solution">
         <div className="list-head">
-          <span className="label">Solution · #{solution.number}</span>
-          <span className="muted">{new Date(solution.submittedAt).toLocaleString()}</span>
+          <span className="label">
+            {state.status === 'completed' && state.termination === 'stopped'
+              ? 'Stopped'
+              : 'Finished'}{' '}
+            after {formatSeconds(state.status === 'completed' ? state.solver_seconds : 0)}
+            {credits !== undefined && ` · ${credits} ${credits === 1 ? 'credit' : 'credits'}`}
+          </span>
         </div>
         <div className="list-scroll">
           <div className="summary">
@@ -222,13 +197,6 @@ export function SolutionView() {
                 {placedCopies} parts
                 {unplacedCopies ? `, ${unplacedCopies} not placed` : ', all of them'}
               </dd>
-              <dt>Run</dt>
-              <dd>
-                {state.status === 'completed' && state.termination === 'stopped'
-                  ? 'Stopped'
-                  : 'Finished'}{' '}
-                after {formatSeconds(state.status === 'completed' ? state.solver_seconds : 0)}
-              </dd>
             </dl>
             {unplacedCopies > 0 && (
               <div className="notice warning">
@@ -258,12 +226,6 @@ export function SolutionView() {
                   ))}
                 </ul>
               </div>
-            )}
-            {stale && (
-              <p className="notice">
-                The parts or settings changed since this run. Start nesting again to update the
-                solution.
-              </p>
             )}
             <span className="label">Export solution</span>
             <div className="downloads">
@@ -337,14 +299,13 @@ export function SolutionView() {
             </button>
           </div>
         </div>
-        <RunBar />
       </section>
       <Canvas
         label="Solution layout"
         onAspect={setAspect}
         extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         focus={
-          chosen.solution === solution.number && stack.boxes[index]
+          chosen.serial > 0 && stack.boxes[index]
             ? { box: stack.boxes[index], key: `${index}:${chosen.serial}`, margin: 0.08 }
             : undefined
         }

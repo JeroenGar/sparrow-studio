@@ -72,7 +72,7 @@ export function SettingsView() {
           kept.
         </p>
         <p className="muted">
-          Settings apply to the next run. They do not change the current solution.
+          Settings apply to the next job. Jobs already started keep the settings they started with.
         </p>
       </Explanation>
     </div>

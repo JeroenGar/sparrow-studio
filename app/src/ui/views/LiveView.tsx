@@ -3,7 +3,7 @@ import type { Input, Schemas } from '../../api/client';
 import { worldParts } from '../../engine/geometry/world';
 import type { LiveGeometry } from '../../engine/geometry/live';
 import type { GeometryReply } from '../../engine/workers/protocol';
-import { activeMachine, copyCount, describeSheets, latestResult } from '../../project/model';
+import type { ProjectJob } from '../../project/model';
 import { drawable, type DrawnLayout } from '../../project/solution';
 import type { Job } from '../../engine/model';
 import type { Box } from '../../project/layout';
@@ -11,11 +11,9 @@ import { Canvas } from '../Canvas';
 import { backend, usesSparrowPro } from '../client';
 import { useStudio } from '../context';
 import { formatLength, formatPercent, formatSeconds } from '../format';
-import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
-import { elapsed, useNow, type Run } from '../useJob';
+import { elapsed, useNow, type Run } from '../runs';
 import { arrangeLayouts, LayoutDrawing } from './LayoutDrawing';
-import { useNames } from './SolutionView';
 import { explainJobError } from '../explain';
 
 /**
@@ -131,14 +129,25 @@ const union = (a: Box, b: Box): Box => [
   Math.max(a[3], b[3]),
 ];
 
-export function LiveView() {
-  const { run, unit, running, project, setTab } = useStudio();
+/**
+ * A running job, live: its best valid layout so far, or the layout the search is working on.
+ * `run` is how far following it got, absent before it is followed.
+ */
+export function LiveView({
+  job,
+  run,
+}: {
+  job: Extract<ProjectJob, { stage: 'running' }>;
+  run?: Run;
+}) {
+  const { unit, runner } = useStudio();
+  const running = !!run && !run.error;
   const [mode, setMode] = useState<'live' | 'best'>('live');
-  const names = useNames();
-  const input = run?.request.input;
+  // The names the parts and sheets had when the job started.
+  const names = useMemo(() => new Map(Object.entries(job.names)), [job.names]);
+  const input = job.request.input;
   const best = useMemo(
-    () =>
-      input && run?.best ? drawable(input, run.best.solution, names, run.best.stats) : undefined,
+    () => (run?.best ? drawable(input, run.best.solution, names, run.best.stats) : undefined),
     [input, run?.best, names],
   );
   const frame = useSearchFrame(running ? input : undefined, run?.search, names);
@@ -149,11 +158,8 @@ export function LiveView() {
   );
   const shown = showLive ? frame : best;
   const worlds = showLive ? frame.geometry.map((geometry) => geometry.world) : bestWorlds;
-  const onSheets = input?.problem.type === 'minimize_sheets_in_order';
-  const strip =
-    input?.problem.type === 'minimize_strip_length'
-      ? input.problem.height
-      : project.stock.strip.widthMm;
+  const onSheets = input.problem.type === 'minimize_sheets_in_order';
+  const strip = input.problem.type === 'minimize_strip_length' ? input.problem.height : 1000;
   // A live layout may overlap and is not cut yet: the strip reaches to its rightmost part.
   const lengths =
     shown?.layouts.map((layout, i) =>
@@ -165,7 +171,7 @@ export function LiveView() {
   const stack = shown && arrangeLayouts(shown.job, shown.layouts, lengths, aspect);
   // Keep the view still while the layout shrinks: fit to everything this run has shown.
   const seen = useRef<{ request?: unknown; extent?: Box }>({});
-  if (seen.current.request !== run?.request) seen.current = { request: run?.request };
+  if (seen.current.request !== job.request) seen.current = { request: job.request };
   if (stack?.boxes.length)
     seen.current.extent = seen.current.extent
       ? union(seen.current.extent, stack.extent)
@@ -183,20 +189,18 @@ export function LiveView() {
 
   return (
     <div className="view">
-      <section className="list-panel" aria-label="Run progress">
+      <section className="list-panel" aria-label="Progress">
         <div className="list-head">
-          <span className="label">{run ? status(run) : 'Next run'}</span>
+          <span className="label">{run ? status(run) : 'Following the job…'}</span>
           {running && <span className="muted">{backend.solves}</span>}
         </div>
         <div className="list-scroll">
-          {!run ? (
-            <NextRun onSolution={latestResult(project) ? () => setTab('solution') : undefined} />
-          ) : (
+          {run && (
             <div className="summary">
               <div className="metrics">
                 <div className="metric">
                   <span className="metric-value">
-                    {run?.best ? formatPercent(run.best.stats.density * 100) : '—'}
+                    {run.best ? formatPercent(run.best.stats.density * 100) : '—'}
                   </span>
                   <span className="muted">utilization</span>
                 </div>
@@ -219,11 +223,6 @@ export function LiveView() {
               <RunClock run={run} running={running} />
               {run.history.length > 1 && <LiveChart run={run} running={running} />}
               {failure && <p className="field-error">{failure}</p>}
-              {!running && best && latestResult(project) && (
-                <button className="primary" onClick={() => setTab('solution')}>
-                  Show the solution
-                </button>
-              )}
               <p className="muted">
                 Solved {backend.solves}
                 {reduced
@@ -234,7 +233,27 @@ export function LiveView() {
             </div>
           )}
         </div>
-        <RunBar />
+        <div className="run-bar">
+          {run?.error ? (
+            <>
+              <button className="primary" onClick={() => runner.reconnect(job.id)}>
+                Reconnect
+              </button>
+              <span className="muted">The job may still be running. Reconnect to follow it.</span>
+            </>
+          ) : (
+            <>
+              <button
+                className="primary"
+                disabled={!running || run.stopping}
+                onClick={() => runner.stop(job.id)}
+              >
+                {run?.stopping ? 'Stopping…' : 'Stop'}
+              </button>
+              <span className="muted">Stopping keeps the best valid layout so far.</span>
+            </>
+          )}
+        </div>
       </section>
       <Canvas
         label="Live layout"
@@ -283,55 +302,6 @@ export function LiveView() {
           ))
         }
       </Canvas>
-    </div>
-  );
-}
-
-/** What the next run will solve, shown before the first run of this session. */
-function NextRun({ onSolution }: { onSolution?: () => void }) {
-  const { project, unit } = useStudio();
-  const settings = project.settings;
-  const machine = activeMachine(project);
-  return (
-    <div className="summary">
-      <p className="muted">Start nesting from any tab. Progress shows here while sparrow works.</p>
-      <dl className="facts">
-        <dt>Parts</dt>
-        <dd>
-          {project.parts.length} types, {copyCount(project.parts)} copies
-        </dd>
-        {project.stock.packing === 'sheets' ? (
-          <>
-            <dt>Sheets</dt>
-            <dd>{describeSheets(project)}</dd>
-          </>
-        ) : (
-          <>
-            <dt>Strip</dt>
-            <dd>
-              {formatLength(project.stock.strip.widthMm, unit)} {unit} wide
-            </dd>
-          </>
-        )}
-        <dt>Gap</dt>
-        <dd>
-          {formatLength(machine.gapMm, unit, 3)} {unit} · {machine.name}
-        </dd>
-        {machine.boundaryMm !== undefined && (
-          <>
-            <dt>Edge</dt>
-            <dd>
-              {formatLength(machine.boundaryMm, unit, 3)} {unit} to the edge of the material
-            </dd>
-          </>
-        )}
-        <dt>Stops</dt>
-        <dd>
-          after {formatSeconds(settings.timeLimitSeconds)} at most
-          {settings.autoTermination ? ', or once it stops improving' : ''}
-        </dd>
-      </dl>
-      {onSolution && <button onClick={onSolution}>Show the saved solution</button>}
     </div>
   );
 }

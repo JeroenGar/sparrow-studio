@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
 import { newProject, type ProjectDocument } from '../project/model';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
-import { backend, client } from './client';
+import { backend, client, usesSparrowPro } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
 import { NameDialog } from './dialogs/NameDialog';
@@ -18,6 +18,7 @@ import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
 import { isProjectLimit } from './projects';
 import { go, href, useRoute } from './route';
+import { createRunner } from './runs';
 import {
   createWorkspace,
   entryName,
@@ -28,8 +29,9 @@ import {
 
 const FIRST_EXAMPLE = 'albano.json';
 
-/** Every project of the account, loaded once at startup. */
+/** Every project of the account, loaded once at startup, and the jobs running for them. */
 const workspace = createWorkspace(client);
+const runner = createRunner(client, workspace);
 
 type Dialogs =
   | { type: 'new' }
@@ -119,14 +121,19 @@ export default function App() {
     };
   }, []);
   const unsaved = state.status === 'ready' && workspace.unsaved();
+  // Jobs in this browser end with the page.
+  const localRuns = useSyncExternalStore(
+    runner.subscribe,
+    () => !usesSparrowPro && runner.running(),
+  );
   useEffect(() => {
-    if (!unsaved) return;
+    if (!unsaved && !localRuns) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [unsaved]);
+  }, [unsaved, localRuns]);
 
-  const entry = route.page === 'project' ? workspace.find(route.id) : undefined;
+  const entry = route.page === 'home' ? undefined : workspace.find(route.id);
   const open = entry?.status === 'open' ? entry : undefined;
 
   let page;
@@ -180,7 +187,8 @@ export default function App() {
         key={entry.id}
         workspace={workspace}
         entry={entry}
-        tab={route.page === 'project' ? route.tab : 'parts'}
+        runner={runner}
+        shown={route.page === 'job' ? { job: route.number, view: route.view } : { tab: route.tab }}
         preferences={preferences}
         setPreferences={setPreferences}
         openPro={openPro}
@@ -210,9 +218,24 @@ export default function App() {
                   Home
                 </a>
                 <span aria-hidden="true">›</span>
-                <span className="crumb" aria-current="page">
-                  {entry ? entryName(entry) : 'Project'}
-                </span>
+                {route.page === 'job' ? (
+                  <>
+                    <a
+                      className="crumb"
+                      href={href({ page: 'project', id: route.id, tab: 'jobs' })}
+                    >
+                      {entry ? entryName(entry) : 'Project'}
+                    </a>
+                    <span aria-hidden="true">›</span>
+                    <span className="crumb" aria-current="page">
+                      #{route.number}
+                    </span>
+                  </>
+                ) : (
+                  <span className="crumb" aria-current="page">
+                    {entry ? entryName(entry) : 'Project'}
+                  </span>
+                )}
                 {open && <SaveState entry={open} />}
               </>
             )}
@@ -326,8 +349,7 @@ export default function App() {
           onClose={() => setDialog(undefined)}
           onDelete={async () => {
             const id = dialog.entry.id;
-            if (route.page === 'project' && route.id === id)
-              go({ page: 'home' }, { replace: true });
+            if (route.page !== 'home' && route.id === id) go({ page: 'home' }, { replace: true });
             setDialog(undefined);
             await workspace.remove(id).catch(failed);
           }}

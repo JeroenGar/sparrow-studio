@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, withCode } from '../api/client';
-import { copyCount, describeSheets, startBlockers, TAB_NAMES, unseenTabs } from '../project/model';
+import {
+  copyCount,
+  describeSheets,
+  nextJobNumber,
+  startBlockers,
+  TAB_NAMES,
+  unseenTabs,
+} from '../project/model';
 import { projectRequest } from '../project/solution';
 import { backend, client } from './client';
 import { useStudio } from './context';
-import { formatLength, formatSeconds } from './format';
+import { formatLength } from './format';
 import { ProTag } from './ProTag';
-import { elapsed, useNow } from './useJob';
+import { useSubmitting } from './runs';
 import { explain } from './explain';
 
 /** Why the backend refuses the project's job: an error to fix, or a feature it does not have. */
@@ -44,36 +51,12 @@ function useRefusal() {
   return checked?.key === key ? { checking: false, refusal: checked.refusal } : { checking: true };
 }
 
-/** Start nesting, at the bottom of every tab's list. While a run is going, it becomes Stop. */
+/** Start nesting, at the bottom of every tab's list: it starts the project's next job. */
 export function RunBar() {
-  const { project, unit, running, startRun, stopRun, run, reconnect, setTab } = useStudio();
+  const { projectId, project, unit, startRun, setTab, runner } = useStudio();
+  const submitting = useSubmitting(runner, projectId);
   const { checking, refusal } = useRefusal();
-  const now = useNow(running);
 
-  if (running) {
-    return (
-      <div className="run-bar">
-        <button className="primary" onClick={stopRun}>
-          Stop
-        </button>
-        <span className="muted">
-          {run?.clock ? `Running · ${formatSeconds(elapsed(run, now))}` : 'Starting the solver…'}
-        </span>
-      </div>
-    );
-  }
-  if (reconnect)
-    return (
-      <div className="run-bar">
-        <button className="primary" onClick={reconnect}>
-          Reconnect
-        </button>
-        <span className="muted">
-          {run?.error ?? 'A job for this project is not being followed.'} Reconnect to follow it
-          again.
-        </span>
-      </div>
-    );
   const blocker = startBlockers(project)[0];
   // A new project's first run comes after a look through each input tab, one after the other.
   const next = unseenTabs(project)[0];
@@ -88,8 +71,12 @@ export function RunBar() {
   const copies = copyCount(project.parts);
   return (
     <div className="run-bar">
-      <button className="primary" disabled={!!blocker || checking || !!refusal} onClick={startRun}>
-        Start nesting
+      <button
+        className="primary"
+        disabled={!!blocker || checking || !!refusal || submitting}
+        onClick={startRun}
+      >
+        {submitting ? 'Starting…' : 'Start nesting'}
       </button>
       {blocker ? (
         <span className="run-blocker">{blocker}</span>
@@ -101,11 +88,11 @@ export function RunBar() {
         <span className="run-blocker">{refusal.message}</span>
       ) : (
         <span className="muted">
-          {copies} {copies === 1 ? 'part' : 'parts'} ·{' '}
+          Starts job #{nextJobNumber(project)} · {copies} {copies === 1 ? 'part' : 'parts'} ·{' '}
           {project.stock.packing === 'sheets'
             ? describeSheets(project)
             : `strip ${formatLength(project.stock.strip.widthMm, unit)} ${unit} wide`}{' '}
-          · solved {backend.solves}
+          · {backend.solves}
         </span>
       )}
     </div>

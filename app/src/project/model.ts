@@ -229,6 +229,10 @@ export function endJob(
   };
 }
 
+/** The input a job ran, or runs, with. */
+export const jobInput = (job: ProjectJob) =>
+  job.stage === 'ended' ? job.document.input : job.request.input;
+
 /** The project's running jobs. */
 export const runningJobs = (project: ProjectDocument) =>
   project.jobs.filter(

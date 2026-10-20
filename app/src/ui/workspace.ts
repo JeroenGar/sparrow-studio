@@ -52,13 +52,13 @@ export const entryName = (entry: ProjectEntry) =>
   entry.status === 'open' ? entry.history.present.name : entry.name;
 
 /** How many projects load at the same time. */
-const LOADING = 4;
+const LOADING = 3;
 
 /**
  * Makes a request, again after the time the API asks for when it is busy or limits the rate, a
  * few times at most.
  */
-async function patiently<T>(request: () => Promise<T>, attempts = 3): Promise<T> {
+async function patiently<T>(request: () => Promise<T>, attempts = 5): Promise<T> {
   for (let attempt = 1; ; attempt++) {
     try {
       return await request();

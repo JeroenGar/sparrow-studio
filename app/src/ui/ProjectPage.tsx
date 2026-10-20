@@ -1,12 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newId } from '../engine/model';
 import {
-  addJob,
   addParts,
   copyCount,
-  endJob,
   INPUT_TABS,
-  jobNames,
   runningJobs,
   startBlockers,
   unseenTabs,
@@ -14,47 +11,50 @@ import {
   type ProjectDocument,
 } from '../project/model';
 import type { Preferences } from '../project/preferences';
-import { projectRequest } from '../project/solution';
-import { client, usesSparrowPro } from './client';
 import { StudioContext, type Studio, type Tab } from './context';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
 import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
-import { go, href, parseRoute } from './route';
-import { useJob } from './useJob';
-import { LiveView } from './views/LiveView';
+import { explain } from './explain';
+import { JobPage } from './JobPage';
+import { go, href, type JobView } from './route';
+import type { Runner } from './runs';
+import { JobsView } from './views/JobsView';
 import { MachineView } from './views/MachineView';
 import { PartsView } from './views/PartsView';
 import { SettingsView } from './views/SettingsView';
 import { SheetsView } from './views/SheetsView';
-import { SolutionView } from './views/SolutionView';
 import type { OpenEntry, Workspace } from './workspace';
 
-const TABS: { id: Tab; label: string }[] = [
+const TABS: { id: InputTab; label: string }[] = [
   { id: 'parts', label: 'Parts' },
   { id: 'sheets', label: 'Sheets' },
   { id: 'machine', label: 'Machine' },
   { id: 'settings', label: 'Settings' },
-  { id: 'live', label: 'Live' },
-  { id: 'solution', label: 'Solution' },
 ];
 
 type Dialogs =
   | { type: 'import-files'; kind: 'parts' | 'sheets' }
   | { type: 'import-project'; kind: 'parts' | 'sheets' | 'machines' };
 
-/** One project's tabs. Its document, edits and saving belong to the workspace. */
+/**
+ * One project: its input tabs and its jobs, or one job of it. Its document, edits and saving
+ * belong to the workspace; its jobs are followed by the runner.
+ */
 export function ProjectPage({
   workspace,
+  runner,
   entry,
-  tab,
+  shown,
   preferences,
   setPreferences,
   openPro,
   showError,
 }: {
   workspace: Workspace;
+  runner: Runner;
   entry: OpenEntry;
-  tab: Tab;
+  /** A tab of the project, or a job of it. */
+  shown: { tab: Tab } | { job: number; view: JobView };
   preferences: Preferences;
   setPreferences: (change: Partial<Preferences>) => void;
   openPro: () => void;
@@ -63,10 +63,16 @@ export function ProjectPage({
   const { id } = entry;
   const project = entry.history.present;
   const setTab = useCallback((tab: Tab) => go({ page: 'project', id, tab }), [id]);
+  const tab = 'tab' in shown ? shown.tab : undefined;
   // Opening an input tab counts for the new project's first run; it is no edit to undo.
   const seenTabs = project.seenTabs;
   useEffect(() => {
-    if (seenTabs && INPUT_TABS.includes(tab as InputTab) && !seenTabs.includes(tab as InputTab))
+    if (
+      seenTabs &&
+      tab &&
+      INPUT_TABS.includes(tab as InputTab) &&
+      !seenTabs.includes(tab as InputTab)
+    )
       workspace.results(id, () => ({ seenTabs: [...seenTabs, tab as InputTab] }));
   }, [workspace, id, tab, seenTabs]);
   const [dialog, setDialog] = useState<Dialogs>();
@@ -76,63 +82,21 @@ export function ProjectPage({
     [workspace, id],
   );
 
-  // The names of the parts and sheets when the job being submitted was asked for.
-  const asked = useRef<Record<string, string>>({});
-  /** Shows a tab of this project instead of its Live tab, if that is the one shown. */
-  const leaveLive = (next: Tab) => {
-    const route = parseRoute(location.hash);
-    if (route.page === 'project' && route.id === id && route.tab === 'live') setTab(next);
-  };
-  // The project records its jobs, so a page closed while one runs picks it up on opening; a job
-  // that ends records its document.
-  const job = useJob(
-    client,
-    {
-      submitted: (jobId, request) => {
-        const names = asked.current;
-        workspace.results(id, (present) => ({
-          jobs: addJob(present, jobId, request, names).jobs,
-        }));
-      },
-      resumed: () => setTab('live'),
-      ended: (jobId, document) => {
-        workspace.results(id, (present) => ({ jobs: endJob(present, jobId, document).jobs }));
-        if (document?.state.status === 'completed' && document.outcome) leaveLive('solution');
-      },
-    },
-    // Jobs in this browser end with the page, so leaving the project stops them.
-    { stopOnLeave: !usesSparrowPro },
-  );
-  // A job in this browser that was running when the page closed has ended with it; following it
-  // finds it gone, and records it as lost.
-  const remembered = runningJobs(project).at(-1);
-  useEffect(() => {
-    if (remembered) void job.resume(remembered.id);
-    // Once, for the job the project remembered when it was opened.
-  }, []);
-  const running = job.running;
-
   function startRun() {
-    if (
-      running ||
-      runningJobs(project).length ||
-      startBlockers(project).length ||
-      unseenTabs(project).length
-    )
-      return;
-    asked.current = jobNames(project);
-    void job.start(projectRequest(project));
-    setTab('live');
+    if (startBlockers(project).length || unseenTabs(project).length) return;
+    runner.start(id).then(
+      (number) => go({ page: 'job', id, number, view: 'layout' }),
+      (reason) => showError(explain(reason)),
+    );
   }
-
-  // Leaving the page stops a job in this browser; ask first.
-  useEffect(() => {
-    // Sparrow Pro keeps running a job after the page closes, and the project picks it up again.
-    if (!(running && !usesSparrowPro) && !job.submitting) return;
-    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [running, job.submitting]);
+  const removeJob = useCallback(
+    (number: number) =>
+      workspace.results(id, (present) => ({
+        // A running job stays: it is stopped first.
+        jobs: present.jobs.filter((job) => job.number !== number || job.stage === 'running'),
+      })),
+    [workspace, id],
+  );
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -177,9 +141,9 @@ export function ProjectPage({
     setDialog(undefined);
   };
 
-  const following = runningJobs(project).at(-1);
   const studio: Studio = useMemo(
     () => ({
+      projectId: id,
       project,
       edit,
       unit: preferences.unit,
@@ -194,42 +158,59 @@ export function ProjectPage({
             : { type: 'import-project', kind },
         ),
       showError,
-      run: job.run,
-      running,
-      // A remembered job not being followed, such as after a lost connection, is reconnected to
-      // rather than replaced.
-      reconnect: following && !running ? () => void job.resume(following.id) : undefined,
+      runner,
       startRun,
-      stopRun: job.stop,
+      removeJob,
     }),
     // startRun reads the current project; it is recreated with it.
-    [project, edit, preferences, setPreferences, setTab, openPro, showError, job.run, running],
+    [id, project, edit, preferences, setPreferences, setTab, openPro, showError, runner, removeJob],
   );
+  const running = runningJobs(project).length;
 
   return (
     <StudioContext.Provider value={studio}>
-      <nav className="tabs" aria-label="Views">
-        {TABS.map((item) => (
-          <a
-            key={item.id}
-            className={item.id === tab ? 'tab active' : 'tab'}
-            aria-current={item.id === tab ? 'page' : undefined}
-            href={href({ page: 'project', id, tab: item.id })}
-          >
-            {item.id === 'live' && running && <i className="live-dot" aria-hidden="true" />}
-            {item.label}
-            {item.id === 'parts' && <span className="count">{copyCount(project.parts)}</span>}
-          </a>
-        ))}
-      </nav>
-      <main className="main">
-        {tab === 'parts' && <PartsView />}
-        {tab === 'sheets' && <SheetsView />}
-        {tab === 'machine' && <MachineView />}
-        {tab === 'settings' && <SettingsView />}
-        {tab === 'live' && <LiveView />}
-        {tab === 'solution' && <SolutionView />}
-      </main>
+      {'job' in shown ? (
+        <JobPage number={shown.job} view={shown.view} />
+      ) : (
+        <>
+          <nav className="tabs" aria-label="Project">
+            {TABS.map((item) => (
+              <a
+                key={item.id}
+                className={item.id === tab ? 'tab active' : 'tab'}
+                aria-current={item.id === tab ? 'page' : undefined}
+                href={href({ page: 'project', id, tab: item.id })}
+              >
+                {item.label}
+                {item.id === 'parts' && <span className="count">{copyCount(project.parts)}</span>}
+              </a>
+            ))}
+            <span className="spacer" />
+            <a
+              className={tab === 'jobs' ? 'tab active' : 'tab'}
+              aria-current={tab === 'jobs' ? 'page' : undefined}
+              href={href({ page: 'project', id, tab: 'jobs' })}
+            >
+              Jobs
+              <span className="count">{project.jobs.length}</span>
+              {running > 0 && (
+                <i
+                  className="live-dot"
+                  role="img"
+                  aria-label={`${running} ${running === 1 ? 'job' : 'jobs'} running`}
+                />
+              )}
+            </a>
+          </nav>
+          <main className="main">
+            {tab === 'parts' && <PartsView />}
+            {tab === 'sheets' && <SheetsView />}
+            {tab === 'machine' && <MachineView />}
+            {tab === 'settings' && <SettingsView />}
+            {tab === 'jobs' && <JobsView />}
+          </main>
+        </>
+      )}
       {dialog?.type === 'import-files' && (
         <ImportFilesDialog
           kind={dialog.kind}

@@ -1501,3 +1501,68 @@ input[aria-invalid='true'] {
     opacity: 1;
   }
 }
+
+/* Jobs: how each stands, the job's own tabs, and the project changed since. */
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--control);
+}
+.status-dot.failed {
+  background: var(--danger);
+}
+.tabs-note {
+  align-self: center;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.tabs-action {
+  align-self: center;
+  margin-left: 12px;
+}
+.changed-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 16px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-line);
+}
+.changed-notice .button,
+.changed-notice button {
+  border-color: var(--accent-line);
+}
+.row.static {
+  cursor: default;
+}
+.stack.tight {
+  gap: 2px;
+}
+.job-preview {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--canvas);
+}
+.preview-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+.preview-head .stack {
+  flex: 1;
+  min-width: 0;
+}
+a.button.primary {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}

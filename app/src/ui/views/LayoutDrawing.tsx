@@ -107,7 +107,7 @@ function SheetMaterial({ sheet, upp }: { sheet: Sheet; upp: number }) {
  * With `highlight`, the copies of that part type stand out and the others fade. `offset` moves
  * it, to stand among other layouts.
  */
-// Memoized: the Live tab redraws it only when the layout or the zoom changes.
+// Memoized: a live job redraws it only when the layout or the zoom changes.
 export const LayoutDrawing = memo(function LayoutDrawing({
   job,
   world,

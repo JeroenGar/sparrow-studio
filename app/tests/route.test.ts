@@ -6,7 +6,9 @@ describe('routes', () => {
     const routes: Route[] = [
       { page: 'home' },
       { page: 'project', id: 'prj_1', tab: 'parts' },
-      { page: 'project', id: 'a/b', tab: 'solution' },
+      { page: 'project', id: 'a/b', tab: 'jobs' },
+      { page: 'job', id: 'prj_1', number: 12, view: 'layout' },
+      { page: 'job', id: 'prj_1', number: 3, view: 'inputs' },
     ];
     for (const route of routes) expect(parseRoute(href(route))).toEqual(route);
     expect(parseRoute('')).toEqual({ page: 'home' });
@@ -14,5 +16,8 @@ describe('routes', () => {
     expect(parseRoute('#/projects/prj_1/elsewhere')).toEqual({ page: 'home' });
     expect(parseRoute('#/projects/prj_1/parts/more')).toEqual({ page: 'home' });
     expect(parseRoute('#/projects/%/parts')).toEqual({ page: 'home' });
+    expect(parseRoute('#/projects/prj_1/jobs/0')).toEqual({ page: 'home' });
+    expect(parseRoute('#/projects/prj_1/parts/3')).toEqual({ page: 'home' });
+    expect(parseRoute('#/projects/prj_1/jobs/3/other')).toEqual({ page: 'home' });
   });
 });

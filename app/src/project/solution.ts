@@ -1,4 +1,4 @@
-import type { Input, JobDocument, JobRequest, Schemas } from '../api/client';
+import type { Input, JobRequest, Schemas } from '../api/client';
 import { moveShape, outline } from '../engine/geometry/contour';
 import { bounds } from '../engine/geometry/normalize';
 import { worldParts } from '../engine/geometry/world';
@@ -70,9 +70,9 @@ export function projectRequest(project: ProjectDocument): JobRequest {
   };
 }
 
-/** Whether the project changed since a solution's job, in anything that changes the layout. */
-export const isStale = (project: ProjectDocument, document: JobDocument) =>
-  JSON.stringify(projectInput(project)) !== JSON.stringify(document.input);
+/** Whether the project changed since a job of it, in anything its input holds. */
+export const isStale = (project: ProjectDocument, input: Input) =>
+  JSON.stringify(projectInput(project)) !== JSON.stringify(input);
 
 /** One layout as studio draws and exports it: its placements, and the sheet it lies on, if not the strip. */
 export type DrawnLayout = {
