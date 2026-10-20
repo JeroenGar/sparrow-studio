@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
 import { newProject, runningJobs, type ProjectDocument } from '../project/model';
+import { newProjectName } from '../project/names';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import { backend, client, usesSparrowPro } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
@@ -34,7 +35,7 @@ const workspace = createWorkspace(client);
 const runner = createRunner(client, workspace);
 
 type Dialogs =
-  | { type: 'new' }
+  | { type: 'new'; name: string }
   | { type: 'examples' }
   | { type: 'pro' }
   | { type: 'preferences' }
@@ -98,7 +99,7 @@ export default function App() {
       if (loaded.status !== 'ready' || loaded.projects.length) return;
       // An account without projects starts with an example to try.
       const example = await loadExample(FIRST_EXAMPLE, readPreferences().defaultMachine).catch(() =>
-        newProject('Untitled project'),
+        newProject(newProjectName()),
       );
       const id = await workspace.create(example);
       go({ page: 'project', id, tab: 'parts' }, { replace: true });
@@ -152,7 +153,7 @@ export default function App() {
     page = (
       <HomePage
         state={state}
-        onNew={() => setDialog({ type: 'new' })}
+        onNew={() => setDialog({ type: 'new', name: newProjectName() })}
         onExample={() => setDialog({ type: 'examples' })}
         onOpenFile={() => fileInput.current?.click()}
         onRetry={(id) => void workspace.reload(id)}
@@ -323,7 +324,7 @@ export default function App() {
       {dialog?.type === 'new' && (
         <NameDialog
           title="New project"
-          initial="Untitled project"
+          initial={dialog.name}
           confirm="Create project"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) =>
