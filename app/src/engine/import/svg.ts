@@ -21,8 +21,12 @@ const attr=(e:XMLElement,name:string)=>e.hasAttribute(name)?e.getAttribute(name)
 function hierarchy(contours:Contour[],tolerance=.01):number[] {
   const rings=contours.map(c=>normalizeRing(c.ring)),areas=rings.map(r=>Math.abs(area(r))),parent=rings.map(()=>-1);
   for(let i=0;i<rings.length;i++)for(let j=i+1;j<rings.length;j++) {
-    // Contours that only touch, side by side, are neighbours: neither lies inside the other.
-    if(ringCrosses(rings[i],rings[j])&&!onlyTouch(rings[i],rings[j],tolerance))throw Error(`Contours ${contours[i].entityId} and ${contours[j].entityId} touch or intersect; topology is ambiguous.`);
+    // Contours that only touch, side by side, are neighbours: neither lies inside the other, even
+    // where a rounding sliver puts a corner of one just inside the other.
+    if(ringCrosses(rings[i],rings[j])){
+      if(onlyTouch(rings[i],rings[j],tolerance))continue;
+      throw Error(`Contours ${contours[i].entityId} and ${contours[j].entityId} touch or intersect; topology is ambiguous.`);
+    }
     const a=inside(rings[i][0],rings[j]),b=inside(rings[j][0],rings[i]);
     if(a&&(parent[i]===-1||areas[j]<areas[parent[i]]))parent[i]=j;
     if(b&&(parent[j]===-1||areas[i]<areas[parent[j]]))parent[j]=i;
