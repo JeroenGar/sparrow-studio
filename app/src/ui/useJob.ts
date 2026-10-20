@@ -8,6 +8,7 @@ import {
   type JobRequest,
   type Schemas,
 } from '../api/client';
+import { hasEnded, type EndedDocument } from '../project/model';
 import { explain } from './explain';
 
 /** A run of one job through the API: what was asked, and what has come back so far. */
@@ -63,7 +64,7 @@ export type JobEvents = {
   submitted: (jobId: string, request: JobRequest) => void;
   /** A remembered job is running still, and is followed again. */
   resumed: () => void;
-  ended: (jobId: string, document?: JobDocument) => void;
+  ended: (jobId: string, document?: EndedDocument) => void;
 };
 
 /**
@@ -137,6 +138,7 @@ export function useJob(
       const document = await client.getJobDocument(job.id);
       // A newer run, or leaving, makes this one's result too late to keep.
       if (controller.signal.aborted) return;
+      if (!hasEnded(document)) throw Error('The job ended, but its record does not say so yet.');
       owner.current.ended(job.id, document);
       update((run) => ({ ...run, done: true }));
     },
@@ -187,7 +189,7 @@ export function useJob(
       // A newer run, or leaving, cancels picking up.
       if (controller.signal.aborted) return;
       setResuming(false);
-      if (FINAL.includes(document.state.status)) return owner.current.ended(jobId, document);
+      if (hasEnded(document)) return owner.current.ended(jobId, document);
       const stopping = current.current.stopping;
       const runner = begin({ input: document.input, settings: document.settings }, true);
       runner.mine.id = jobId;

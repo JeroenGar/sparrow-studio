@@ -73,10 +73,18 @@ export type ProjectJob = {
 } & (
   | { stage: 'running'; id: string; request: JobRequest }
   /** The API's ID links the job to the account's record of it; absent for one studio kept before. */
-  | { stage: 'ended'; id?: string; document: JobDocument }
+  | { stage: 'ended'; id?: string; document: EndedDocument }
   /** The backend no longer has the job, and studio did not keep how it ended. */
   | { stage: 'lost'; id: string; request: JobRequest }
 );
+/** The document of a job that has ended. */
+export type EndedDocument = JobDocument & {
+  state: Extract<JobDocument['state'], { status: (typeof ENDED)[number] }>;
+};
+const ENDED = ['completed', 'cancelled', 'failed'] as const;
+export const hasEnded = (document: JobDocument): document is EndedDocument =>
+  (ENDED as readonly string[]).includes(document.state.status);
+
 /** The settings a part solves with: the project's defaults, or its own. */
 export type PartSettings = {
   rotations: RotationRule;
@@ -171,16 +179,23 @@ export function newProject(name: string, machine: MachinePreset = newMachine()):
 export const nextJobNumber = (project: ProjectDocument) =>
   Math.max(0, ...project.jobs.map((job) => job.number)) + 1;
 
-/** Records a job just submitted for the project's inputs, as its next job. */
+/** The names of a project's parts and sheets, by ID, for a job of it to keep. */
+export const jobNames = (project: ProjectDocument): Record<string, string> =>
+  Object.fromEntries(
+    [...project.parts, ...project.stock.sheets].map((item) => [item.id, item.name]),
+  );
+
+/**
+ * Records a job just submitted as the project's next job, with the request and the names its
+ * parts and sheets had when it was asked for.
+ */
 export function addJob(
   project: ProjectDocument,
   id: string,
   request: JobRequest,
+  names: Record<string, string>,
   submittedAt = new Date().toISOString(),
 ): ProjectDocument {
-  const names = Object.fromEntries(
-    [...project.parts, ...project.stock.sheets].map((item) => [item.id, item.name]),
-  );
   const job: ProjectJob = {
     number: nextJobNumber(project),
     submittedAt,
@@ -199,7 +214,7 @@ export function addJob(
 export function endJob(
   project: ProjectDocument,
   id: string,
-  document?: JobDocument,
+  document?: EndedDocument,
 ): ProjectDocument {
   if (!project.jobs.some((job) => job.stage === 'running' && job.id === id)) return project;
   return {

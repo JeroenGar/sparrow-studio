@@ -7,6 +7,7 @@ import {
   addParts,
   endJob,
   INPUT_TABS,
+  jobNames,
   newProject,
   runningJobs,
   startBlockers,
@@ -195,16 +196,20 @@ function StudioShell({
   const version = useRef(stored.version);
   const saved = useRef(stored.document);
   const fileInput = useRef<HTMLInputElement>(null);
+  // The names of the parts and sheets when the job being submitted was asked for.
+  const asked = useRef<Record<string, string>>({});
   // The project records its jobs, so a page closed while one runs picks it up on opening; a job
   // that ends records its document.
   const job = useJob(
     client,
     {
-      submitted: (jobId, request) =>
+      submitted: (jobId, request) => {
+        const names = asked.current;
         dispatch({
           type: 'results',
-          change: (present) => ({ jobs: addJob(present, jobId, request).jobs }),
-        }),
+          change: (present) => ({ jobs: addJob(present, jobId, request, names).jobs }),
+        });
+      },
       resumed: () => setTab('live'),
       ended: (jobId, document) => {
         dispatch({
@@ -305,6 +310,7 @@ function StudioShell({
     )
       return;
     setError('');
+    asked.current = jobNames(project);
     void job.start(projectRequest(project));
     setTab('live');
   }

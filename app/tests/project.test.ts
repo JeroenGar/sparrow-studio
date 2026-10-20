@@ -7,6 +7,7 @@ import {
   addParts,
   commonRotations,
   endJob,
+  jobNames,
   nextJobNumber,
   runningJobs,
   differsFromDefaults,
@@ -54,14 +55,15 @@ describe('project document', () => {
   it('keeps its jobs, numbered, each with the fields of its stage', () => {
     const project = addParts(newProject('Shop job'), [square(10, 3)]);
     const request = projectRequest(project);
-    let withJobs = addJob(addJob(project, 'job_1', request, 'then'), 'job_2', request, 'now');
+    const names = jobNames(project);
+    let withJobs = addJob(addJob(project, 'job_1', request, names), 'job_2', request, names);
     expect(withJobs.jobs.map((job) => [job.number, job.stage, job.id])).toEqual([
       [1, 'running', 'job_1'],
       [2, 'running', 'job_2'],
     ]);
     expect(withJobs.jobs[0].names).toEqual({ [project.parts[0].id]: 'Part' });
-    const document = { ...request, schema_version: 1, state: { status: 'cancelled' } } as never;
-    withJobs = endJob(endJob(withJobs, 'job_1', document), 'job_2');
+    const document = { ...request, schema_version: 1, state: { status: 'cancelled' as const } };
+    withJobs = endJob(endJob(withJobs, 'job_1', document as never), 'job_2');
     expect(withJobs.jobs.map((job) => job.stage)).toEqual(['ended', 'lost']);
     expect(withJobs.jobs[0]).toMatchObject({ number: 1, id: 'job_1', document });
     expect(withJobs.jobs[0]).not.toHaveProperty('request');
@@ -80,6 +82,31 @@ describe('project document', () => {
     expect(() => parseProject({ ...withJobs, jobs: [{ ...first, number: 0 }] })).toThrow(
       'invalid jobs',
     );
+    // A job that ended has a document that says so, with an input and outcome studio can draw.
+    const ended = (change: object) => ({ ...withJobs, jobs: [{ ...first, ...change }] });
+    expect(() =>
+      parseProject(ended({ document: { ...document, state: { status: 'running' } } })),
+    ).toThrow('invalid jobs');
+    expect(() => parseProject(ended({ document: { ...document, input: {} } }))).toThrow(
+      'invalid jobs',
+    );
+    const outcome = {
+      solution: { layouts: [{ sheet_id: 'strip', placements: [] }] },
+      stats: { consumed_area: 1, placed_area: 1, density: 1, layouts: [] },
+      unplaced: [],
+      diagnostics: [],
+    };
+    const completed = { ...document, outcome };
+    expect(parseProject(ended({ document: completed })).jobs[0]).toMatchObject({
+      document: completed,
+    });
+    const stray = { part_id: 'gone', transformation: { rotation: 0, translation: [0, 0] } };
+    const layouts = [{ sheet_id: 'strip', placements: [stray] }];
+    expect(() =>
+      parseProject(
+        ended({ document: { ...completed, outcome: { ...outcome, solution: { layouts } } } }),
+      ),
+    ).toThrow('invalid jobs');
   });
 
   it('rejects other formats and versions', () => {
@@ -113,7 +140,11 @@ describe('project document', () => {
   it('upgrades version 5, whose latest solution becomes job #1', () => {
     const project = addParts(newProject('Shop job'), [square(10)]);
     const { jobs: _, ...rest } = project;
-    const document = { input: projectInput(project) };
+    const document = {
+      ...projectRequest(project),
+      schema_version: 1,
+      state: { status: 'cancelled' },
+    };
     const old = {
       ...rest,
       version: 5,
@@ -390,7 +421,7 @@ describe('project document', () => {
     ]);
     expect(unseenTabs({ ...project, seenTabs: [...INPUT_TABS] })).toEqual([]);
     // Once it has a job, or for a project from before the rule, no tab is asked for.
-    expect(unseenTabs(addJob(project, 'job_1', projectRequest(project)))).toEqual([]);
+    expect(unseenTabs(addJob(project, 'job_1', projectRequest(project), {}))).toEqual([]);
     const { seenTabs: _, ...older } = project;
     expect(unseenTabs(older)).toEqual([]);
   });
@@ -492,9 +523,13 @@ describe('undo history', () => {
     const request = projectRequest(start);
     state = historyReducer(state, {
       type: 'results',
-      change: (present) => ({ jobs: addJob(present, 'job_1', request).jobs }),
+      change: (present) => ({ jobs: addJob(present, 'job_1', request, {}).jobs }),
     });
     const { jobs } = state.present;
+    // An edit made from the project before the job arrived keeps it.
+    state = historyReducer(state, { type: 'edit', project: start, at: 9000 });
+    expect(state.present.jobs).toBe(jobs);
+    state = historyReducer(state, { type: 'undo' });
     state = historyReducer(state, { type: 'undo' });
     expect(state.present.name).toBe('Job');
     expect(state.present.jobs).toBe(jobs);

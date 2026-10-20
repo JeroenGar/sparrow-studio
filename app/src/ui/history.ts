@@ -20,7 +20,7 @@ export type HistoryAction =
   | { type: 'undo' }
   | { type: 'redo' };
 
-type Results = Pick<ProjectDocument, 'jobs' | 'seenTabs'>;
+export type Results = Pick<ProjectDocument, 'jobs' | 'seenTabs'>;
 
 /** A project from the history with the present results. */
 const withResults = (project: ProjectDocument, present: ProjectDocument): ProjectDocument => ({
@@ -50,7 +50,8 @@ export function historyReducer(state: History, action: HistoryAction): History {
         action.key === state.lastKey &&
         action.at - state.lastAt < COALESCE_MS;
       return {
-        present: action.project,
+        // The results stay the present ones: they may have changed since the edit was made.
+        present: withResults(action.project, state.present),
         past: coalesce ? state.past : [...state.past, state.present].slice(-LIMIT),
         future: [],
         lastKey: action.key,

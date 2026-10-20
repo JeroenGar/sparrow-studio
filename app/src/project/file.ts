@@ -1,7 +1,9 @@
 import { isSimpleRing, normalizePart } from '../engine/geometry/normalize';
 import { outline, polygonShape } from '../engine/geometry/contour';
 import type { Ring } from '../engine/model';
+import type { JobDocument } from '../api/client';
 import {
+  hasEnded,
   INPUT_TABS,
   TIME_LIMITS,
   PROJECT_FORMAT,
@@ -124,7 +126,10 @@ export function parseProject(stored: unknown): ProjectDocument {
   return { ...project, parts };
 }
 
-/** Whether a stored job has the fields of its stage; its request or document is the backend's. */
+/**
+ * Whether a stored job has the fields of its stage, and the input and outcome as far as studio
+ * draws them; the backend checked the rest when it ran the job.
+ */
 function validJob(job: unknown): boolean {
   if (
     !isRecord(job) ||
@@ -138,16 +143,94 @@ function validJob(job: unknown): boolean {
   switch (job.stage) {
     case 'running':
     case 'lost':
-      return typeof job.id === 'string' && isRecord(job.request) && isRecord(job.request.input);
-    case 'ended':
+      return (
+        typeof job.id === 'string' &&
+        isRecord(job.request) &&
+        validInput(job.request.input) &&
+        isRecord(job.request.settings)
+      );
+    case 'ended': {
+      const document = job.document;
       return (
         (job.id === undefined || typeof job.id === 'string') &&
-        isRecord(job.document) &&
-        isRecord(job.document.input)
+        isRecord(document) &&
+        validInput(document.input) &&
+        isRecord(document.settings) &&
+        isRecord(document.state) &&
+        hasEnded(document as unknown as JobDocument) &&
+        (document.outcome === undefined || validOutcome(document.outcome, document.input))
       );
+    }
     default:
       return false;
   }
+}
+const listOf = (value: unknown, valid: (item: Record<string, unknown>) => boolean) =>
+  Array.isArray(value) && value.every((item) => isRecord(item) && valid(item));
+
+/** Whether a job's input has what studio reads of it, each part and sheet with its geometry. */
+function validInput(input: unknown): boolean {
+  if (!isRecord(input) || !listOf(input.geometries, (g) => typeof g.id === 'string')) return false;
+  const geometries = new Set((input.geometries as { id: string }[]).map((g) => g.id));
+  const separation = input.minimum_separation_distance;
+  const problem = input.problem;
+  const parts = (part: Record<string, unknown>) =>
+    typeof part.id === 'string' &&
+    geometries.has(part.geometry_id as string) &&
+    Number.isInteger(part.quantity) &&
+    isRecord(part.orientation) &&
+    isRecord(part.orientation.rotation);
+  return (
+    (input.geometries as Record<string, unknown>[]).every((g) => drawable(g.shape)) &&
+    listOf(input.parts, parts) &&
+    isRecord(separation) &&
+    finite(separation.parts) &&
+    finite(separation.boundary) &&
+    isRecord(problem) &&
+    (problem.type === 'minimize_strip_length'
+      ? finite(problem.height)
+      : problem.type === 'minimize_sheets_in_order' &&
+        listOf(
+          problem.sheets,
+          (sheet) => typeof sheet.id === 'string' && geometries.has(sheet.geometry_id as string),
+        ))
+  );
+}
+
+/** Whether a completed job's outcome has what studio draws and reports of it, of its input's parts and sheets. */
+function validOutcome(outcome: unknown, input: unknown): boolean {
+  const { parts, problem } = input as {
+    parts: { id: string }[];
+    problem: { type: string; sheets?: { id: string }[] };
+  };
+  const partIds = new Set(parts.map((part) => part.id));
+  const sheetIds = new Set(problem.sheets?.map((sheet) => sheet.id));
+  const onSheet = (id: unknown) =>
+    typeof id === 'string' && (problem.type === 'minimize_strip_length' || sheetIds.has(id));
+  const placement = (p: Record<string, unknown>) =>
+    partIds.has(p.part_id as string) &&
+    isRecord(p.transformation) &&
+    finite(p.transformation.rotation) &&
+    Array.isArray(p.transformation.translation) &&
+    p.transformation.translation.length === 2 &&
+    p.transformation.translation.every(finite);
+  const stats = isRecord(outcome) ? outcome.stats : undefined;
+  return (
+    isRecord(outcome) &&
+    isRecord(outcome.solution) &&
+    listOf(
+      outcome.solution.layouts,
+      (layout) => onSheet(layout.sheet_id) && listOf(layout.placements, placement),
+    ) &&
+    isRecord(stats) &&
+    ['consumed_area', 'placed_area', 'density'].every((key) => finite(stats[key])) &&
+    Array.isArray(stats.layouts) &&
+    listOf(
+      outcome.unplaced,
+      (u) => typeof u.part_id === 'string' && Number.isInteger(u.quantity),
+    ) &&
+    listOf(outcome.diagnostics, (d) => typeof d.kind === 'string')
+  );
 }
 
 /**
