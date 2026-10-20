@@ -114,44 +114,77 @@ const middle = (ring: Ring): [number, number] => [
   ring.reduce((n, p) => n + p[1], 0) / ring.length,
 ];
 
+/** What an outline became: shown on the import's drawing. */
+export type Mark = {
+  id: string;
+  layer: string;
+  /** Where it is drawn. */
+  ring: Ring;
+  kind: 'part' | 'hole' | 'sheet' | 'defect' | 'ignored' | 'issue';
+  /** Why it could not be used, for an issue. */
+  message?: string;
+};
+
 /**
- * Parts and sheets from a drawing, by the roles of its layers:
+ * Parts and sheets from a drawing, by the roles of its outlines: an outline's own role, from
+ * `overrides`, else its layer's.
  *
- * - On a layer of parts or sheets, an outline that lies entirely inside another one of the same
- *   layer, without touching it, is a hole of it; one inside a hole is an item again. Every other
+ * - Among outlines of the same layer and role, parts or sheets, one that lies entirely inside
+ *   another, without touching it, is a hole of it; one inside a hole is an item again. Every other
  *   outline is an item. Outlines that only touch, side by side, are neighbours; outlines that
- *   overlap, or touch one inside the other, are left out as an issue.
+ *   overlap, or touch one inside the other, are left out as an issue, with what lies inside them.
  * - With `merge`, items of the same shape, up to a move and a turn, become one with a quantity.
  *   Sheets with defects stay apart: their defects may differ.
- * - An outline on a layer of defects is a defect of every sheet it overlaps, where it is drawn,
- *   also reaching past the sheet's edge; one that overlaps no sheet is an issue.
- * - Ignored layers are left out.
+ * - A defect belongs to every sheet it overlaps, where it is drawn, also reaching past the
+ *   sheet's edge; one that overlaps no sheet is an issue.
+ * - Ignored outlines are left out.
  */
 export function classify(
   drawing: Drawing,
   roles: Record<string, Role>,
-  { merge = true, holes = true }: { merge?: boolean; holes?: boolean } = {},
-): { parts: Part[]; sheets: ImportedSheet[]; issues: string[] } {
+  {
+    merge = true,
+    holes = true,
+    overrides = {},
+  }: { merge?: boolean; holes?: boolean; overrides?: Record<string, Role> } = {},
+): { parts: Part[]; sheets: ImportedSheet[]; issues: string[]; marks: Mark[] } {
   const tolerance = drawing.tolerance;
-  const role = (outline: Pick<Outline, 'layer'>) => roles[outline.layer] ?? 'ignored';
-  const issues = drawing.issues.filter((issue) => role(issue) !== 'ignored').map((issue) => issue.message);
-  const kept: Kept[] = [];
+  const layerRole = (layer: string) => roles[layer] ?? 'ignored';
+  const role = (outline: Outline) => overrides[outline.id] ?? layerRole(outline.layer);
+  const issues = drawing.issues
+    .filter((issue) => layerRole(issue.layer) !== 'ignored')
+    .map((issue) => issue.message);
+  const marks = new Map<string, Mark>(
+    drawing.outlines.map((outline) => [
+      outline.id,
+      { id: outline.id, layer: outline.layer, ring: outline.ring, kind: 'ignored' },
+    ]),
+  );
+  const fail = (id: string, message: string) => {
+    issues.push(`${id}: ${message}`);
+    Object.assign(marks.get(id)!, { kind: 'issue', message });
+  };
+  const kept: (Kept & { role: Role })[] = [];
   for (const outline of drawing.outlines) {
-    if (role(outline) === 'ignored') continue;
+    const own = role(outline);
+    if (own === 'ignored') continue;
     try {
-      kept.push({ ...outline, ring: normalizeRing(outline.ring) });
+      kept.push({ ...outline, role: own, ring: normalizeRing(outline.ring) });
     } catch (error) {
-      issues.push(`${outline.id}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(outline.id, error instanceof Error ? error.message : String(error));
     }
   }
 
-  // Items and their holes, layer by layer.
+  // Items and their holes, among outlines of one layer and role.
   const items: { role: 'parts' | 'sheets'; item: Item }[] = [];
-  const layers = [...new Set(kept.map((outline) => outline.layer))];
-  for (const layer of layers) {
-    const kind = roles[layer];
-    if (kind !== 'parts' && kind !== 'sheets') continue;
-    const outlines = kept.filter((outline) => outline.layer === layer);
+  const groupsOf = new Map<string, (typeof kept)[number][]>();
+  for (const outline of kept)
+    if (outline.role === 'parts' || outline.role === 'sheets') {
+      const key = `${outline.layer}\u0000${outline.role}`;
+      groupsOf.set(key, [...(groupsOf.get(key) ?? []), outline]);
+    }
+  for (const outlines of groupsOf.values()) {
+    const kind = outlines[0].role as 'parts' | 'sheets';
     const left = new Set<number>();
     const neighbours = new Set<string>();
     for (let i = 0; i < outlines.length; i++)
@@ -161,9 +194,11 @@ export function classify(
         else {
           left.add(i);
           left.add(j);
+          const message = 'it overlaps another outline, or touches one from inside.';
           issues.push(
             `${outlines[j].id} and ${outlines[i].id}: they overlap, or one touches the other from inside. Leave one out or repair the source.`,
           );
+          for (const k of [i, j]) Object.assign(marks.get(outlines[k].id)!, { kind: 'issue', message });
         }
       }
     // The smallest outline around each: entirely inside, as they neither cross nor only touch.
@@ -178,44 +213,55 @@ export function classify(
     });
     // What lies inside an outline that is left out goes with it: a hole is no part on its own.
     const gone = (i: number): boolean => left.has(i) || (around[i] >= 0 && gone(around[i]));
+    outlines.forEach((outline, i) => {
+      if (gone(i) && !left.has(i))
+        Object.assign(marks.get(outline.id)!, {
+          kind: 'issue',
+          message: 'it lies inside an outline that is left out.',
+        });
+    });
     const keptIndex = outlines.map((_, i) => i).filter((i) => !gone(i));
     const usable = keptIndex.map((i) => outlines[i]);
     const parent = keptIndex.map((i) => keptIndex.indexOf(around[i]));
     const depth = (i: number): number => (parent[i] < 0 ? 0 : 1 + depth(parent[i]));
     usable.forEach((outline, i) => {
-      if (holes && depth(i) % 2 === 1) return;
+      if (holes && depth(i) % 2 === 1) {
+        marks.get(outline.id)!.kind = 'hole';
+        return;
+      }
+      marks.get(outline.id)!.kind = kind === 'parts' ? 'part' : 'sheet';
       const own = holes ? usable.filter((_, j) => parent[j] === i) : [];
       items.push({ role: kind, item: { outline, holes: own } });
     });
   }
 
   // Defects, where they are drawn, with the sheets they overlap.
-  const defects = kept.filter((outline) => role(outline) === 'defects');
   const sheetItems = items.filter((entry) => entry.role === 'sheets').map((entry) => entry.item);
   const defectsOf = new Map<Item, Kept[]>(sheetItems.map((item) => [item, []]));
-  for (const defect of defects) {
+  for (const defect of kept.filter((outline) => outline.role === 'defects')) {
     const over = sheetItems.filter(
       (sheet) => polygonClipping.intersection([defect.ring], [sheet.outline.ring]).length > 0,
     );
-    if (!over.length) issues.push(`${defect.id}: this defect overlaps no sheet.`);
+    if (!over.length) fail(defect.id, 'this defect overlaps no sheet.');
+    else marks.get(defect.id)!.kind = 'defect';
     for (const sheet of over) defectsOf.get(sheet)!.push(defect);
   }
 
   // Items of the same shape, as one with a quantity.
-  const groups: { item: Item; count: number }[] = [];
+  const groups: { role: 'parts' | 'sheets'; item: Item; count: number }[] = [];
   for (const { role: kind, item } of items) {
     const alone = kind === 'sheets' && defectsOf.get(item)!.length > 0;
     const same =
       merge && !alone
         ? groups.find(
             (group) =>
-              items.find((entry) => entry.item === group.item)!.role === kind &&
+              group.role === kind &&
               !(kind === 'sheets' && defectsOf.get(group.item)!.length) &&
               congruent(group.item, item, tolerance),
           )
         : undefined;
     if (same) same.count++;
-    else groups.push({ item, count: 1 });
+    else groups.push({ role: kind, item, count: 1 });
   }
 
   const shapeOf = (item: Item): Shape => ({
@@ -224,13 +270,14 @@ export function classify(
   });
   const parts: Part[] = [];
   const sheets: ImportedSheet[] = [];
-  for (const { item, count } of groups) {
-    const kind = items.find((entry) => entry.item === item)!.role;
+  for (const { role: kind, item, count } of groups) {
     // Moved so the outline starts at the origin, defects with it.
     const [x, y] = bounds(item.outline.ring);
     const shape = moveShape(shapeOf(item), [-x, -y]);
     if (kind === 'sheets') {
-      const own = defectsOf.get(item)!.map((defect) => moveShape({ outer: defect.contour }, [-x, -y]).outer);
+      const own = defectsOf
+        .get(item)!
+        .map((defect) => moveShape({ outer: defect.contour }, [-x, -y]).outer);
       sheets.push({ name: item.outline.id, shape, quantity: count, defects: own });
       continue;
     }
@@ -244,19 +291,19 @@ export function classify(
     try {
       parts.push(normalizePart(part));
     } catch (error) {
-      issues.push(`${item.outline.id}: ${error instanceof Error ? error.message : String(error)}`);
+      fail(item.outline.id, error instanceof Error ? error.message : String(error));
     }
   }
-  return { parts, sheets, issues };
+  return { parts, sheets, issues, marks: [...marks.values()] };
 }
 
-/** A drawing read as parts, the way the import dialog shows it. */
+/** A drawing read as parts and sheets, the way the import dialog shows it. */
 export function review(
   drawing: Drawing,
   roles: Record<string, Role>,
-  options: { merge?: boolean; holes?: boolean } = {},
+  options: { merge?: boolean; holes?: boolean; overrides?: Record<string, Role> } = {},
 ): ImportReview {
-  const { parts, sheets, issues } = classify(drawing, roles, options);
+  const { parts, sheets, issues, marks } = classify(drawing, roles, options);
   return {
     document: { name: drawing.name.replace(/\.(dxf|svg)$/i, ''), parts, settings: { ...DEFAULT_SETTINGS } },
     sheets,
@@ -267,5 +314,6 @@ export function review(
     outlines: Object.fromEntries(
       drawing.layers.map((layer) => [layer, drawing.outlines.filter((o) => o.layer === layer).length]),
     ),
+    marks,
   };
 }

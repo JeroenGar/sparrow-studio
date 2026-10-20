@@ -1,13 +1,13 @@
 import { DEFAULT_SETTINGS, newPart, type Job, type Part, type Ring } from '../model';
 import { bounds, normalizeJob, normalizeRing } from '../geometry/normalize';
 import { moveShape, outline, polygonShape } from '../geometry/contour';
-import type { ImportedSheet, Role } from './drawing';
+import type { ImportedSheet, Mark, Role } from './drawing';
 
 /**
  * What an import would add: parts, and sheets with their defects; what it cannot use; and for
  * drawings, their layers, the role each was read with, and how many outlines each holds.
  */
-export type ImportReview = { document: Job; warnings: string[]; issues?:string[]; layers?:string[]; sheets?: ImportedSheet[]; roles?: Record<string,Role>; outlines?: Record<string,number> };
+export type ImportReview = { document: Job; warnings: string[]; issues?:string[]; layers?:string[]; sheets?: ImportedSheet[]; roles?: Record<string,Role>; outlines?: Record<string,number>; marks?: Mark[] };
 export function record(value: unknown): Record<string,unknown> {
   if(!value || typeof value!=='object' || Array.isArray(value)) throw Error('Expected an object.');
   return value as Record<string,unknown>;
