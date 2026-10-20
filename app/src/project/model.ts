@@ -188,10 +188,6 @@ export function ruleKey(rule: RotationRule): string {
   return [...new Set(rule.degrees.map(turn))].sort((a, b) => a - b).join(',');
 }
 
-/** Whether two values of a setting allow the same: rotation rules by their angles. */
-const sameSetting = <K extends PartSetting>(key: K, a: PartSettings[K], b: PartSettings[K]) =>
-  key === 'rotations' ? ruleKey(a as RotationRule) === ruleKey(b as RotationRule) : a === b;
-
 export const differsFromDefaults = (part: ProjectPart) =>
   PART_SETTINGS.some((key) => part[key] !== undefined);
 
@@ -235,18 +231,14 @@ export function followDefaults(project: ProjectDocument, ids: string[]): Project
   );
 }
 
-/** Add parts. A setting that matches the defaults follows them; any other is the part's own. */
+/** Add parts. They follow the project's part defaults, whatever settings they came with. */
 export function addParts(
   project: ProjectDocument,
   parts: (Part & Partial<PartSettings>)[],
 ): ProjectDocument {
   const added = parts.map((part): ProjectPart => {
     const own = { ...part } as ProjectPart;
-    for (const key of PART_SETTINGS) {
-      const value = part[key];
-      if (value === undefined || sameSetting(key, value, project.partDefaults[key]))
-        delete own[key];
-    }
+    for (const key of PART_SETTINGS) delete own[key];
     return own;
   });
   return { ...project, parts: [...project.parts, ...added] };

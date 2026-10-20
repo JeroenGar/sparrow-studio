@@ -392,15 +392,14 @@ describe('part defaults', () => {
   const rules = (project: ReturnType<typeof newProject>) =>
     resolvedParts(project).map((part) => part.rotations);
 
-  it('stores a rule only on parts that have their own', () => {
+  it('makes added parts follow the defaults, whatever rule they came with', () => {
     let project = addParts(newProject('Job'), [square(10), { ...square(20), rotations: free }]);
-    expect(project.parts.map(differsFromDefaults)).toEqual([false, true]);
-    expect(project.parts[0].rotations).toBeUndefined();
+    expect(project.parts.map(differsFromDefaults)).toEqual([false, false]);
+    expect(project.parts.map((part) => part.rotations)).toEqual([undefined, undefined]);
     project = setPartDefault(project, 'rotations', { kind: 'discrete', degrees: [0] });
-    expect(rules(project)).toEqual([{ kind: 'discrete', degrees: [0] }, free]);
     expect(projectInput(project).parts.map((part) => part.orientation.rotation)).toEqual([
       { type: 'discrete', angles: [0] },
-      { type: 'continuous' },
+      { type: 'discrete', angles: [0] },
     ]);
   });
 
@@ -440,17 +439,15 @@ describe('part defaults', () => {
     expect(project.parts.map(differsFromDefaults)).toEqual([false, false]);
   });
 
-  it('keeps the settings of parts taken from another project that differ from the defaults', () => {
-    const source = setPartSetting(
+  it("makes parts taken from another project follow this project's defaults", () => {
+    const source = setPartDefault(
       addParts(newProject('Source'), [square(10), square(20)]),
-      [],
       'reflection',
       true,
     );
-    const [first, second] = resolvedParts(source);
-    const project = addParts(newProject('Job'), [first, { ...second, reflection: true }]);
-    expect(project.parts.map((part) => part.reflection)).toEqual([undefined, true]);
-    expect(project.parts.map((part) => part.nestInHoles)).toEqual([undefined, undefined]);
+    const project = addParts(newProject('Job'), resolvedParts(source));
+    expect(project.parts.map(differsFromDefaults)).toEqual([false, false]);
+    expect(resolvedParts(project).map((part) => part.reflection)).toEqual([false, false]);
   });
 
   it('takes the most common rule as the defaults of a set of parts', () => {
