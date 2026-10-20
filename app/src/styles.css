@@ -1620,18 +1620,20 @@ a.button.primary {
 .job-table {
   table-layout: fixed;
 }
-.job-table td:nth-child(1) {
+.job-table col.thumb {
   width: 88px;
-  padding-right: 0;
 }
-.job-table td:nth-child(2) {
+.job-table col.number {
   width: 64px;
 }
-.job-table td:nth-child(3) {
+.job-table col.started {
   width: 160px;
 }
-.job-table td:nth-child(5) {
+.job-table col.result {
   width: 32%;
+}
+.job-table td:first-child {
+  padding-right: 0;
 }
 .job-progress {
   display: inline-flex;
@@ -1668,4 +1670,14 @@ svg.job-thumb {
   font-family: var(--mono);
   font-size: 10px;
   line-height: 15px;
+}
+
+/* Read out, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

@@ -6,7 +6,7 @@ import { worldParts } from '../engine/geometry/world';
 import { jobInput, type ProjectJob } from '../project/model';
 import { drawable } from '../project/solution';
 import { ringsPath } from './Canvas';
-import type { Run } from './runs';
+import type { Schemas } from '../api/client';
 
 const W = 96;
 const H = 60;
@@ -15,28 +15,45 @@ const H = 60;
  * A job at a glance: the first sheet of its layout, or of the best so far while it runs, with the
  * number of further sheets in a badge.
  */
-export function JobThumb({ job, run }: { job: ProjectJob; run?: Run }) {
-  const best = job.stage === 'ended' ? job.document.outcome : run?.best;
+export function JobThumb({
+  job,
+  live,
+  order,
+}: {
+  job: ProjectJob;
+  /** The best layout so far of a running job. */
+  live?: Schemas['Snapshot'];
+  /** Where each part is in the project's list, for the color the Parts tab gives it. */
+  order: Map<string, number>;
+}) {
+  const best = job.stage === 'ended' ? job.document.outcome : live;
   const input = jobInput(job);
   const first = useMemo(() => {
     if (!best?.solution.layouts.length) return undefined;
-    const { job: drawn, layouts } = drawable(input, {
-      layouts: best.solution.layouts.slice(0, 1),
-    });
+    const { job: drawn, layouts } = drawable(
+      input,
+      { layouts: best.solution.layouts.slice(0, 1) },
+      undefined,
+      best.stats,
+    );
     const layout = layouts[0];
     const material = layout.sheet
       ? bounds(outline(layout.sheet.shape).outer)
       : [0, 0, layout.result.usedLengthMm, drawn.settings.materialWidthMm];
-    const order = new Map(input.parts.map((part, index) => [part.id, index]));
     return {
       material,
       sheet: layout.sheet && outline(layout.sheet.shape),
       parts: worldParts(drawn, layout.result).map((part) => ({
         ...part,
-        color: colors[(order.get(part.partId) ?? 0) % colors.length],
+        // A part the project no longer has takes its place in the job instead.
+        color:
+          colors[
+            (order.get(part.partId) ?? input.parts.findIndex((p) => p.id === part.partId)) %
+              colors.length
+          ],
       })),
     };
-  }, [input, best]);
+  }, [input, best, order]);
   const more = (best?.solution.layouts.length ?? 1) - 1;
   if (!first) return <svg className="job-thumb" viewBox={`0 0 ${W} ${H}`} aria-hidden="true" />;
   const [x0, y0, x1, y1] = first.material;

@@ -97,6 +97,7 @@ export function HomePage({
       {view === 'jobs' ? (
         <HomeJobs
           projects={shown.filter((entry): entry is OpenEntry => entry.status === 'open')}
+          searching={shown.length < state.projects.length}
           runner={runner}
           unit={unit}
         />
