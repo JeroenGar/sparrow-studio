@@ -65,6 +65,32 @@ export function SheetsView() {
   // A sheet that is gone, such as after undo, is no longer selected, nor drawn on.
   const selected = project.stock.sheets.some((sheet) => sheet.id === chosen) ? chosen : undefined;
   const tool = selected ? held : undefined;
+  // + and − change the selected sheet's stock, as they change a part's quantity.
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if (!selected || packing !== 'sheets' || document.querySelector('dialog[open]')) return;
+      if ((event.target as HTMLElement).closest('input, select, textarea, [contenteditable]'))
+        return;
+      const step =
+        event.key === '+' || event.key === '='
+          ? 1
+          : event.key === '-' || event.key === '_'
+            ? -1
+            : 0;
+      if (!step) return;
+      event.preventDefault();
+      edit(
+        (current) =>
+          updateSheet(current, selected, (sheet) => ({
+            ...sheet,
+            quantity: Math.max(0, sheet.quantity + step),
+          })),
+        `sheet-quantity:${selected}`,
+      );
+    };
+    window.addEventListener('keydown', key);
+    return () => window.removeEventListener('keydown', key);
+  });
   // Choosing another sheet puts the tool down.
   const selection: Selection = {
     selected,
@@ -733,8 +759,22 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
                   y={-y1 - (labelLift * 8 + 8) * upp}
                   fontSize={12 * upp}
                 >
-                  {i + 1} · {sheet.name} · ×{sheet.quantity}
+                  {i + 1} · {sheet.name}
                 </text>
+                {/* The sheets in stock, on the corner of the frontmost copy's stack. */}
+                <g
+                  transform={`translate(${box[2] + ox + Math.max(0, behind) * step + 4.4 * upp} ${-(box[3] + oy) - Math.max(0, behind) * step - 4.4 * upp})`}
+                >
+                  <circle r={11 * upp} className="badge" />
+                  <text
+                    className="badge-text"
+                    fontSize={10 * upp}
+                    textAnchor="middle"
+                    dy={3.5 * upp}
+                  >
+                    ×{sheet.quantity}
+                  </text>
+                </g>
               </g>
             );
           })}
