@@ -109,7 +109,8 @@ describe('project document', () => {
       },
     ]);
     expect(input.geometries.map((geometry) => geometry.id)).toEqual([project.parts[0].id]);
-    expect(settings).toEqual({ time_limit_seconds: 120, auto_termination: true, seed: 0 });
+    // No seed: the backend picks one per job, while studio is developed.
+    expect(settings).toEqual({ time_limit_seconds: 120, auto_termination: true });
     expect(project.machines[0].id).not.toBe(machine.id);
   });
 

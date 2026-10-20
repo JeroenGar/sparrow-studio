@@ -54,17 +54,18 @@ export function projectInput(project: ProjectDocument): Input {
   };
 }
 
-/** Studio always sends the same seed, as the API's contract asks of it. */
-export const SEED = 0;
-
-/** The job request for a project. */
+/**
+ * The job request for a project. It sends no seed, so the backend picks a new one for every job.
+ *
+ * TODO before launch: send a fixed seed again, as the API's contract asks of clients, so the same
+ * project gives the same job. Random seeds are only for trying studio while it is developed.
+ */
 export function projectRequest(project: ProjectDocument): JobRequest {
   return {
     input: projectInput(project),
     settings: {
       time_limit_seconds: project.settings.timeLimitSeconds,
       auto_termination: project.settings.autoTermination,
-      seed: SEED,
     },
   };
 }
