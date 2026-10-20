@@ -89,11 +89,11 @@ export function explainDiagnostic(
     return `${name(unplaced.part_id)}: no place was found for ${copies(unplaced.quantity)}, not even on empty material. Check that the part fits with the gap and the distance to the edge.`;
   const hole = withKind(diagnostic, 'hole_ignored');
   if (hole)
-    return `${name(hole.part_id)}: hole ${hole.hole_index + 1} crosses the outline or another hole, so the part was treated as solid there.`;
+    return `${name(hole.part_id)}: hole ${hole.hole_index + 1} could not be used, so the part was treated as solid there.`;
   const raised = withKind(diagnostic, 'boundary_separation_raised');
   if (raised)
     return `The distance to the material edge was raised from ${length(raised.requested)} to ${length(raised.used)}, half the gap.`;
   if (withKind(diagnostic, 'locked_placement_conflict'))
-    return 'A placement given in advance overlaps something or lies too close to it; it was kept as given.';
+    return 'A placement given in advance lies outside its sheet, overlaps something, or lies too close to it; it was kept as given.';
   return undefined;
 }

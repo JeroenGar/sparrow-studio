@@ -98,8 +98,8 @@ export function SolutionView() {
   const unplacedCopies = outcome.unplaced.reduce((n, u) => n + u.quantity, 0);
   const placedOf = (partId: string) =>
     layouts.reduce((n, l) => n + l.result.placements.filter((p) => p.partId === partId).length, 0);
-  // Parts with copies that fit on no empty sheet: the unplaced list says so for each.
-  const tooLarge = new Set(
+  // Parts with copies for which no place was found, even on empty material: the list says so.
+  const unfound = new Set(
     outcome.diagnostics.flatMap((d) => withKind(d, 'no_valid_placement')?.part_id ?? []),
   );
   const notes = outcome.diagnostics.flatMap((diagnostic) =>
@@ -220,12 +220,12 @@ export function SolutionView() {
                   {outcome.unplaced.map((u) => (
                     <li key={u.part_id}>
                       {names.get(u.part_id) ?? 'A part'}: {u.quantity} not placed
-                      {tooLarge.has(u.part_id) && ', as it fits nowhere on the material'}
+                      {unfound.has(u.part_id) && ', as no place was found, even on empty material'}
                     </li>
                   ))}
                 </ul>
                 <p>
-                  {tooLarge.size
+                  {unfound.size
                     ? 'Check that each part fits the material with the gap and the distance to the edge.'
                     : 'Add material, or lower the quantities, and start nesting again.'}
                 </p>

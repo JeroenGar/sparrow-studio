@@ -553,7 +553,7 @@ function StudioShell({
           onClose={() => setDialog(undefined)}
           onAdd={(parts, widthMm) => {
             if (dialog.kind === 'sheets') {
-              // Each outline is a sheet entry, in stock as often as the file asks for its part.
+              // Each outline is a sheet entry, in stock as often as the file says.
               edit((current) => ({
                 ...current,
                 stock: {
@@ -564,7 +564,7 @@ function StudioShell({
                       id: newId(),
                       name: part.name,
                       shape: part.shape,
-                      quantity: Math.max(1, part.quantity),
+                      quantity: part.quantity,
                     })),
                   ],
                 },
