@@ -1,5 +1,5 @@
 import { normalizePart } from '../engine/geometry/normalize';
-import { polygonShape } from '../engine/geometry/contour';
+import { outline, polygonShape } from '../engine/geometry/contour';
 import type { Ring } from '../engine/model';
 import {
   INPUT_TABS,
@@ -33,8 +33,23 @@ export function parseProject(stored: unknown): ProjectDocument {
   if (typeof value.name !== 'string' || !value.name.trim()) return fail('missing name.');
   if (!Array.isArray(value.parts)) return fail('parts must be a list.');
   const stock = value.stock;
-  if (!isRecord(stock) || stock.packing !== 'strip' || !isRecord(stock.strip))
+  if (
+    !isRecord(stock) ||
+    (stock.packing !== 'strip' && stock.packing !== 'sheets') ||
+    !isRecord(stock.strip) ||
+    !Array.isArray(stock.sheets)
+  )
     return fail('invalid stock.');
+  for (const sheet of stock.sheets)
+    if (
+      !isRecord(sheet) ||
+      typeof sheet.id !== 'string' ||
+      typeof sheet.name !== 'string' ||
+      !Number.isInteger(sheet.quantity) ||
+      (sheet.quantity as number) < 0 ||
+      !drawable(sheet.shape)
+    )
+      return fail('invalid sheet.');
   const strip = stock.strip;
   if (typeof strip.id !== 'string' || typeof strip.name !== 'string' || !finite(strip.widthMm))
     return fail('invalid strip.');
@@ -108,7 +123,8 @@ export function parseProject(stored: unknown): ProjectDocument {
  * alone, and solutions in studio's own format: its runs stopped once the search stalled, without
  * a time limit or within the one chosen, and its solutions are dropped. Version 2 stored a part's
  * outline as `outer` and `holes` polygons, which become its shape. Version 3 had no reflection
- * or nesting inside holes: its parts keep solving as they did, without either.
+ * or nesting inside holes: its parts keep solving as they did, without either. Version 4 had no
+ * sheets.
  */
 function upgrade(project: Record<string, unknown>): Record<string, unknown> {
   if (project.version === 1) {
@@ -124,8 +140,14 @@ function upgrade(project: Record<string, unknown>): Record<string, unknown> {
       solutions: [],
     });
   }
-  if (project.version === 3)
+  if (project.version === 4)
     return {
+      ...project,
+      version: 5,
+      stock: { ...(isRecord(project.stock) && project.stock), sheets: [] },
+    };
+  if (project.version === 3)
+    return upgrade({
       ...project,
       version: 4,
       partDefaults: {
@@ -133,7 +155,7 @@ function upgrade(project: Record<string, unknown>): Record<string, unknown> {
         nestInHoles: false,
         ...(isRecord(project.partDefaults) && project.partDefaults),
       },
-    };
+    });
   if (project.version === 2 && Array.isArray(project.parts))
     return upgrade({
       ...project,
@@ -144,6 +166,18 @@ function upgrade(project: Record<string, unknown>): Record<string, unknown> {
       }),
     });
   return project;
+}
+
+/** Whether a stored shape can be drawn, as far as studio can tell; the backend checks the rest. */
+function drawable(shape: unknown): boolean {
+  try {
+    const { outer, holes } = outline(shape as Parameters<typeof outline>[0]);
+    return [outer, ...holes].every(
+      (ring) => Array.isArray(ring) && ring.length >= 3 && ring.flat().every(finite),
+    );
+  } catch {
+    return false;
+  }
 }
 
 export const serializeProject = (project: ProjectDocument) => JSON.stringify(project, null, 2);

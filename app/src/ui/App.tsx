@@ -340,16 +340,16 @@ function StudioShell({
       );
       return {
         ...current,
-        stock: content.strip
-          ? {
-              ...current.stock,
-              strip: {
-                ...current.stock.strip,
-                name: content.strip.name,
-                widthMm: content.strip.widthMm,
-              },
-            }
-          : current.stock,
+        stock: {
+          ...current.stock,
+          strip: content.strip
+            ? { ...current.stock.strip, name: content.strip.name, widthMm: content.strip.widthMm }
+            : current.stock.strip,
+          sheets: [
+            ...current.stock.sheets,
+            ...content.sheets.map((sheet) => ({ ...sheet, id: newId() })),
+          ],
+        },
         machines: [
           ...current.machines,
           ...content.machines.map((machine) => ({ ...machine, id: newId() })),

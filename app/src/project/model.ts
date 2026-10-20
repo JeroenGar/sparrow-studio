@@ -1,14 +1,47 @@
 import type { JobDocument } from '../api/client';
+import type { Shape } from '../engine/geometry/contour';
 import { LIMITS, newId, type Part, type RotationRule } from '../engine/model';
 
 /** Identifies a sparrow studio project document, in browser storage and in files. */
 export const PROJECT_FORMAT = 'sparrow-studio-project';
-export const PROJECT_VERSION = 4;
+export const PROJECT_VERSION = 5;
 
 /** One strip of fixed width; the solver minimizes the length it uses. */
 export type Strip = { id: string; name: string; widthMm: number };
-/** What the parts are nested into. Sheets (bin packing) arrive with sparrow pro. */
-export type Stock = { packing: 'strip'; strip: Strip };
+/**
+ * A row of identical sheets, used one after another: a rectangle, or an imported outline. Its
+ * shape is in the job format, in the sheet's own coordinates.
+ */
+export type SheetEntry = { id: string; name: string; shape: Shape; quantity: number };
+/**
+ * What the parts are nested into: one strip, or sheets in the order of the list. A project keeps
+ * both; `packing` says which a job uses.
+ */
+export type Stock = { packing: 'strip' | 'sheets'; strip: Strip; sheets: SheetEntry[] };
+
+export function newSheet(name: string, widthMm: number, heightMm: number): SheetEntry {
+  return {
+    id: newId(),
+    name,
+    shape: { outer: { type: 'rectangle', x_min: 0, y_min: 0, width: widthMm, height: heightMm } },
+    quantity: 1,
+  };
+}
+
+/** A sheet's rectangle, when it is one; other outlines cannot be edited. */
+export function rectangleOf(sheet: SheetEntry) {
+  const outer = sheet.shape.outer;
+  return outer.type === 'rectangle' && !sheet.shape.holes?.length ? outer : undefined;
+}
+
+/** The sheet entries a job uses: those with sheets in stock. */
+export const usedSheets = (stock: Stock) => stock.sheets.filter((sheet) => sheet.quantity > 0);
+
+/** How many sheets the project has in stock, in words. */
+export function describeSheets(project: ProjectDocument): string {
+  const count = copyCount(project.stock.sheets);
+  return `${count} ${count === 1 ? 'sheet' : 'sheets'} in stock`;
+}
 /**
  * Machine-specific solver inputs: the gap between parts, and the distance from parts to the edge
  * of the material, which is the gap unless the preset has its own. Clamps come later.
@@ -100,7 +133,11 @@ export function newProject(name: string, machine: MachinePreset = newMachine()):
       reflection: false,
       nestInHoles: true,
     },
-    stock: { packing: 'strip', strip: { id: newId(), name: 'Material strip', widthMm: 1000 } },
+    stock: {
+      packing: 'strip',
+      strip: { id: newId(), name: 'Material strip', widthMm: 1000 },
+      sheets: [],
+    },
     machines: [copy],
     machineId: copy.id,
     settings: { ...DEFAULT_SOLVER_SETTINGS },
@@ -126,14 +163,14 @@ export function startBlockers(project: ProjectDocument): string[] {
   const copies = copyCount(project.parts);
   if (!project.parts.length) reasons.push('Import parts to nest.');
   else if (copies === 0) reasons.push('Give at least one part a quantity above zero.');
-  if (!Number.isFinite(width) || width <= 0 || width > LIMITS.extent)
+  if (project.stock.packing === 'sheets') {
+    if (!usedSheets(project.stock).length) reasons.push('Add a sheet in the Sheets tab.');
+  } else if (!Number.isFinite(width) || width <= 0 || width > LIMITS.extent)
     reasons.push('Set a strip width in the Sheets tab.');
   if (!Number.isFinite(gap) || gap < 0) reasons.push('Set a valid gap in the Machine tab.');
   const boundary = boundaryOf(activeMachine(project));
   if (!Number.isFinite(boundary) || boundary < 0)
     reasons.push('Set a valid distance to the material edge in the Machine tab.');
-  else if (Number.isFinite(width) && gap >= width)
-    reasons.push('The gap must be smaller than the strip width.');
   return reasons;
 }
 

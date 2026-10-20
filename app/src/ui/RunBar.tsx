@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ApiError, withCode } from '../api/client';
-import { copyCount, startBlockers, TAB_NAMES, unseenTabs } from '../project/model';
+import { copyCount, describeSheets, startBlockers, TAB_NAMES, unseenTabs } from '../project/model';
 import { projectRequest } from '../project/solution';
 import { backend, client } from './client';
 import { useStudio } from './context';
@@ -101,8 +101,11 @@ export function RunBar() {
         <span className="run-blocker">{refusal.message}</span>
       ) : (
         <span className="muted">
-          {copies} {copies === 1 ? 'part' : 'parts'} · strip{' '}
-          {formatLength(project.stock.strip.widthMm, unit)} {unit} wide · solved {backend.solves}
+          {copies} {copies === 1 ? 'part' : 'parts'} ·{' '}
+          {project.stock.packing === 'sheets'
+            ? describeSheets(project)
+            : `strip ${formatLength(project.stock.strip.widthMm, unit)} ${unit} wide`}{' '}
+          · solved {backend.solves}
         </span>
       )}
     </div>

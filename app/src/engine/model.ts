@@ -1,4 +1,4 @@
-import type { Shape } from './geometry/contour';
+import type { Contour, Shape } from './geometry/contour';
 
 export type Point = [number, number];
 export type Ring = Point[];
@@ -18,8 +18,13 @@ export type JobSettings = { solverPreset: Preset; materialWidthMm: number; clear
 export type Job = { name: string; parts: Part[]; settings: JobSettings };
 /** A placed copy: mirrored across its own x-axis first when `mirrored`, then turned, then moved. */
 export type Placement = { partId: string; copyIndex: number; xMm: number; yMm: number; angleDeg: number; mirrored?: boolean };
-/** A layout as studio's drawings and exports read it: each copy placed, and the strip's length used. */
+/** A layout as studio's drawings and exports read it: each copy placed, and the length used. */
 export type Result = { usedLengthMm: number; placements: Placement[] };
+/**
+ * A sheet a layout lies on, in its own coordinates: its outline, the regions parts must avoid, and
+ * where it is cut, when it is. A layout without one lies on the strip.
+ */
+export type Sheet = { shape: Shape; defects: Contour[]; cutX: number | null };
 export const DEFAULT_SETTINGS: JobSettings = { solverPreset: 'standard', materialWidthMm: 1000, clearanceMm: 0, timeLimitSeconds: null };
 export const SOLVER_REVISION = '7f0e10f946f70a86138d3938548a13ee46464f39';
 // Bounds on what studio reads, for its own sake; how many copies a job may have is the backend's limit.

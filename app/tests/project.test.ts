@@ -8,6 +8,7 @@ import {
   differsFromDefaults,
   newMachine,
   newProject,
+  newSheet,
   resolvedParts,
   setPartDefault,
   setPartSetting,
@@ -49,7 +50,7 @@ describe('project document', () => {
   it('rejects other formats and versions', () => {
     const project = newProject('Shop job');
     expect(() => parseProject({ ...project, format: 'other' })).toThrow('unknown format');
-    expect(() => parseProject({ ...project, version: 5 })).toThrow('version 5');
+    expect(() => parseProject({ ...project, version: 6 })).toThrow('version 6');
   });
 
   it('upgrades version 2, whose parts store polygons as outer and holes', () => {
@@ -132,11 +133,12 @@ describe('project document', () => {
       part_id: id,
       transformation: { reflection: 'none' as const, rotation: 90, translation: [x, 0] },
     });
-    const { job, result } = drawable(
+    const { job, layouts } = drawable(
       input,
       { layouts: [{ sheet_id: 'strip', placements: [at(10), at(30)] }] },
       new Map([[id, 'Plate']]),
     );
+    const { result } = layouts[0];
     expect(job.parts.map((part) => part.name)).toEqual(['Plate']);
     expect(result.placements.map((p) => [p.copyIndex, p.xMm, p.angleDeg])).toEqual([
       [0, 10, 90],
@@ -160,15 +162,87 @@ describe('project document', () => {
       part_id: id,
       transformation: { reflection: 'x_axis' as const, rotation: 90, translation: [0, 0] },
     };
-    const { job, result } = drawable(projectInput(project), {
+    const { job, layouts } = drawable(projectInput(project), {
       layouts: [{ sheet_id: 'strip', placements: [mirrored] }],
     });
+    const { result } = layouts[0];
     expect(result.placements[0].mirrored).toBe(true);
     // (0, 5) mirrors to (0, −5), which a quarter turn takes to (5, 0).
     const [placed] = worldParts(job, result);
     expect(placed.outer[2][0]).toBeCloseTo(5);
     expect(placed.outer[2][1]).toBeCloseTo(0);
     expect(outline(placed.shape).outer[2][0]).toBeCloseTo(5);
+  });
+
+  it('nests into the sheets with copies in stock, in the order of the list', () => {
+    const first = { ...newSheet('Remnant', 500, 300), quantity: 1 };
+    const none = { ...newSheet('Used up', 100, 100), quantity: 0 };
+    const plate = { ...newSheet('Plate', 3000, 1500), quantity: 4 };
+    let project = addParts(newProject('Job'), [square(10)]);
+    project = { ...project, stock: { ...project.stock, sheets: [first, none, plate] } };
+    // A project keeps its sheets while it nests into the strip.
+    expect(projectInput(project).problem.type).toBe('minimize_strip_length');
+    project = { ...project, stock: { ...project.stock, packing: 'sheets' } };
+    const input = projectInput(project);
+    expect(input.problem).toEqual({
+      type: 'minimize_sheets_in_order',
+      sheets: [
+        { id: first.id, geometry_id: first.id, quantity: 1 },
+        { id: plate.id, geometry_id: plate.id, quantity: 4 },
+      ],
+    });
+    expect(input.geometries.map((geometry) => geometry.id)).toEqual([
+      project.parts[0].id,
+      first.id,
+      plate.id,
+    ]);
+    expect(startBlockers(project)).toEqual([]);
+    expect(startBlockers({ ...project, stock: { ...project.stock, sheets: [none] } })).toEqual([
+      'Add a sheet in the Sheets tab.',
+    ]);
+    expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
+  });
+
+  it('draws each layout on its sheet, numbering copies across sheets', () => {
+    const remnant = newSheet('Remnant', 15, 15);
+    const plate = { ...newSheet('Plate', 100, 50), quantity: 2 };
+    let project = addParts(newProject('Job'), [square(10, 3)]);
+    project = {
+      ...project,
+      stock: { packing: 'sheets', strip: project.stock.strip, sheets: [remnant, plate] },
+    };
+    const id = project.parts[0].id;
+    const at = (x: number) => ({
+      part_id: id,
+      transformation: { reflection: 'none' as const, rotation: 0, translation: [x, 0] },
+    });
+    const layout = (
+      sheet_id: string,
+      placements: ReturnType<typeof at>[],
+      cut_x: number | null,
+    ) => ({
+      layout: { sheet_id, placements },
+      stats: { cut_x, consumed_area: 1, placed_area: 1, density: 1 },
+    });
+    const all = [layout(remnant.id, [at(0)], null), layout(plate.id, [at(0), at(20)], 30)];
+    const { layouts } = drawable(
+      projectInput(project),
+      { layouts: all.map((l) => l.layout) },
+      new Map([[plate.id, 'Plate']]),
+      { consumed_area: 2, placed_area: 2, density: 1, layouts: all.map((l) => l.stats) },
+    );
+    expect(layouts.map((l) => [l.name, l.sheet?.cutX, l.result.usedLengthMm])).toEqual([
+      [remnant.id, null, 15],
+      ['Plate', 30, 30],
+    ]);
+    expect(layouts.flatMap((l) => l.result.placements.map((p) => p.copyIndex))).toEqual([0, 1, 2]);
+  });
+
+  it('upgrades version 4, which had no sheets', () => {
+    const project = newProject('Shop job');
+    const { sheets, ...stock } = project.stock;
+    expect(sheets).toEqual([]);
+    expect(parseProject({ ...project, version: 4, stock })).toEqual(project);
   });
 
   it('asks for each input tab before the first run of a new project, and only then', () => {
@@ -192,12 +266,6 @@ describe('project document', () => {
     const seen = empty;
     const zero = { ...seen, parts: [square(10, 0)] };
     expect(startBlockers(zero)[0]).toMatch('quantity above zero');
-    const wide = {
-      ...seen,
-      parts: [square(10)],
-      machines: [{ ...seen.machines[0], gapMm: 2000 }],
-    };
-    expect(startBlockers(wide)).toEqual(['The gap must be smaller than the strip width.']);
     expect(startBlockers({ ...seen, parts: [square(10)] })).toEqual([]);
     // How many copies a job may have is the backend's to say.
     expect(startBlockers({ ...seen, parts: [square(10, 4000)] })).toEqual([]);

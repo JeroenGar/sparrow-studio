@@ -26,8 +26,8 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         reply={...ids,type:'import-review',review:{document,warnings:reviews.flatMap(r=>r.warnings),issues:reviews.flatMap(r=>r.issues??[]),layers:[...new Set(reviews.flatMap(r=>r.layers??[]))].sort()}};
         break;
       }
-      case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result,data.utilization)}; break;
-      case 'live-preview':reply={...ids,type:'live-frame',sequence:data.sequence,geometry:liveGeometry(data.document,data.result)};break;
+      case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result,data.utilization,data.sheet)}; break;
+      case 'live-preview':reply={...ids,type:'live-frame',sequence:data.sequence,geometry:data.results.map(result=>liveGeometry(data.document,result))};break;
     }
     self.postMessage(reply);
   } catch(error) { self.postMessage({...ids,type:'error',message:error instanceof Error?error.message:String(error)} satisfies GeometryReply); }

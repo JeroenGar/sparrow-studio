@@ -157,3 +157,15 @@ it('mirrors curves with their copies: arcs keep bulging outward',()=>{
   expect(Math.max(...ring.map(([,y])=>y))).toBeCloseTo(0);
   for(const [x,y] of ring)expect(Math.hypot(x,y)).toBeLessThanOrEqual(10+1e-9);
 });
+
+it('exports a layout on its sheet: outline, defects and cut drawn, and only the parts reimported',()=>{
+  const {doc,result}=fixture();
+  const sheet={shape:{outer:{type:'polygon' as const,points:[[0,0],[4,0],[4,3],[0,3]]},holes:[{type:'circle' as const,center:[3,2],radius:.5}]},defects:[{type:'rectangle' as const,x_min:3.5,y_min:0,width:.5,height:1}],cutX:2.5};
+  const {svg,dxf}=exportSVG(doc,{...result,usedLengthMm:2.5},50,sheet);
+  // The frame is the sheet, not the strip.
+  expect(svg).toContain('width="4.4mm" height="3.3mm"');
+  const imported=importSVG(svg,'sheet.svg',{scale:1,tolerance:.01});
+  expect(imported.document.parts).toHaveLength(2);
+  const entities=(parseString(dxf) as {entities:{type:string;layer:string}[]}).entities.filter(e=>e.layer===SHEET_LAYER);
+  expect(entities.map(e=>e.type).sort()).toEqual(['CIRCLE','LINE','LWPOLYLINE','LWPOLYLINE']);
+});

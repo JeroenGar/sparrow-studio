@@ -46,8 +46,8 @@ export function Canvas({
   children,
 }: {
   extent: Box;
-  /** Zoom to this box whenever `key` changes. */
-  focus?: { box: Box; key: string };
+  /** Zoom to this box whenever `key` changes, with `margin` times its size around it (1.2 by default). */
+  focus?: { box: Box; key: string; margin?: number };
   label: string;
   toolbar?: ReactNode;
   overlay?: ReactNode;
@@ -80,7 +80,7 @@ export function Canvas({
     if (!focus) return;
     const [x0, y0, x1, y1] = focus.box;
     // Frame the focused item with room around it, so its neighbours stay in view.
-    const grow = Math.max(x1 - x0, y1 - y0) * 1.2;
+    const grow = Math.max(x1 - x0, y1 - y0) * (focus.margin ?? 1.2);
     setView(fitBox([x0 - grow, y0 - grow, x1 + grow, y1 + grow], size, 0));
   }, [focus?.key]);
 

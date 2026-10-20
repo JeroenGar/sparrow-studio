@@ -767,6 +767,26 @@ input[aria-invalid='true'] {
   border-radius: 2px;
   background: var(--overlap);
 }
+.sheet-label {
+  fill: var(--muted);
+  font-family: var(--mono);
+}
+.defect {
+  fill: var(--line);
+  fill-opacity: 0.8;
+  stroke: var(--muted);
+}
+.order {
+  min-width: 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+.sheet-thumb {
+  fill: var(--sheet);
+  stroke: var(--ink);
+}
 .strip-thumb {
   fill: var(--sheet);
   stroke: var(--ink);

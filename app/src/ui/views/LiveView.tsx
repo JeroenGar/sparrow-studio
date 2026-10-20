@@ -3,8 +3,10 @@ import type { Input, Schemas } from '../../api/client';
 import { worldParts } from '../../engine/geometry/world';
 import type { LiveGeometry } from '../../engine/geometry/live';
 import type { GeometryReply } from '../../engine/workers/protocol';
-import { activeMachine, copyCount } from '../../project/model';
-import { drawable } from '../../project/solution';
+import { activeMachine, copyCount, describeSheets } from '../../project/model';
+import { drawable, type DrawnLayout } from '../../project/solution';
+import type { Job } from '../../engine/model';
+import type { Box } from '../../project/layout';
 import { Canvas } from '../Canvas';
 import { backend, usesSparrowPro } from '../client';
 import { useStudio } from '../context';
@@ -12,11 +14,12 @@ import { formatLength, formatPercent, formatSeconds } from '../format';
 import { RunBar } from '../RunBar';
 import { rulerStep } from '../rulers';
 import { elapsed, useNow, type Run } from '../useJob';
-import { LayoutDrawing } from './LayoutDrawing';
+import { LayoutDrawing, stackLayouts } from './LayoutDrawing';
+import { useNames } from './SolutionView';
 import { explainJobError } from '../explain';
 
 /**
- * The overlaps of the layout the search is working on, worked out off the main thread for one
+ * The layouts the search is working on, with their overlaps, worked out off the main thread for one
  * run's input. One frame is in progress at a time; layouts that arrive meanwhile are skipped for
  * the newest, and each frame is shown at the next animation frame.
  */
@@ -25,7 +28,11 @@ function useSearchFrame(
   search: Schemas['Search'] | undefined,
   names: Map<string, string>,
 ) {
-  const [frame, setFrame] = useState<LiveGeometry>();
+  const [frame, setFrame] = useState<{
+    job: Job;
+    layouts: DrawnLayout[];
+    geometry: LiveGeometry[];
+  }>();
   const latest = useRef(search);
   latest.current = search;
   const next = useRef<() => void>(undefined);
@@ -38,24 +45,27 @@ function useSearchFrame(
       type: 'module',
     });
     let shown = -1;
+    // The layouts of the frame being worked out.
+    let pending: ReturnType<typeof drawable> | undefined;
     next.current = () => {
       const search = latest.current;
       busy.current = !!search && search.sequence !== shown;
       if (!busy.current || !search) return;
-      const { job, result } = drawable(input, search.solution, names);
+      pending = drawable(input, search.solution, names);
       worker.postMessage({
         type: 'live-preview',
         runId: 0,
         documentRevision: 0,
         sequence: search.sequence,
-        document: job,
-        result,
+        document: pending.job,
+        results: pending.layouts.map((layout) => layout.result),
       });
     };
     worker.onmessage = ({ data }: MessageEvent<GeometryReply>) => {
-      if (data.type === 'live-frame') {
+      if (data.type === 'live-frame' && pending) {
         shown = data.sequence;
-        requestAnimationFrame(() => setFrame(data.geometry));
+        const drawn = pending;
+        requestAnimationFrame(() => setFrame({ ...drawn, geometry: data.geometry }));
       }
       next.current?.();
     };
@@ -113,36 +123,54 @@ function status(run: Run) {
   }
 }
 
+/** The union of two boxes. */
+const union = (a: Box, b: Box): Box => [
+  Math.min(a[0], b[0]),
+  Math.min(a[1], b[1]),
+  Math.max(a[2], b[2]),
+  Math.max(a[3], b[3]),
+];
+
 export function LiveView() {
   const { run, unit, running, project, setTab } = useStudio();
   const [mode, setMode] = useState<'live' | 'best'>('live');
-  const names = useMemo(
-    () => new Map(project.parts.map((part) => [part.id, part.name])),
-    [project.parts],
-  );
+  const names = useNames();
   const input = run?.request.input;
   const best = useMemo(
     () =>
-      input && run?.best
-        ? drawable(input, run.best.solution, names, run.best.stats.layouts[0]?.cut_x)
-        : undefined,
+      input && run?.best ? drawable(input, run.best.solution, names, run.best.stats) : undefined,
     [input, run?.best, names],
   );
   const frame = useSearchFrame(running ? input : undefined, run?.search, names);
   const showLive = mode === 'live' && !!frame && running;
-  const bestWorld = useMemo(() => (best ? worldParts(best.job, best.result) : []), [best]);
+  const bestWorlds = useMemo(
+    () => best?.layouts.map((layout) => worldParts(best.job, layout.result)) ?? [],
+    [best],
+  );
+  const shown = showLive ? frame : best;
+  const worlds = showLive ? frame.geometry.map((geometry) => geometry.world) : bestWorlds;
+  const onSheets = input?.problem.type === 'minimize_sheets_in_order';
   const strip =
     input?.problem.type === 'minimize_strip_length'
       ? input.problem.height
       : project.stock.strip.widthMm;
-  const liveLength = frame
-    ? Math.max(0, ...frame.world.flatMap((part) => part.outer.map(([x]) => x)))
-    : 0;
-  const shownLength = (showLive ? liveLength : best?.result.usedLengthMm) || strip * 2;
-  // Keep the view still while the layout shrinks: fit to the longest layout of this run.
-  const longest = useRef({ run, length: 0 });
-  if (longest.current.run?.request !== run?.request) longest.current = { run, length: 0 };
-  longest.current.length = Math.max(longest.current.length, shownLength);
+  // A live layout may overlap and is not cut yet: the strip reaches to its rightmost part.
+  const lengths =
+    shown?.layouts.map((layout, i) =>
+      showLive
+        ? Math.max(0, ...worlds[i].flatMap((part) => part.outer.map(([x]) => x)))
+        : layout.result.usedLengthMm,
+    ) ?? [];
+  const stack = shown && stackLayouts(shown.job, shown.layouts, lengths);
+  // Keep the view still while the layout shrinks: fit to everything this run has shown.
+  const seen = useRef<{ request?: unknown; extent?: Box }>({});
+  if (seen.current.request !== run?.request) seen.current = { request: run?.request };
+  if (stack?.boxes.length)
+    seen.current.extent = seen.current.extent
+      ? union(seen.current.extent, stack.extent)
+      : stack.extent;
+  const [x0, y0, x1, y1] = seen.current.extent ?? [0, 0, strip * 2, strip];
+  const pad = Math.max(x1 - x0, y1 - y0) * 0.05;
 
   const state = run?.job?.state;
   const failure =
@@ -150,6 +178,7 @@ export function LiveView() {
   const reduced = run?.job?.diagnostics?.find(
     (diagnostic) => diagnostic.kind === 'threads_reduced',
   ) as { used: number; reason: string } | undefined;
+  const bestLength = best?.layouts[0]?.result.usedLengthMm;
 
   return (
     <div className="view">
@@ -170,13 +199,20 @@ export function LiveView() {
                   </span>
                   <span className="muted">utilization</span>
                 </div>
-                <div className="metric">
-                  <span className="metric-value">
-                    {best ? formatLength(best.result.usedLengthMm, unit) : '—'}{' '}
-                    <small>{unit}</small>
-                  </span>
-                  <span className="muted">length used</span>
-                </div>
+                {onSheets ? (
+                  <div className="metric">
+                    <span className="metric-value">{best ? best.layouts.length : '—'}</span>
+                    <span className="muted">sheets used</span>
+                  </div>
+                ) : (
+                  <div className="metric">
+                    <span className="metric-value">
+                      {bestLength !== undefined ? formatLength(bestLength, unit) : '—'}{' '}
+                      <small>{unit}</small>
+                    </span>
+                    <span className="muted">length used</span>
+                  </div>
+                )}
               </div>
               <span className="muted">Of the best valid layout so far.</span>
               <RunClock run={run} running={running} />
@@ -201,7 +237,7 @@ export function LiveView() {
       </section>
       <Canvas
         label="Live layout"
-        extent={[0, -strip * 0.1, longest.current.length * 1.05, strip * 1.1]}
+        extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         toolbar={
           run && (
             <>
@@ -228,17 +264,21 @@ export function LiveView() {
         }
       >
         {({ upp }) =>
-          showLive && best ? (
+          shown &&
+          stack &&
+          shown.layouts.map((layout, i) => (
             <LayoutDrawing
-              job={best.job}
-              world={frame!.world}
-              overlaps={frame!.overlaps}
-              usedLength={shownLength}
+              key={i}
+              job={shown.job}
+              world={worlds[i]}
+              sheet={layout.sheet}
+              overlaps={showLive ? frame.geometry[i].overlaps : undefined}
+              usedLength={lengths[i]}
               upp={upp}
+              shift={stack.shifts[i]}
+              label={onSheets ? `${i + 1} · ${layout.name}` : undefined}
             />
-          ) : best ? (
-            <LayoutDrawing job={best.job} world={bestWorld} usedLength={shownLength} upp={upp} />
-          ) : null
+          ))
         }
       </Canvas>
     </div>
@@ -258,10 +298,19 @@ function NextRun({ onSolution }: { onSolution?: () => void }) {
         <dd>
           {project.parts.length} types, {copyCount(project.parts)} copies
         </dd>
-        <dt>Strip</dt>
-        <dd>
-          {formatLength(project.stock.strip.widthMm, unit)} {unit} wide
-        </dd>
+        {project.stock.packing === 'sheets' ? (
+          <>
+            <dt>Sheets</dt>
+            <dd>{describeSheets(project)}</dd>
+          </>
+        ) : (
+          <>
+            <dt>Strip</dt>
+            <dd>
+              {formatLength(project.stock.strip.widthMm, unit)} {unit} wide
+            </dd>
+          </>
+        )}
         <dt>Gap</dt>
         <dd>
           {formatLength(machine.gapMm, unit, 3)} {unit} · {machine.name}

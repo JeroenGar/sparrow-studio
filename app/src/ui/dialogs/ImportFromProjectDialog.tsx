@@ -4,6 +4,7 @@ import {
   resolvedParts,
   type MachinePreset,
   type ProjectDocument,
+  type SheetEntry,
   type Strip,
 } from '../../project/model';
 import { backend } from '../client';
@@ -13,16 +14,18 @@ import { Dialog } from '../Dialog';
 import { formatLength } from '../format';
 import { explain } from '../explain';
 
-export type ProjectImport = { parts: Part[]; strip?: Strip; machines: MachinePreset[] };
+export type ProjectImport = {
+  parts: Part[];
+  strip?: Strip;
+  sheets: SheetEntry[];
+  machines: MachinePreset[];
+};
 type Kind = 'parts' | 'sheets' | 'machines';
 
-const TITLES: Record<Kind, string> = {
-  parts: 'Import parts from another project',
-  sheets: 'Import the strip from another project',
-  machines: 'Import machine presets from another project',
-};
-
-/** Copy parts, the strip or machine presets from another saved project. */
+/**
+ * Copy parts, the strip, sheets or machine presets from another saved project. The Sheets tab
+ * imports what the project nests into: the strip, or sheet entries.
+ */
 export function ImportFromProjectDialog({
   kind,
   currentId,
@@ -34,7 +37,15 @@ export function ImportFromProjectDialog({
   onImport: (content: ProjectImport) => void;
   onClose: () => void;
 }) {
-  const { unit } = useStudio();
+  const { unit, project } = useStudio();
+  // What is imported: `strip` stands for the Sheets tab of a project that nests into a strip.
+  const what = kind === 'sheets' && project.stock.packing === 'strip' ? 'strip' : kind;
+  const title = {
+    parts: 'Import parts from another project',
+    strip: 'Import the strip from another project',
+    sheets: 'Import sheets from another project',
+    machines: 'Import machine presets from another project',
+  }[what];
   const [projects, setProjects] = useState<ProjectSummary[]>();
   const [source, setSource] = useState<ProjectDocument>();
   const [chosen, setChosen] = useState<Set<string>>(new Set());
@@ -49,13 +60,13 @@ export function ImportFromProjectDialog({
     try {
       const stored = await openProject(id);
       setSource(stored.document);
-      const items =
-        kind === 'parts'
-          ? stored.document.parts.map((part) => part.id)
-          : kind === 'machines'
-            ? stored.document.machines.map((machine) => machine.id)
-            : [stored.document.stock.strip.id];
-      setChosen(new Set(items));
+      const items = {
+        parts: stored.document.parts,
+        machines: stored.document.machines,
+        sheets: stored.document.stock.sheets,
+        strip: [stored.document.stock.strip],
+      }[what];
+      setChosen(new Set(items.map((item) => item.id)));
     } catch (reason) {
       setError(explain(reason));
     }
@@ -77,17 +88,23 @@ export function ImportFromProjectDialog({
             label: machine.name,
             detail: `gap ${formatLength(machine.gapMm, unit, 3)} ${unit}`,
           }))
-        : [
-            {
-              id: source.stock.strip.id,
-              label: source.stock.strip.name,
-              detail: `${formatLength(source.stock.strip.widthMm, unit)} ${unit} wide`,
-            },
-          ];
+        : what === 'sheets'
+          ? source.stock.sheets.map((sheet) => ({
+              id: sheet.id,
+              label: sheet.name,
+              detail: `×${sheet.quantity}`,
+            }))
+          : [
+              {
+                id: source.stock.strip.id,
+                label: source.stock.strip.name,
+                detail: `${formatLength(source.stock.strip.widthMm, unit)} ${unit} wide`,
+              },
+            ];
 
   return (
     <Dialog
-      title={TITLES[kind]}
+      title={title}
       onClose={onClose}
       wide
       actions={
@@ -104,7 +121,11 @@ export function ImportFromProjectDialog({
                     kind === 'parts'
                       ? resolvedParts(source).filter((part) => chosen.has(part.id))
                       : [],
-                  strip: kind === 'sheets' && chosen.size ? source.stock.strip : undefined,
+                  strip: what === 'strip' && chosen.size ? source.stock.strip : undefined,
+                  sheets:
+                    what === 'sheets'
+                      ? source.stock.sheets.filter((sheet) => chosen.has(sheet.id))
+                      : [],
                   machines:
                     kind === 'machines'
                       ? source.machines.filter((machine) => chosen.has(machine.id))
@@ -112,7 +133,7 @@ export function ImportFromProjectDialog({
                 })
               }
             >
-              {kind === 'sheets' ? 'Use this strip' : `Import ${chosen.size}`}
+              {what === 'strip' ? 'Use this strip' : `Import ${chosen.size}`}
             </button>
           )}
         </>
@@ -144,7 +165,7 @@ export function ImportFromProjectDialog({
           <p>
             From <strong>{source.name}</strong>
           </p>
-          {kind !== 'sheets' && items.length > 1 && (
+          {what !== 'strip' && items.length > 1 && (
             <div className="row-actions">
               <button
                 className="small"
@@ -163,7 +184,7 @@ export function ImportFromProjectDialog({
               <li key={item.id}>
                 <label className="choice">
                   <input
-                    type={kind === 'sheets' ? 'radio' : 'checkbox'}
+                    type={what === 'strip' ? 'radio' : 'checkbox'}
                     checked={chosen.has(item.id)}
                     onChange={() => toggle(item.id)}
                   />
@@ -173,7 +194,7 @@ export function ImportFromProjectDialog({
               </li>
             ))}
           </ul>
-          {kind === 'sheets' && (
+          {what === 'strip' && (
             <p className="muted">The strip replaces the current strip width and name.</p>
           )}
         </>
