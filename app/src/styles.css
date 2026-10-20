@@ -11,6 +11,8 @@
   --line-soft: #ededeb;
   --control: #cfcfcb;
   --accent: #b3261e;
+  /* The brick of the studio label, the same in both themes. */
+  --brand: #b3261e;
   --accent-soft: #fbeceb;
   --accent-line: #e9b4b0;
   --canvas: #fafaf9;
@@ -388,8 +390,8 @@ input[aria-invalid='true'] {
   padding: 8px 16px;
   color: var(--bar-ink);
   background: var(--bar);
-  /* A brick line under the bar, the colour of the studio label. */
-  border-bottom: 2px solid var(--accent);
+  /* A line under the bar in the brick of the studio label. */
+  border-bottom: 2px solid var(--brand);
 }
 /* Controls on the bar take its tones. */
 .top-bar > button,
