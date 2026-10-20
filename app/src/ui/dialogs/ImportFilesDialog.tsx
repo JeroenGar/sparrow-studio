@@ -310,7 +310,7 @@ export function ImportFilesDialog({
                     )}
                   </svg>
                   <span>
-                    Sheet {sheet.name}
+                    {sheet.name}
                     <span className="muted block mono">
                       {formatLength(b[2] - b[0], unit)} × {formatLength(b[3] - b[1], unit)} {unit} ·
                       ×{sheet.quantity}

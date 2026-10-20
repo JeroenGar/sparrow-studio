@@ -31,7 +31,7 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         const document=combined.parts.length?normalizeJob(combined):combined;
         const outlines:Record<string,number>={};
         for(const r of reviews)for(const [layer,count] of Object.entries(r.outlines??{}))outlines[layer]=(outlines[layer]??0)+count;
-        reply={...ids,type:'import-review',review:{document,sheets:reviews.flatMap(r=>r.sheets??[]),warnings:reviews.flatMap(r=>r.warnings),issues:reviews.flatMap(r=>r.issues??[]),layers,roles,outlines}};
+        reply={...ids,type:'import-review',review:{document,sheets:reviews.flatMap(r=>r.sheets??[]),warnings:[...new Set(reviews.flatMap(r=>r.warnings))],issues:reviews.flatMap(r=>r.issues??[]),layers,roles,outlines}};
         break;
       }
       case 'export': reply={...ids,type:'export-result',bundle:exportSVG(data.document,data.result,data.utilization,data.sheets)}; break;

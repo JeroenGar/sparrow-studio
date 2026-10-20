@@ -331,9 +331,17 @@ export function classify(
     outer: item.outline.contour,
     ...(item.holes.length && { holes: item.holes.map((hole) => hole.contour) }),
   });
+  // Items are named after their file, numbered where the file holds several of a kind.
+  const base = drawing.name.replace(/\.(dxf|svg)$/i, '');
+  const total = { parts: 0, sheets: 0 };
+  for (const group of groups) total[group.role]++;
+  const seen = { parts: 0, sheets: 0 };
+  const nameOf = (kind: 'parts' | 'sheets') =>
+    total[kind] > 1 ? `${base} ${++seen[kind]}` : base;
   const parts: Part[] = [];
   const sheets: ImportedSheet[] = [];
   for (const { role: kind, item, count, curved } of groups) {
+    const name = nameOf(kind);
     // Moved so the outline starts at the origin, defects with it.
     const [x, y] = bounds(item.outline.ring);
     const shape = moveShape(shapeOf(item), [-x, -y]);
@@ -341,11 +349,11 @@ export function classify(
       const own = defectsOf
         .get(item)!
         .map((defect) => moveShape({ outer: defect.contour }, [-x, -y]).outer);
-      sheets.push({ name: item.outline.id, shape, quantity: count, defects: own });
+      sheets.push({ name, shape, quantity: count, defects: own });
       continue;
     }
     const part: Part = {
-      ...newPart(shape, item.outline.id),
+      ...newPart(shape, name),
       quantity: count,
       source: { format: drawing.format, fileName: drawing.name, entityId: item.outline.id },
       approximationToleranceMm: curved ? tolerance : 0,

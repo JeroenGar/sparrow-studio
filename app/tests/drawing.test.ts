@@ -172,4 +172,13 @@ describe('importing a drawing', () => {
     expect(sheets.map((sheet) => sheet.defects.length)).toEqual([0]);
     expect(issues.join(' ')).toContain('overlaps no sheet');
   });
+
+  it('names items after their file, numbered where it holds several', () => {
+    const one = classify(drawing([drawn('Sheet', square(0, 0, 50))]), { Sheet: 'sheets' });
+    expect(one.sheets.map((sheet) => sheet.name)).toEqual(['test']);
+    const two = classify(drawing([drawn('CUT', square(0, 0, 5)), drawn('CUT', L(20, 0))]), {
+      CUT: 'parts',
+    });
+    expect(two.parts.map((part) => part.name)).toEqual(['test 1', 'test 2']);
+  });
 });
