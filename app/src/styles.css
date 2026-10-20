@@ -16,11 +16,11 @@
   --canvas: #fafaf9;
   --grid: #ededeb;
   --grid-major: #e0e0dc;
-  --bar: #111111;
-  --bar-ink: #f2f2f2;
-  --bar-muted: #a3a3a3;
-  --bar-line: #2c2c2c;
-  --bar-control: rgba(255, 255, 255, 0.08);
+  --bar: #ffffff;
+  --bar-ink: #111111;
+  --bar-muted: #5f5f5f;
+  --bar-line: #e2e2df;
+  --bar-control: rgba(0, 0, 0, 0.04);
   --sheet: #ffffff;
   --pro: #9a3412;
   --pro-soft: #fbe8d6;
@@ -73,15 +73,10 @@
   --good-line: #2f6b43;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
 }
-/* Logos come in a light and a dark version; show the one for the theme. The top bar is dark in
-   both themes, so its logo is always the dark version. */
+/* Logos come in a light and a dark version; show the one for the theme. */
 :root[data-theme='dark'] .logo-light,
-:root:not([data-theme='dark']) .logo-dark,
-.top-bar .logo-light {
+:root:not([data-theme='dark']) .logo-dark {
   display: none;
-}
-:root .top-bar .logo-dark {
-  display: revert;
 }
 
 * {
@@ -393,9 +388,10 @@ input[aria-invalid='true'] {
   padding: 8px 16px;
   color: var(--bar-ink);
   background: var(--bar);
-  border-bottom: 1px solid var(--bar-line);
+  /* A brick line under the bar, the colour of the studio label. */
+  border-bottom: 2px solid var(--accent);
 }
-/* Controls on the cream bar take its warm tones. */
+/* Controls on the bar take its tones. */
 .top-bar > button,
 .top-bar .menu > summary {
   color: var(--bar-ink);
