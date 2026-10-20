@@ -1,27 +1,27 @@
-/* Light: a soft eggshell, from the logo's cream. Dark: a warm near-black with cream ink.
-   The theme is resolved to light or dark in script, so dark is defined once. */
+/* Paper and brick: white paper and near-black ink, with the brick red of the studio label as the
+   one accent. The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
-  --bg: #efebe4;
-  --panel: #fcfaf6;
-  --panel-soft: #f5f2ec;
-  --ink: #2a231d;
-  --muted: #6b6359;
-  --line: #ddd6ca;
-  --line-soft: #ebe6dd;
-  --control: #cbc2b3;
-  --accent: #3d2d20;
-  --accent-soft: #efe7da;
-  --accent-line: #cfbfa6;
-  --canvas: #f2eee7;
-  --grid: #e8e2d8;
-  --grid-major: #dcd3c4;
-  --bar: #f4ecdd;
-  --bar-ink: #3d2d20;
-  --bar-muted: #6e6152;
-  --bar-line: #e0d4c0;
-  --bar-control: rgba(255, 255, 255, 0.45);
-  --sheet: #fffdf9;
+  --bg: #f6f6f4;
+  --panel: #ffffff;
+  --panel-soft: #fafaf9;
+  --ink: #111111;
+  --muted: #5f5f5f;
+  --line: #e2e2df;
+  --line-soft: #ededeb;
+  --control: #cfcfcb;
+  --accent: #b3261e;
+  --accent-soft: #fbeceb;
+  --accent-line: #e9b4b0;
+  --canvas: #fafaf9;
+  --grid: #ededeb;
+  --grid-major: #e0e0dc;
+  --bar: #ffffff;
+  --bar-ink: #111111;
+  --bar-muted: #5f5f5f;
+  --bar-line: #e2e2df;
+  --bar-control: rgba(0, 0, 0, 0.04);
+  --sheet: #ffffff;
   --pro: #9a3412;
   --pro-soft: #fbe8d6;
   --pro-line: #c2410c;
@@ -31,7 +31,7 @@
   --good-line: #86c29b;
   --overlap: rgba(220, 38, 38, 0.72);
   --differs: #e5372c;
-  --shadow: 0 8px 24px rgba(40, 30, 20, 0.14);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     system-ui,
@@ -44,26 +44,26 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #1c1916;
-  --panel: #25211d;
-  --panel-soft: #2d2823;
-  --ink: #f3e3c3;
-  --muted: #b5a893;
-  --line: #3e3730;
-  --line-soft: #312c27;
-  --control: #554b41;
-  --accent: #f3e3c3;
-  --accent-soft: rgba(243, 227, 195, 0.12);
-  --accent-line: rgba(243, 227, 195, 0.32);
-  --canvas: #1f1c19;
-  --grid: #29251f;
-  --grid-major: #353029;
-  --bar: #25211d;
-  --bar-ink: #f3e3c3;
-  --bar-muted: #b5a893;
-  --bar-line: #3e3730;
-  --bar-control: rgba(243, 227, 195, 0.08);
-  --sheet: #322c26;
+  --bg: #121212;
+  --panel: #1a1a1a;
+  --panel-soft: #202020;
+  --ink: #f2f2f2;
+  --muted: #a3a3a3;
+  --line: #2c2c2c;
+  --line-soft: #232323;
+  --control: #3d3d3d;
+  --accent: #ff6b5e;
+  --accent-soft: rgba(255, 107, 94, 0.14);
+  --accent-line: rgba(255, 107, 94, 0.4);
+  --canvas: #151515;
+  --grid: #212121;
+  --grid-major: #2b2b2b;
+  --bar: #1a1a1a;
+  --bar-ink: #f2f2f2;
+  --bar-muted: #a3a3a3;
+  --bar-line: #2c2c2c;
+  --bar-control: rgba(255, 255, 255, 0.06);
+  --sheet: #242424;
   --pro: #fdba74;
   --pro-soft: #3a2b1d;
   --pro-line: #c2610c;
