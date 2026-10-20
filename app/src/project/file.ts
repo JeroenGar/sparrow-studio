@@ -173,7 +173,10 @@ function drawable(shape: unknown): boolean {
   try {
     const { outer, holes } = outline(shape as Parameters<typeof outline>[0]);
     return [outer, ...holes].every(
-      (ring) => Array.isArray(ring) && ring.length >= 3 && ring.flat().every(finite),
+      (ring) =>
+        Array.isArray(ring) &&
+        ring.length >= 3 &&
+        ring.every((point) => Array.isArray(point) && point.length === 2 && point.every(finite)),
     );
   } catch {
     return false;

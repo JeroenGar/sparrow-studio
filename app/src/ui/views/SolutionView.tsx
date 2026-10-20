@@ -39,7 +39,7 @@ export function SolutionView() {
   const [hover, setHover] = useState<Hover>();
   const [busy, setBusy] = useState<Format>();
   // The layout chosen in the list: downloads are of it, and the canvas zooms to it.
-  const [chosen, setChosen] = useState({ index: 0, serial: 0 });
+  const [chosen, setChosen] = useState({ index: 0, serial: 0, solution: '' });
   const names = useNames();
   const drawn = useMemo(
     () =>
@@ -88,7 +88,9 @@ export function SolutionView() {
   const { job, layouts } = drawn;
   const { stats } = outcome;
   const onSheets = document.input.problem.type === 'minimize_sheets_in_order';
-  const index = Math.min(chosen.index, Math.max(0, layouts.length - 1));
+  // A choice belongs to its solution: a new one starts at its first sheet.
+  const index =
+    chosen.solution === solution.id ? Math.min(chosen.index, Math.max(0, layouts.length - 1)) : 0;
   const layout = layouts[index];
   const waste = stats.consumed_area - stats.placed_area;
   const state = document.state;
@@ -153,7 +155,8 @@ export function SolutionView() {
     layouts
       .flatMap((l) => l.result.placements)
       .find((p) => placementKey(p) === placementKey(hovered));
-  const choose = (i: number) => setChosen(({ serial }) => ({ index: i, serial: serial + 1 }));
+  const choose = (i: number) =>
+    setChosen(({ serial }) => ({ index: i, serial: serial + 1, solution: solution.id }));
 
   return (
     <div className="view">
@@ -323,7 +326,7 @@ export function SolutionView() {
         label="Solution layout"
         extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         focus={
-          chosen.serial
+          chosen.solution === solution.id && stack.boxes[index]
             ? { box: stack.boxes[index], key: `${index}:${chosen.serial}`, margin: 0.08 }
             : undefined
         }

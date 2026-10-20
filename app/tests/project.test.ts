@@ -238,6 +238,17 @@ describe('project document', () => {
     expect(layouts.flatMap((l) => l.result.placements.map((p) => p.copyIndex))).toEqual([0, 1, 2]);
   });
 
+  it('refuses sheets it cannot draw', () => {
+    const project = newProject('Shop job');
+    const sheet = {
+      ...newSheet('Bad', 1, 1),
+      shape: { outer: { type: 'polygon', points: [0, 1, 2] } },
+    };
+    expect(() =>
+      parseProject({ ...project, stock: { ...project.stock, sheets: [sheet] } }),
+    ).toThrow('invalid sheet');
+  });
+
   it('upgrades version 4, which had no sheets', () => {
     const project = newProject('Shop job');
     const { sheets, ...stock } = project.stock;
