@@ -147,9 +147,3 @@ export const browserRecords: ProjectRecords = {
     })),
   remove: (id, version) => change(id, version),
 };
-
-/** Deletes every project in this browser: the fallback when what is stored cannot be opened. */
-export const clearBrowserRecords = () =>
-  transaction<void>('readwrite', (store, done) => {
-    store.clear().onsuccess = () => done();
-  });

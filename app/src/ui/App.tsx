@@ -1,63 +1,48 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { newId } from '../engine/model';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
-import {
-  addJob,
-  addParts,
-  endJob,
-  INPUT_TABS,
-  jobNames,
-  newProject,
-  runningJobs,
-  startBlockers,
-  unseenTabs,
-  type InputTab,
-  type ProjectDocument,
-} from '../project/model';
-import { projectRequest } from '../project/solution';
-import { clearBrowserRecords } from '../backend/projects';
-import { backend, client, usesSparrowPro } from './client';
-import { useJob } from './useJob';
+import { newProject, type ProjectDocument } from '../project/model';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
-import {
-  createProject,
-  isConflict,
-  isProjectLimit,
-  isUnreadable,
-  listProjects,
-  openProject,
-  saveProject,
-  type StoredProject,
-} from './projects';
-import { StudioContext, type Studio, type Tab } from './context';
+import { backend, client } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
-import { Logo } from './Logo';
-import { ProDialog } from './dialogs/ProDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
-import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
-import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
 import { NameDialog } from './dialogs/NameDialog';
 import { PreferencesDialog } from './dialogs/PreferencesDialog';
-import { ProjectsDialog } from './dialogs/ProjectsDialog';
+import { ProDialog } from './dialogs/ProDialog';
+import { Dialog } from './Dialog';
 import { download } from './download';
-import { historyReducer, initialHistory } from './history';
-import { ChevronDown, Gear } from './icons';
-import { LiveView } from './views/LiveView';
-import { MachineView } from './views/MachineView';
-import { PartsView } from './views/PartsView';
-import { SettingsView } from './views/SettingsView';
-import { SheetsView } from './views/SheetsView';
-import { SolutionView } from './views/SolutionView';
 import { explain } from './explain';
+import { HomePage } from './HomePage';
+import { ChevronDown, Gear } from './icons';
+import { Logo } from './Logo';
+import { ProjectPage } from './ProjectPage';
+import { isProjectLimit } from './projects';
+import { go, useRoute } from './route';
+import {
+  createWorkspace,
+  entryName,
+  useWorkspace,
+  type OpenEntry,
+  type ProjectEntry,
+} from './workspace';
 
 const FIRST_EXAMPLE = 'albano.json';
 
-/** Loads or creates a project, then hands it to the studio. Switching projects remounts the studio. */
+/** Every project of the account, loaded once at startup. */
+const workspace = createWorkspace(client);
+
+type Dialogs =
+  | { type: 'new' }
+  | { type: 'examples' }
+  | { type: 'pro' }
+  | { type: 'preferences' }
+  | { type: 'about' }
+  | { type: 'rename'; id: string; name: string }
+  | { type: 'delete'; entry: ProjectEntry };
+
+/** The page for the location: home, or a project, under the top bar. */
 export default function App() {
   const [preferences, setPreferencesState] = useState(readPreferences);
-  const [stored, setStored] = useState<StoredProject>();
-  const [error, setError] = useState('');
   const setPreferences = useCallback((change: Partial<Preferences>) => {
     setPreferencesState((current) => {
       const next = { ...current, ...change };
@@ -78,332 +63,128 @@ export default function App() {
     return () => query.removeEventListener('change', apply);
   }, [preferences.theme]);
 
-  const open = useCallback(
-    async (id: string) => {
-      const project = await openProject(id);
-      setStored(project);
-      setPreferences({ lastProjectId: id });
-    },
-    [setPreferences],
-  );
-  const create = useCallback(
-    async (document: ProjectDocument) => {
-      const project = await createProject(document);
-      setStored(project);
-      setPreferences({ lastProjectId: project.id });
-    },
-    [setPreferences],
-  );
-  const openLatest = useCallback(async () => {
-    // Open the most recent project that still reads; one in a format studio cannot read is skipped.
-    for (const project of await listProjects()) {
-      try {
-        return await open(project.id);
-      } catch (reason) {
-        if (!isUnreadable(reason)) throw reason;
-      }
-    }
-    await create(
-      await loadExample(FIRST_EXAMPLE, preferences.defaultMachine).catch(() =>
-        newProject('Untitled project'),
-      ),
-    );
-  }, [open, create, preferences.defaultMachine]);
+  const state = useWorkspace(workspace);
+  const route = useRoute();
+  const [dialog, setDialog] = useState<Dialogs>();
+  const [error, setError] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const showError = useCallback((message: string) => setError(message), []);
+  const openPro = useCallback(() => setDialog({ type: 'pro' }), []);
+  /** Shows why something failed; a full account goes home, where projects can be deleted. */
+  const failed = (reason: unknown) => {
+    setError(explain(reason));
+    if (isProjectLimit(reason)) go({ page: 'home' });
+  };
+  /** Creates a project and opens it. */
+  const create = async (document: ProjectDocument) => {
+    const id = await workspace.create(document);
+    setDialog(undefined);
+    go({ page: 'project', id, tab: 'parts' });
+  };
 
   useEffect(() => {
-    const last = readPreferences().lastProjectId;
-    const fallBack = (reason: unknown) =>
-      isUnreadable(reason) ? openLatest() : Promise.reject(reason);
-    // In this browser, projects stored by an earlier version may not open; they are deleted
-    // and studio starts afresh rather than not at all.
-    const start = () => (last ? open(last).catch(fallBack) : openLatest());
-    start()
-      .catch((reason) =>
-        usesSparrowPro ? Promise.reject(reason) : clearBrowserRecords().then(openLatest),
-      )
-      .catch((reason) => setError(explain(reason)));
+    const start = async () => {
+      try {
+        await workspace.load();
+      } catch {
+        // The page says why, with a way to try again.
+        return;
+      }
+      const loaded = workspace.get();
+      if (loaded.status !== 'ready' || loaded.projects.length) return;
+      // An account without projects starts with an example to try.
+      const example = await loadExample(FIRST_EXAMPLE, readPreferences().defaultMachine).catch(() =>
+        newProject('Untitled project'),
+      );
+      const id = await workspace.create(example);
+      go({ page: 'project', id, tab: 'parts' }, { replace: true });
+    };
+    start().catch(failed);
     // Load once, at startup.
   }, []);
 
-  if (!stored)
-    return (
-      <div className="boot">
-        <p>
-          {error ? `sparrow studio could not open a project: ${error}` : 'Opening sparrow studio…'}
-        </p>
-      </div>
-    );
-  return (
-    <StudioShell
-      key={`${stored.id}:${stored.version}`}
-      stored={stored}
-      preferences={preferences}
-      setPreferences={setPreferences}
-      open={open}
-      create={create}
-      openLatest={openLatest}
-    />
-  );
-}
-
-type Dialogs =
-  | { type: 'new' }
-  | { type: 'rename' }
-  | { type: 'projects' }
-  | { type: 'examples' }
-  | { type: 'pro' }
-  | { type: 'preferences' }
-  | { type: 'about' }
-  | { type: 'import-files'; kind: 'parts' | 'sheets' }
-  | { type: 'import-project'; kind: 'parts' | 'sheets' | 'machines' };
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'parts', label: 'Parts' },
-  { id: 'sheets', label: 'Sheets' },
-  { id: 'machine', label: 'Machine' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'live', label: 'Live' },
-  { id: 'solution', label: 'Solution' },
-];
-
-function StudioShell({
-  stored,
-  preferences,
-  setPreferences,
-  open,
-  create,
-  openLatest,
-}: {
-  stored: StoredProject;
-  preferences: Preferences;
-  setPreferences: (change: Partial<Preferences>) => void;
-  open: (id: string) => Promise<void>;
-  create: (document: ProjectDocument) => Promise<void>;
-  openLatest: () => Promise<void>;
-}) {
-  const [history, dispatch] = useReducer(historyReducer, stored.document, initialHistory);
-  const project = history.present;
-  const [tab, setTab] = useState<Tab>('parts');
-  // Opening an input tab counts for the new project's first run; it is no edit to undo.
-  const seenTabs = history.present.seenTabs;
+  // Save at once when the page is hidden, and ask before leaving with changes not saved yet.
   useEffect(() => {
-    if (seenTabs && INPUT_TABS.includes(tab as InputTab) && !seenTabs.includes(tab as InputTab))
-      dispatch({ type: 'results', change: () => ({ seenTabs: [...seenTabs, tab as InputTab] }) });
-  }, [tab, seenTabs]);
-  const [dialog, setDialog] = useState<Dialogs>();
-  const [error, setError] = useState('');
-  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error' | 'conflict'>('saved');
-  const version = useRef(stored.version);
-  const saved = useRef(stored.document);
-  const fileInput = useRef<HTMLInputElement>(null);
-  // The names of the parts and sheets when the job being submitted was asked for.
-  const asked = useRef<Record<string, string>>({});
-  // The project records its jobs, so a page closed while one runs picks it up on opening; a job
-  // that ends records its document.
-  const job = useJob(
-    client,
-    {
-      submitted: (jobId, request) => {
-        const names = asked.current;
-        dispatch({
-          type: 'results',
-          change: (present) => ({ jobs: addJob(present, jobId, request, names).jobs }),
-        });
-      },
-      resumed: () => setTab('live'),
-      ended: (jobId, document) => {
-        dispatch({
-          type: 'results',
-          change: (present) => ({ jobs: endJob(present, jobId, document).jobs }),
-        });
-        if (document?.state.status === 'completed' && document.outcome)
-          setTab((current) => (current === 'live' ? 'solution' : current));
-      },
-    },
-    // Jobs in this browser end with the page, so leaving the project stops them.
-    { stopOnLeave: !usesSparrowPro },
-  );
-  // A job in this browser that was running when the page closed has ended with it; following it
-  // finds it gone, and records it as lost.
-  const remembered = runningJobs(stored.document).at(-1);
-  useEffect(() => {
-    if (remembered) void job.resume(remembered.id);
-    // Once, for the job the project remembered when it was opened.
-  }, []);
-  const running = job.running;
-
-  const showError = useCallback((message: string) => setError(message), []);
-  const edit = useCallback(
-    (change: (project: ProjectDocument) => ProjectDocument, key?: string) =>
-      dispatch({
-        type: 'edit',
-        project: change(historyRef.current.present),
-        key,
-        at: performance.now(),
-      }),
-    [],
-  );
-  const historyRef = useRef(history);
-  historyRef.current = history;
-
-  // Save shortly after each change, one save at a time, and when the page is hidden.
-  const latest = useRef(project);
-  latest.current = project;
-  const pending = useRef(Promise.resolve(true));
-  /** Saves the latest document after any save in progress; resolves to whether it is saved. */
-  const flush = useCallback(() => {
-    pending.current = pending.current.then(async () => {
-      while (latest.current !== saved.current) {
-        const document = latest.current;
-        try {
-          version.current = await saveProject(stored.id, document, version.current);
-          saved.current = document;
-        } catch (reason) {
-          setSaveState(isConflict(reason) ? 'conflict' : 'error');
-          setError(explain(reason));
-          return false;
-        }
-      }
-      setSaveState('saved');
-      return true;
-    });
-    return pending.current;
-  }, [stored.id]);
-  /** Shows why a project could not be opened or made; a full account opens its projects to make room. */
-  const failed = (reason: unknown) => {
-    setError(explain(reason));
-    if (isProjectLimit(reason)) setDialog({ type: 'projects' });
-  };
-
-  /** Goes to another project once this one is saved; a project that does not save stays open. */
-  const leave = async (go: () => Promise<void>) => {
-    if (job.submitting) throw Error('The job is being submitted; try again in a moment.');
-    if (!(await flush())) throw Error('This project is not saved, so it stays open.');
-    await go();
-  };
-  useEffect(() => {
-    if (project === saved.current) return;
-    setSaveState((state) => (state === 'conflict' ? state : 'saving'));
-    // A job started or ended is saved at once: closing the page must not lose it.
-    const now = project.jobs !== saved.current.jobs;
-    const timer = setTimeout(() => void flush(), now ? 0 : 400);
-    return () => clearTimeout(timer);
-  }, [project, flush]);
-  useEffect(() => {
-    const now = () => void flush();
+    const now = () => void workspace.flushAll();
     const hidden = () => document.visibilityState === 'hidden' && now();
     window.addEventListener('pagehide', now);
     document.addEventListener('visibilitychange', hidden);
     return () => {
       window.removeEventListener('pagehide', now);
       document.removeEventListener('visibilitychange', hidden);
-      now();
     };
-  }, [flush]);
-
-  function startRun() {
-    if (
-      running ||
-      runningJobs(project).length ||
-      startBlockers(project).length ||
-      unseenTabs(project).length
-    )
-      return;
-    setError('');
-    asked.current = jobNames(project);
-    void job.start(projectRequest(project));
-    setTab('live');
-  }
-
-  // Leaving the page cancels a save on its way, and a job in this browser; ask first.
-  const unsaved = saveState !== 'saved';
+  }, []);
+  const unsaved = state.status === 'ready' && workspace.unsaved();
   useEffect(() => {
-    // Sparrow Pro keeps running a job after the page closes, and the project picks it up again.
-    if (!(running && !usesSparrowPro) && !job.submitting && !unsaved) return;
+    if (!unsaved) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [running, unsaved, job.submitting]);
+  }, [unsaved]);
 
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
-      if (
-        (event.target as HTMLElement).closest('input, textarea, select') ||
-        document.querySelector('dialog[open]')
-      )
-        return;
-      event.preventDefault();
-      dispatch({ type: event.shiftKey ? 'redo' : 'undo' });
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
-  }, []);
+  const entry = route.page === 'project' ? workspace.find(route.id) : undefined;
+  const open = entry?.status === 'open' ? entry : undefined;
 
-  const importContent = (content: ProjectImport) => {
-    edit((previous) => {
-      const current = addParts(
-        previous,
-        content.parts.map((part) => ({ ...part, id: newId() })),
-      );
-      return {
-        ...current,
-        stock: {
-          ...current.stock,
-          strip: content.strip
-            ? { ...current.stock.strip, name: content.strip.name, widthMm: content.strip.widthMm }
-            : current.stock.strip,
-          sheets: [
-            ...current.stock.sheets,
-            ...content.sheets.map((sheet) => ({ ...sheet, id: newId() })),
-          ],
-        },
-        machines: [
-          ...current.machines,
-          ...content.machines.map((machine) => ({ ...machine, id: newId() })),
-        ],
-      };
-    });
-    setDialog(undefined);
-  };
+  let page;
+  if (state.status === 'loading') page = <p className="boot">Opening sparrow studio…</p>;
+  else if (state.status === 'failed')
+    page = (
+      <div className="boot stack">
+        <p>sparrow studio could not load your projects: {state.error}</p>
+        <span>
+          <button onClick={() => void workspace.load().catch(() => {})}>Try again</button>
+        </span>
+      </div>
+    );
+  else if (route.page === 'home')
+    page = (
+      <HomePage
+        state={state}
+        onNew={() => setDialog({ type: 'new' })}
+        onExample={() => setDialog({ type: 'examples' })}
+        onOpenFile={() => fileInput.current?.click()}
+        onRetry={(id) => void workspace.reload(id)}
+        onDelete={(entry) => setDialog({ type: 'delete', entry })}
+      />
+    );
+  else if (!entry)
+    page = (
+      <div className="boot stack">
+        <p>This project is not here. It may have been deleted.</p>
+        <span>
+          <a href="#/">Go to your projects</a>
+        </span>
+      </div>
+    );
+  else if (entry.status === 'loading') page = <p className="boot">Opening {entry.name}…</p>;
+  else if (entry.status === 'failed')
+    page = (
+      <div className="boot stack">
+        <p>
+          Could not open {entry.name}: {entry.error}
+        </p>
+        <span className="row-actions">
+          <button onClick={() => void workspace.reload(entry.id)}>Try again</button>
+          <a href="#/">Go to your projects</a>
+        </span>
+      </div>
+    );
+  else
+    page = (
+      <ProjectPage
+        key={entry.id}
+        workspace={workspace}
+        entry={entry}
+        tab={route.page === 'project' ? route.tab : 'parts'}
+        preferences={preferences}
+        setPreferences={setPreferences}
+        openPro={openPro}
+        showError={showError}
+      />
+    );
 
-  const following = runningJobs(project).at(-1);
-  const studio: Studio = useMemo(
-    () => ({
-      project,
-      edit,
-      unit: preferences.unit,
-      preferences,
-      setPreferences,
-      setTab,
-      openPro: () => setDialog({ type: 'pro' }),
-      openImport: (kind, source) =>
-        setDialog(
-          source === 'files' && kind !== 'machines'
-            ? { type: 'import-files', kind }
-            : { type: 'import-project', kind },
-        ),
-      showError,
-      run: job.run,
-      running,
-      // A remembered job not being followed, such as after a lost connection, is reconnected to
-      // rather than replaced.
-      reconnect: following && !running ? () => void job.resume(following.id) : undefined,
-      startRun,
-      stopRun: job.stop,
-    }),
-    // startRun reads the current project; it is recreated with it.
-    [project, edit, preferences, setPreferences, showError, job.run, running, job.stop],
-  );
-
-  const saveLabel = {
-    saved: `Saved ${backend.saves}`,
-    saving: 'Saving…',
-    error: 'Not saved',
-    conflict: 'Changed in another tab',
-  }[saveState];
   return (
-    <StudioContext.Provider value={studio}>
+    <>
       <div className="app">
         <header className="top-bar">
           <button
@@ -413,36 +194,48 @@ function StudioShell({
           >
             <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
           </button>
-          <ProjectMenu
-            name={project.name}
-            canUndo={history.past.length > 0}
-            canRedo={history.future.length > 0}
-            onAction={(action) => {
-              if (action === 'undo' || action === 'redo') dispatch({ type: action });
-              else if (action === 'export')
-                download(
-                  projectFileName(project.name, 'sparrow-project.json'),
-                  serializeProject(project),
-                  'application/json',
-                );
-              else if (action === 'open-file') fileInput.current?.click();
-              else if (action === 'duplicate')
-                // A copy has the project's inputs; its jobs stay with the project.
-                void leave(() =>
-                  create({ ...project, name: `${project.name} copy`, jobs: [] }),
-                ).catch(failed);
-              else setDialog({ type: action });
-            }}
-          />
-          <span className={`save-state ${saveState}`} aria-live="polite">
-            {saveLabel}
-          </span>
-          {saveState === 'conflict' && (
-            <button className="small" onClick={() => void open(stored.id)}>
-              Reload
-            </button>
-          )}
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            {route.page === 'home' ? (
+              <span className="crumb" aria-current="page">
+                Home
+              </span>
+            ) : (
+              <>
+                <a className="crumb" href="#/">
+                  Home
+                </a>
+                <span aria-hidden="true">›</span>
+                <span className="crumb" aria-current="page">
+                  {entry ? entryName(entry) : 'Project'}
+                </span>
+                {open && <SaveState entry={open} />}
+              </>
+            )}
+          </nav>
           <span className="spacer" />
+          {open && (
+            <ProjectMenu
+              canUndo={open.history.past.length > 0}
+              canRedo={open.history.future.length > 0}
+              onAction={(action) => {
+                const project = open.history.present;
+                if (action === 'undo') workspace.undo(open.id);
+                else if (action === 'redo') workspace.redo(open.id);
+                else if (action === 'rename')
+                  setDialog({ type: 'rename', id: open.id, name: project.name });
+                else if (action === 'delete') setDialog({ type: 'delete', entry: open });
+                else if (action === 'export')
+                  download(
+                    projectFileName(project.name, 'sparrow-project.json'),
+                    serializeProject(project),
+                    'application/json',
+                  );
+                // A copy has the project's inputs; its jobs stay with the project.
+                else
+                  void create({ ...project, name: `${project.name} copy`, jobs: [] }).catch(failed);
+              }}
+            />
+          )}
           <button
             className="icon-button"
             aria-label="Preferences"
@@ -463,32 +256,13 @@ function StudioShell({
               if (!file) return;
               try {
                 // An opened project file counts as new: its tabs are to be opened again.
-                const document = { ...parseProject(JSON.parse(await file.text())), seenTabs: [] };
-                await leave(() => create(document));
+                await create({ ...parseProject(JSON.parse(await file.text())), seenTabs: [] });
               } catch (reason) {
                 failed(reason);
               }
             }}
           />
         </header>
-        <nav className="tabs" aria-label="Views">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              className={item.id === tab ? 'tab active' : 'tab'}
-              aria-current={item.id === tab ? 'page' : undefined}
-              onClick={() => setTab(item.id)}
-            >
-              {item.id === 'live' && running && <i className="live-dot" aria-hidden="true" />}
-              {item.label}
-              {item.id === 'parts' && (
-                <span className="count">
-                  {project.parts.reduce((sum, part) => sum + part.quantity, 0)}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
@@ -497,14 +271,7 @@ function StudioShell({
             </button>
           </div>
         )}
-        <main className="main">
-          {tab === 'parts' && <PartsView />}
-          {tab === 'sheets' && <SheetsView />}
-          {tab === 'machine' && <MachineView />}
-          {tab === 'settings' && <SettingsView />}
-          {tab === 'live' && <LiveView />}
-          {tab === 'solution' && <SolutionView />}
-        </main>
+        {page}
       </div>
       {dialog?.type === 'new' && (
         <NameDialog
@@ -513,37 +280,40 @@ function StudioShell({
           confirm="Create project"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) =>
-            void leave(() => create(newProject(name, preferences.defaultMachine))).catch(failed)
+            void create(newProject(name, preferences.defaultMachine)).catch(failed)
           }
         />
       )}
       {dialog?.type === 'rename' && (
         <NameDialog
           title="Rename project"
-          initial={project.name}
+          initial={dialog.name}
           confirm="Rename"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) => {
-            edit((current) => ({ ...current, name }));
+            workspace.edit(dialog.id, (current) => ({ ...current, name }));
             setDialog(undefined);
           }}
         />
       )}
-      {dialog?.type === 'projects' && (
-        <ProjectsDialog
-          currentId={stored.id}
+      {dialog?.type === 'delete' && (
+        <DeleteDialog
+          entry={dialog.entry}
           onClose={() => setDialog(undefined)}
-          onOpen={(id) => void leave(() => open(id)).catch(failed)}
-          onDeleted={() => void openLatest().catch(failed)}
+          onDelete={async () => {
+            const id = dialog.entry.id;
+            if (route.page === 'project' && route.id === id)
+              go({ page: 'home' }, { replace: true });
+            setDialog(undefined);
+            await workspace.remove(id).catch(failed);
+          }}
         />
       )}
       {dialog?.type === 'examples' && (
         <ExamplesDialog
           onClose={() => setDialog(undefined)}
           onChoose={(file) =>
-            void loadExample(file, preferences.defaultMachine)
-              .then((example) => leave(() => create(example)))
-              .catch(failed)
+            void loadExample(file, preferences.defaultMachine).then(create).catch(failed)
           }
         />
       )}
@@ -556,69 +326,76 @@ function StudioShell({
           onClose={() => setDialog(undefined)}
         />
       )}
-      {dialog?.type === 'import-files' && (
-        <ImportFilesDialog
-          kind={dialog.kind}
-          onClose={() => setDialog(undefined)}
-          onAdd={(parts, sheets, widthMm) => {
-            edit((previous) => {
-              const current = addParts(
-                previous,
-                parts.map((part) => ({ ...part, id: newId() })),
-              );
-              const added = sheets.map((sheet) => ({
-                id: newId(),
-                name: sheet.name,
-                shape: sheet.shape,
-                quantity: sheet.quantity,
-                ...(sheet.defects.length && { defects: sheet.defects }),
-              }));
-              return {
-                ...current,
-                stock: {
-                  ...current.stock,
-                  // Sheets imported are sheets to nest into.
-                  ...(added.length && { packing: 'sheets' as const }),
-                  strip: widthMm ? { ...current.stock.strip, widthMm } : current.stock.strip,
-                  sheets: [...current.stock.sheets, ...added],
-                },
-              };
-            });
-            setDialog(undefined);
-            setTab(parts.length || !sheets.length ? 'parts' : 'sheets');
-          }}
-        />
-      )}
-      {dialog?.type === 'import-project' && (
-        <ImportFromProjectDialog
-          kind={dialog.kind}
-          currentId={stored.id}
-          onClose={() => setDialog(undefined)}
-          onImport={importContent}
-        />
-      )}
-    </StudioContext.Provider>
+    </>
   );
 }
 
-type MenuAction =
-  | 'new'
-  | 'projects'
-  | 'examples'
-  | 'rename'
-  | 'duplicate'
-  | 'export'
-  | 'open-file'
-  | 'undo'
-  | 'redo';
+/** Whether the project's edits are saved, and a way to load it again when another tab changed it. */
+function SaveState({ entry }: { entry: OpenEntry }) {
+  const { save } = entry;
+  const label = {
+    saved: `Saved ${backend.saves}`,
+    saving: 'Saving…',
+    error: 'Not saved',
+    conflict: 'Changed in another tab',
+  }[save.state];
+  return (
+    <>
+      <span
+        className={`save-state ${save.state}`}
+        title={'message' in save ? save.message : undefined}
+        aria-live="polite"
+      >
+        · {label}
+      </span>
+      {save.state === 'conflict' && (
+        <button className="small" onClick={() => void workspace.reload(entry.id)}>
+          Reload
+        </button>
+      )}
+    </>
+  );
+}
+
+/** Asks before deleting a project, with its jobs. */
+function DeleteDialog({
+  entry,
+  onDelete,
+  onClose,
+}: {
+  entry: ProjectEntry;
+  onDelete: () => void;
+  onClose: () => void;
+}) {
+  const jobs = entry.status === 'open' ? entry.history.present.jobs.length : 0;
+  return (
+    <Dialog
+      title="Delete project"
+      onClose={onClose}
+      actions={
+        <>
+          <button onClick={onClose}>Keep</button>
+          <button className="danger" onClick={onDelete}>
+            Delete
+          </button>
+        </>
+      }
+    >
+      <p>
+        Delete <strong>{entryName(entry)}</strong>
+        {jobs > 0 && ` and its ${jobs === 1 ? 'job' : `${jobs} jobs`}`}? This cannot be undone.
+      </p>
+    </Dialog>
+  );
+}
+
+type MenuAction = 'rename' | 'duplicate' | 'undo' | 'redo' | 'export' | 'delete';
 
 function ProjectMenu({
-  name,
   canUndo,
   canRedo,
   onAction,
 }: {
-  name: string;
   canUndo: boolean;
   canRedo: boolean;
   onAction: (action: MenuAction) => void;
@@ -644,22 +421,19 @@ function ProjectMenu({
     </button>
   );
   return (
-    <details className="menu" ref={menu}>
-      <summary className="button" aria-label={`Project: ${name}`}>
-        {name} <ChevronDown />
+    <details className="menu right" ref={menu}>
+      <summary className="button">
+        Project <ChevronDown />
       </summary>
       <div className="menu-list">
-        {item('new', 'New project…')}
-        {item('projects', 'Projects…')}
-        {item('examples', 'Open example…')}
-        <hr />
         {item('rename', 'Rename…')}
         {item('duplicate', 'Duplicate')}
         {item('undo', 'Undo', !canUndo)}
         {item('redo', 'Redo', !canRedo)}
         <hr />
         {item('export', 'Export project file')}
-        {item('open-file', 'Open project file…')}
+        <hr />
+        {item('delete', 'Delete project…')}
       </div>
     </details>
   );

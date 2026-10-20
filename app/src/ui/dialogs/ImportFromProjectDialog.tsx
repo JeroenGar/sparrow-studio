@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { Part } from '../../engine/model';
 import {
   resolvedParts,
@@ -8,11 +8,11 @@ import {
   type Strip,
 } from '../../project/model';
 import { backend } from '../client';
-import { listProjects, openProject, type ProjectSummary } from '../projects';
+import { formatAgo } from '../format';
+import { useWorkspace, type OpenEntry, type Workspace } from '../workspace';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength } from '../format';
-import { explain } from '../explain';
 
 export type ProjectImport = {
   parts: Part[];
@@ -27,11 +27,13 @@ type Kind = 'parts' | 'sheets' | 'machines';
  * imports what the project nests into: the strip, or sheet entries.
  */
 export function ImportFromProjectDialog({
+  workspace,
   kind,
   currentId,
   onImport,
   onClose,
 }: {
+  workspace: Workspace;
   kind: Kind;
   currentId: string;
   onImport: (content: ProjectImport) => void;
@@ -46,30 +48,23 @@ export function ImportFromProjectDialog({
     sheets: 'Import sheets from another project',
     machines: 'Import machine presets from another project',
   }[what];
-  const [projects, setProjects] = useState<ProjectSummary[]>();
+  const state = useWorkspace(workspace);
+  // The other projects that opened; one that failed to open has nothing to import.
+  const projects = (state.status === 'ready' ? state.projects : [])
+    .filter((entry): entry is OpenEntry => entry.status === 'open' && entry.id !== currentId)
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const [source, setSource] = useState<ProjectDocument>();
   const [chosen, setChosen] = useState<Set<string>>(new Set());
-  const [error, setError] = useState('');
-  useEffect(() => {
-    listProjects()
-      .then((all) => setProjects(all.filter((project) => project.id !== currentId)))
-      .catch((reason) => setError(explain(reason)));
-  }, [currentId]);
 
-  async function open(id: string) {
-    try {
-      const stored = await openProject(id);
-      setSource(stored.document);
-      const items = {
-        parts: stored.document.parts,
-        machines: stored.document.machines,
-        sheets: stored.document.stock.sheets,
-        strip: [stored.document.stock.strip],
-      }[what];
-      setChosen(new Set(items.map((item) => item.id)));
-    } catch (reason) {
-      setError(explain(reason));
-    }
+  function open(document: ProjectDocument) {
+    setSource(document);
+    const items = {
+      parts: document.parts,
+      machines: document.machines,
+      sheets: document.stock.sheets,
+      strip: [document.stock.strip],
+    }[what];
+    setChosen(new Set(items.map((item) => item.id)));
   }
   const toggle = (id: string) =>
     setChosen((current) => {
@@ -139,20 +134,17 @@ export function ImportFromProjectDialog({
         </>
       }
     >
-      {error && <p className="field-error">{error}</p>}
       {!source && (
         <>
           <p className="muted">Choose a project saved {backend.saves}.</p>
-          {projects && !projects.length && <p>There are no other projects yet.</p>}
+          {!projects.length && <p>There are no other projects yet.</p>}
           <ul className="project-list">
-            {projects?.map((project) => (
-              <li key={project.id}>
-                <button className="row" onClick={() => void open(project.id)}>
+            {projects.map((entry) => (
+              <li key={entry.id}>
+                <button className="row" onClick={() => open(entry.history.present)}>
                   <span className="row-text">
-                    <span>{project.name}</span>
-                    <span className="muted">
-                      Changed {new Date(project.updated_at).toLocaleString()}
-                    </span>
+                    <span>{entry.history.present.name}</span>
+                    <span className="muted">Changed {formatAgo(entry.updatedAt)}</span>
                   </span>
                 </button>
               </li>

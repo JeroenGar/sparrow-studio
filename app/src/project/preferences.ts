@@ -5,7 +5,6 @@ import type { MachinePreset } from './model';
 export type Preferences = {
   theme: 'system' | 'light' | 'dark';
   unit: DisplayUnit;
-  lastProjectId?: string;
   /** Copied into every new project. */
   defaultMachine?: MachinePreset;
   hideExplanations: boolean;
