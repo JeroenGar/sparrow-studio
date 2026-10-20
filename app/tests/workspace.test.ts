@@ -96,4 +96,22 @@ describe('the workspace', () => {
     expect(workspace.find(id)).toBeUndefined();
     await expect(api.getProject(id)).rejects.toMatchObject({ status: 404 });
   });
+
+  it('keeps a project changed elsewhere when deleting it, and lets go of one already gone', async () => {
+    const { api, workspace, open } = setup();
+    const kept = await api.createProject({ name: 'Kept', document: newProject('Kept') }, 'a');
+    const gone = await api.createProject({ name: 'Gone', document: { format: 'other' } }, 'b');
+    await workspace.load();
+    await api.saveProject(
+      kept.project.id,
+      { name: 'Elsewhere', document: newProject('Elsewhere') },
+      kept.version,
+    );
+    await expect(workspace.remove(kept.project.id)).rejects.toThrow('changed since');
+    expect(open(kept.project.id).save.state).toBe('conflict');
+    // Deleted in another tab after the list: its card goes without a fuss.
+    await api.deleteProject(gone.project.id, gone.version);
+    await workspace.remove(gone.project.id);
+    expect(workspace.find(gone.project.id)).toBeUndefined();
+  });
 });

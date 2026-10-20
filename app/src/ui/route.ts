@@ -8,11 +8,21 @@ const TABS: Tab[] = ['parts', 'sheets', 'machine', 'settings', 'live', 'solution
 
 /** The route of a location hash, such as `#/projects/<id>/sheets`; anything else is home. */
 export function parseRoute(hash: string): Route {
-  const [first, id, tab, ...rest] = hash.replace(/^#\/?/, '').split('/');
+  const [first, encoded, tab, ...rest] = hash.replace(/^#\/?/, '').split('/');
+  const id = decoded(encoded);
   if (first !== 'projects' || !id || rest.length) return { page: 'home' };
-  if (tab === undefined) return { page: 'project', id: decodeURIComponent(id), tab: 'parts' };
+  if (tab === undefined) return { page: 'project', id, tab: 'parts' };
   if (!TABS.includes(tab as Tab)) return { page: 'home' };
-  return { page: 'project', id: decodeURIComponent(id), tab: tab as Tab };
+  return { page: 'project', id, tab: tab as Tab };
+}
+
+/** A part of the hash decoded, or undefined when it does not decode. */
+function decoded(part: string | undefined) {
+  try {
+    return part && decodeURIComponent(part);
+  } catch {
+    return undefined;
+  }
 }
 
 /** The location hash of a route, for links. */

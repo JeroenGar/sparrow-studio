@@ -13,6 +13,7 @@ import {
   createProject,
   deleteProject,
   isConflict,
+  isMissing,
   listProjects,
   openProject,
   saveProject,
@@ -66,7 +67,7 @@ async function patiently<T>(request: () => Promise<T>, attempts = 3): Promise<T>
       if (!busy || attempt >= attempts) throw reason;
       const seconds = Number(reason.headers.get('Retry-After') ?? 1);
       await new Promise((resolve) =>
-        setTimeout(resolve, Math.min(Number.isFinite(seconds) ? seconds : 1, 10) * 1000),
+        setTimeout(resolve, (Number.isFinite(seconds) && seconds >= 0 ? seconds : 1) * 1000),
       );
     }
   }
@@ -195,7 +196,7 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
       emit({ status: 'loading' });
       let summaries;
       try {
-        summaries = await listProjects(client);
+        summaries = await listProjects(client, patiently);
       } catch (reason) {
         emit({ status: 'failed', error: explain(reason) });
         throw reason;
@@ -239,16 +240,31 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
       return stored.id;
     },
 
-    /** Deletes a project, after any save in progress, at the version last saved or read. */
+    /**
+     * Deletes a project, after any save in progress, at the version last saved or read. One that
+     * changed elsewhere since stays, to be reloaded; one already gone is gone here too.
+     */
     async remove(id: string) {
-      clearTimeout(timers.get(id));
-      timers.delete(id);
-      await saves.get(id);
+      // Saving first gives the version to delete at, and a save cannot land after the deletion.
+      await flush(id);
       const entry = find(id);
       if (!entry) return;
-      const version =
-        entry.status === 'open' ? entry.version : (await client.getProject(id)).version;
-      await deleteProject(client, id, version);
+      try {
+        const version =
+          entry.status === 'open' ? entry.version : (await client.getProject(id)).version;
+        await deleteProject(client, id, version);
+      } catch (reason) {
+        if (!isMissing(reason)) {
+          if (isConflict(reason))
+            replaceOpen(id, (current) => ({
+              ...current,
+              save: { state: 'conflict', message: explain(reason) },
+            }));
+          throw reason;
+        }
+      }
+      clearTimeout(timers.get(id));
+      timers.delete(id);
       replace(id, () => undefined);
       saves.delete(id);
     },

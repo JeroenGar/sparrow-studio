@@ -13,5 +13,6 @@ describe('routes', () => {
     expect(parseRoute('#/projects/prj_1')).toEqual({ page: 'project', id: 'prj_1', tab: 'parts' });
     expect(parseRoute('#/projects/prj_1/elsewhere')).toEqual({ page: 'home' });
     expect(parseRoute('#/projects/prj_1/parts/more')).toEqual({ page: 'home' });
+    expect(parseRoute('#/projects/%/parts')).toEqual({ page: 'home' });
   });
 });

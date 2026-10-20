@@ -17,7 +17,7 @@ import { ChevronDown, Gear } from './icons';
 import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
 import { isProjectLimit } from './projects';
-import { go, useRoute } from './route';
+import { go, href, useRoute } from './route';
 import {
   createWorkspace,
   entryName,
@@ -82,6 +82,8 @@ export default function App() {
     go({ page: 'project', id, tab: 'parts' });
   };
 
+  // Home waits for startup, so a first example is not made beside a project made meanwhile.
+  const [starting, setStarting] = useState(true);
   useEffect(() => {
     const start = async () => {
       try {
@@ -99,7 +101,9 @@ export default function App() {
       const id = await workspace.create(example);
       go({ page: 'project', id, tab: 'parts' }, { replace: true });
     };
-    start().catch(failed);
+    start()
+      .catch(failed)
+      .finally(() => setStarting(false));
     // Load once, at startup.
   }, []);
 
@@ -126,7 +130,8 @@ export default function App() {
   const open = entry?.status === 'open' ? entry : undefined;
 
   let page;
-  if (state.status === 'loading') page = <p className="boot">Opening sparrow studio…</p>;
+  if (state.status === 'loading' || (starting && state.status === 'ready'))
+    page = <p className="boot">Opening sparrow studio…</p>;
   else if (state.status === 'failed')
     page = (
       <div className="boot stack">
@@ -263,6 +268,25 @@ export default function App() {
             }}
           />
         </header>
+        {state.status === 'ready' &&
+          state.projects.map(
+            (other) =>
+              other.status === 'open' &&
+              'message' in other.save &&
+              other.id !== entry?.id && (
+                <div key={other.id} className="error-banner" role="alert">
+                  <span>
+                    {other.history.present.name} is not saved: {other.save.message}
+                  </span>
+                  <a
+                    className="button small"
+                    href={href({ page: 'project', id: other.id, tab: 'parts' })}
+                  >
+                    Open it
+                  </a>
+                </div>
+              ),
+          )}
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>

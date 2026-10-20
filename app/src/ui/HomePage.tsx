@@ -163,6 +163,9 @@ function ProjectCard({
             {jobs ? `${jobs} ${jobs === 1 ? 'job' : 'jobs'}` : 'No jobs yet'}
             {running > 0 && ` · ${running} running`}
           </span>
+          {'message' in entry.save && (
+            <span className="field-error">Not saved: {entry.save.message}</span>
+          )}
         </span>
       </a>
       {remove}

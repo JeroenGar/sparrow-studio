@@ -12,11 +12,15 @@ export type StoredProject = {
 export type ProjectSummary = Schemas['ProjectSummary'];
 
 /** Every project, most recently changed first. */
-export async function listProjects(client: Client): Promise<ProjectSummary[]> {
+export async function listProjects(
+  client: Client,
+  /** Makes each request: the client's own, or with retries. */
+  request: <T>(call: () => Promise<T>) => Promise<T> = (call) => call(),
+): Promise<ProjectSummary[]> {
   const all: ProjectSummary[] = [];
   let cursor: string | undefined;
   do {
-    const page = await client.listProjects(cursor);
+    const page = await request(() => client.listProjects(cursor));
     all.push(...page.data);
     cursor = page.next_cursor ?? undefined;
   } while (cursor);
@@ -53,9 +57,12 @@ export async function saveProject(
 /** Deletes a project at `version`; one already gone counts as deleted. */
 export async function deleteProject(client: Client, id: string, version: string) {
   await client.deleteProject(id, version).catch((reason) => {
-    if (!(reason instanceof ApiError && reason.status === 404)) throw reason;
+    if (!isMissing(reason)) throw reason;
   });
 }
+
+/** Whether the API has no such project, such as one deleted in another tab. */
+export const isMissing = (reason: unknown) => reason instanceof ApiError && reason.status === 404;
 
 /** Whether a project cannot be opened for what it is, rather than for a failing request. */
 export const isUnreadable = (reason: unknown) =>
