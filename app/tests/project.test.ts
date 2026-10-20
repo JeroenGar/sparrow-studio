@@ -352,6 +352,16 @@ describe('parts canvas arrangement', () => {
       expect(box[3]).toBeLessThanOrEqual(extent[3]);
     }
   });
+
+  it('lines the names of a row up on its bottom, below all of its parts', () => {
+    const parts = [square(30), square(10), square(20)];
+    const { boxes, rowBottoms } = arrangeParts(parts);
+    // Small enough to share one row.
+    const bottoms = new Set(parts.map((part) => rowBottoms.get(part.id)));
+    expect(bottoms.size).toBe(1);
+    const [bottom] = bottoms;
+    for (const box of boxes.values()) expect(box[1]).toBeGreaterThanOrEqual(bottom!);
+  });
 });
 
 describe('rotations', () => {

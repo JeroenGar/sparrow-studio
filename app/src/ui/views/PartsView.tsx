@@ -733,12 +733,12 @@ function PartsDrawing({
                 </g>
               )}
             </g>
-            {/* A name only where it fits under its part at this zoom. */}
+            {/* A name only where it fits under its part at this zoom, on its row's baseline. */}
             {(box[2] - box[0]) / upp > part.name.length * 7 && (
               <text
                 className="part-label"
                 x={(box[0] + box[2]) / 2}
-                y={-box[1] + 16 * upp}
+                y={-arrangement.rowBottoms.get(part.id)! + 16 * upp}
                 fontSize={12 * upp}
                 textAnchor="middle"
               >

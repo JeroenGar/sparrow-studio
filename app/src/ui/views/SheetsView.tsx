@@ -638,6 +638,9 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
         : others[target - 1][2] + arrangement.gap / 2
       : undefined;
 
+  // The names stand on one line above the row, clear of every stack of copies, like headers.
+  const labelLift = Math.max(0, ...sheets.map((sheet) => Math.min(sheet.quantity, 3) - 1));
+
   const draftRing: Point[] | undefined =
     draft.from && draft.at
       ? [draft.from, [draft.at[0], draft.from[1]], draft.at, [draft.from[0], draft.at[1]]]
@@ -727,7 +730,7 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
                 <text
                   className="sheet-label"
                   x={box[0] + ox}
-                  y={-(box[3] + oy) - (behind * 8 + 8) * upp}
+                  y={-y1 - (labelLift * 8 + 8) * upp}
                   fontSize={12 * upp}
                 >
                   {i + 1} · {sheet.name} · ×{sheet.quantity}
