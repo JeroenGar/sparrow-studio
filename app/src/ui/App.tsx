@@ -18,7 +18,7 @@ import { ChevronDown, Gear } from './icons';
 import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
 import { isProjectLimit } from './projects';
-import { go, href, useRoute } from './route';
+import { go, HOME, href, useRoute } from './route';
 import { createRunner, useSubmitting } from './runs';
 import {
   createWorkspace,
@@ -76,7 +76,7 @@ export default function App() {
   /** Shows why something failed; a full account goes home, where projects can be deleted. */
   const failed = (reason: unknown) => {
     setError(explain(reason));
-    if (isProjectLimit(reason)) go({ page: 'home' });
+    if (isProjectLimit(reason)) go(HOME);
   };
   /** Creates a project and opens it. */
   const create = async (document: ProjectDocument) => {
@@ -158,6 +158,9 @@ export default function App() {
         onOpenFile={() => fileInput.current?.click()}
         onRetry={(id) => void workspace.reload(id)}
         onDelete={(entry) => setDialog({ type: 'delete', entry })}
+        view={route.view}
+        runner={runner}
+        unit={preferences.unit}
       />
     );
   else if (!entry)
@@ -350,7 +353,7 @@ export default function App() {
           onClose={() => setDialog(undefined)}
           onDelete={async () => {
             const id = dialog.entry.id;
-            if (route.page !== 'home' && route.id === id) go({ page: 'home' }, { replace: true });
+            if (route.page !== 'home' && route.id === id) go(HOME, { replace: true });
             setDialog(undefined);
             await workspace.remove(id).catch(failed);
           }}

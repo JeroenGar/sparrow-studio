@@ -1566,3 +1566,106 @@ a.button.primary {
   color: var(--panel);
   border-color: var(--ink);
 }
+
+/* Home's switch between its projects and its jobs. */
+.segmented .button[aria-current='page'] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+/* Home's jobs: a small table per project, newest first. */
+.job-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.job-section-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.job-section-head a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.job-section-head a:hover {
+  color: var(--accent);
+}
+.job-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.job-table td {
+  padding: 8px 16px;
+  border-top: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.job-table tr:first-child td {
+  border-top: 0;
+}
+.job-table tr.running {
+  background: var(--accent-soft);
+}
+.job-table a {
+  color: var(--ink);
+  font-weight: 600;
+}
+/* The same columns in every project's table, so they line up down the page. */
+.job-table {
+  table-layout: fixed;
+}
+.job-table td:nth-child(1) {
+  width: 88px;
+  padding-right: 0;
+}
+.job-table td:nth-child(2) {
+  width: 64px;
+}
+.job-table td:nth-child(3) {
+  width: 160px;
+}
+.job-table td:nth-child(5) {
+  width: 32%;
+}
+.job-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.progress.small {
+  width: 90px;
+  height: 4px;
+}
+.job-thumb {
+  position: relative;
+  display: block;
+  width: 64px;
+  height: 40px;
+  border-radius: 4px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line-soft);
+}
+.job-thumb svg,
+svg.job-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.thumb-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--panel);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 15px;
+}
