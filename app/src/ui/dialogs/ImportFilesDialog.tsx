@@ -170,7 +170,9 @@ export function ImportFilesDialog({
                 onAdd(
                   parts,
                   sheets,
-                  isInstance && useWidth ? review!.document.settings.materialWidthMm : undefined,
+                  isInstance && useWidth && !sheets.length
+                    ? review!.document.settings.materialWidthMm
+                    : undefined,
                 )
               }
             >
@@ -374,7 +376,8 @@ export function ImportFilesDialog({
               </label>
             </>
           )}
-          {isInstance && kind === 'parts' && (
+          {/* A job on sheets has no strip width to offer. */}
+          {isInstance && kind === 'parts' && !sheets.length && (
             <label className="choice">
               <input
                 type="checkbox"

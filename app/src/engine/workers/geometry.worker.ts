@@ -1,5 +1,6 @@
 import { normalizeJob } from '../geometry/normalize';
 import { importSparrow } from '../import/sparrow';
+import { importPro, isProInput } from '../import/pro';
 import { initializeSVG,traceSVG } from '../import/svg';
 import { traceDXF } from '../import/dxf';
 import { review,suggestRoles } from '../import/drawing';
@@ -26,7 +27,12 @@ self.onmessage=async({data}: MessageEvent<GeometryRequest>)=>{
         });
         const layers=[...new Set(drawings.flatMap(d=>d?.layers??[]))].sort();
         const roles={...suggestRoles(layers,data.kind??'parts'),...Object.fromEntries(Object.entries(data.roles??{}).filter(([layer])=>layers.includes(layer)))};
-        const reviews=data.files.map((f,i)=>drawings[i]?review(drawings[i]!,roles,{merge:data.merge??true}):importSparrow(f.text,f.name,data.scale));
+        // JSON is a job input in sparrow Pro's format, or else a sparrow instance.
+        const json=(f:{text:string;name:string})=>{
+          const value=JSON.parse(f.text);
+          return isProInput(value)?importPro(value,f.name,{curves:data.curves??'keep',tolerance}):importSparrow(f.text,f.name,data.scale);
+        };
+        const reviews=data.files.map((f,i)=>drawings[i]?review(drawings[i]!,roles,{merge:data.merge??true}):json(f));
         const combined={...reviews[0].document,parts:reviews.flatMap(r=>r.document.parts)};
         const document=combined.parts.length?normalizeJob(combined):combined;
         const outlines:Record<string,number>={};
