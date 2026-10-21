@@ -422,6 +422,12 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
 
     if (request.method === 'GET' && path === '/limits') return respond(200, LIMITS);
     if (parts[0] === 'projects') return projects(request, parts[1], parts.slice(2));
+    // Every job of this session, newest first, on one page.
+    if (request.method === 'GET' && path === '/jobs')
+      return respond(200, {
+        data: [...jobs.values()].map((local) => local.job).reverse(),
+        next_cursor: null,
+      } satisfies Schemas['JobList']);
     if (request.method === 'POST' && path === '/jobs/validate') {
       await check(readRequest(await json()));
       return respond(204);

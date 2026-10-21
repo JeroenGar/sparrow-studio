@@ -1719,6 +1719,14 @@ a.button.primary {
 .job-table col.result {
   width: 32%;
 }
+.job-table col.credits {
+  width: 180px;
+}
+.job-section-head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+}
 .job-table td:first-child {
   padding-right: 0;
 }

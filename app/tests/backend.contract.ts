@@ -57,6 +57,8 @@ export function backendContract(client: () => Client, { timeout }: { timeout: nu
       ]);
       expect(document.outcome?.solution.layouts[0].placements).toHaveLength(5);
       expect(document.outcome?.stats.layouts[0].cut_x).toBeGreaterThan(0);
+      // The account's jobs list it, newest first.
+      expect((await client().listJobs()).data[0].id).toBe(submitted.id);
     } finally {
       if (!FINAL.includes(last.state.status))
         await client()

@@ -138,6 +138,9 @@ export function createClient({ fetch, baseUrl }: { fetch: Fetch; baseUrl: string
     /** Submits a job. Retrying the same submission must reuse its key, so it never runs twice. */
     submitJob: (body: JobRequest, idempotencyKey: string) =>
       ok(api.POST('/jobs', { body, params: { header: { 'Idempotency-Key': idempotencyKey } } })),
+    /** A page of the account's jobs, newest first; `cursor` is the previous page's `next_cursor`. */
+    listJobs: (cursor?: string) =>
+      ok(api.GET('/jobs', { params: { query: { limit: 100, ...(cursor && { cursor }) } } })),
     getJob: (jobId: string) => ok(api.GET('/jobs/{job_id}', job(jobId))),
     getJobDocument: (jobId: string) => ok(api.GET('/jobs/{job_id}/full', job(jobId))),
     stopJob: (jobId: string) => ok(api.POST('/jobs/{job_id}/stop', job(jobId))),

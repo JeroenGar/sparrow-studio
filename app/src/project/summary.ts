@@ -20,8 +20,8 @@ export const SUMMARY_FORMAT = 'sparrow-studio-summary';
 export const SUMMARY_VERSION = 1;
 /** The largest summary the API takes, as sent. */
 export const SUMMARY_BYTES = 16 * 1024;
-/** How many of a project's newest jobs its summary lists. */
-export const RECENT_JOBS = 4;
+/** How many of a project's newest jobs its summary lists: its card shows the newest. */
+export const RECENT_JOBS = 1;
 /** How many of a project's largest parts its card draws. */
 const CARD_PARTS = 10;
 
@@ -68,6 +68,11 @@ export type Summary = {
   packing: 'strip' | 'sheets';
   sheets: number;
   jobs: number;
+  /**
+   * The number of each of the project's jobs, by the API's ID, so a list of the account's jobs
+   * names the project of each; absent from a summary saved before it was kept.
+   */
+  jobNumbers?: Record<string, number>;
   /** The API's IDs of the jobs running: their project is opened to follow them. */
   running: string[];
   /** The key of what a job of the project would ask now. */
@@ -139,6 +144,9 @@ export function summarize(project: ProjectDocument): Summary {
     packing: project.stock.packing,
     sheets: copyCount(project.stock.sheets),
     jobs: project.jobs.length,
+    jobNumbers: Object.fromEntries(
+      project.jobs.flatMap((job) => (job.id ? [[job.id, job.number]] : [])),
+    ),
     running: runningJobs(project).map((job) => job.id),
     input: inputKey(projectInput(project)),
     thumb: cardThumb(project),
@@ -305,6 +313,8 @@ export function readSummary(value: unknown): Summary | undefined {
   const count = (key: string) => Number.isInteger(value[key]) && (value[key] as number) >= 0;
   const valid =
     ['copies', 'sheets', 'jobs'].every(count) &&
+    (value.jobNumbers === undefined ||
+      (isRecord(value.jobNumbers) && Object.values(value.jobNumbers).every(Number.isInteger))) &&
     (value.packing === 'strip' || value.packing === 'sheets') &&
     Array.isArray(value.running) &&
     value.running.every((id) => typeof id === 'string') &&

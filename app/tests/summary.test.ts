@@ -16,7 +16,6 @@ import {
   savedSummary,
   summarize,
   SUMMARY_BYTES,
-  type JobListing,
 } from '../src/project/summary';
 import { MATERIAL, packThumb, unpackThumb } from '../src/project/thumb';
 import { colors } from '../src/engine/colors';
@@ -74,7 +73,13 @@ describe('project summaries', () => {
     );
     const summary = summarize(project);
     expect(summary).toMatchObject({ copies: 4, packing: 'strip', jobs: 2, running: [] });
-    expect(summary.recent.map((job) => job.number)).toEqual([2, 1]);
+    // The newest job for the card, and every job's number by its ID for the list of all jobs.
+    expect(summary.recent.map((job) => job.number)).toEqual([2]);
+    expect(summary.jobNumbers).toEqual({ job_1: 1, job_2: 2 });
+    expect(readSummary({ ...summary, jobNumbers: { job_1: 'one' } })).toBeUndefined();
+    // A summary saved before it listed its jobs still reads.
+    const { jobNumbers: _, ...before } = summary;
+    expect(readSummary(before)).toEqual(before);
     expect(summary.recent[0]).toMatchObject({
       stage: 'completed',
       utilization: 80,
@@ -90,15 +95,12 @@ describe('project summaries', () => {
     expect(summarize(project)).toBe(summary);
   });
 
-  it('stay within the limit for a large project, dropping the oldest drawings first', () => {
+  it('stay within the limit for a large project, dropping the drawings first', () => {
     const parts = Array.from({ length: 60 }, (_, i) => round(50 + i, 400, 5));
     const project = withJobs(addParts(onStrip(newProject('Large')), parts), 6);
     const summary = summarize(project);
     expect(bytes(summary)).toBeLessThanOrEqual(SUMMARY_BYTES);
-    expect(summary.recent).toHaveLength(4);
-    const drawn = summary.recent.map((job: JobListing) => !!job.thumb);
-    // Whatever was dropped went from the oldest jobs first.
-    expect(drawn).toEqual([...drawn].sort().reverse());
+    expect(summary.recent).toHaveLength(1);
     expect(summary.thumb).toBeDefined();
   });
 

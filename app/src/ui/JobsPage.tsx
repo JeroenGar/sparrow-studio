@@ -1,196 +1,226 @@
-import { useMemo, useState } from 'react';
-import type { DisplayUnit } from '../engine/units';
-import { RECENT_JOBS, type JobListing, type Summary } from '../project/summary';
-import { usesSparrowPro } from './client';
+import { useEffect, useMemo, useState } from 'react';
+import type { Job } from '../api/client';
+import { client, usesSparrowPro } from './client';
+import { explain } from './explain';
 import { formatSeconds, formatWhen } from './format';
-import { JobThumb, LiveJobThumb } from './JobThumb';
+import { patiently } from './patiently';
 import { href } from './route';
-import { Search } from './Search';
-import { elapsed, useBest, useNow, useRun, type Runner } from './runs';
-import { JobDot, jobFigures, jobNote, jobStatus } from './views/JobsView';
+import { useNow, useRun, elapsed, type Runner } from './runs';
 import { entryName, entrySummary, type ProjectEntry } from './workspace';
 
-type Section = { entry: ProjectEntry; summary: Summary };
+/** The account's jobs as far as they are loaded, and where the next page starts. */
+type Loaded =
+  | { status: 'loading' }
+  | { status: 'failed'; error: string }
+  | { status: 'ready'; jobs: Job[]; next: string | null; more: boolean };
 
 /**
- * The jobs of every project, by project, the most recently started first, from the projects'
- * summaries: the page needs no project's document.
+ * Every job of the account, newest first, by month with the credits each month's jobs were
+ * charged, each with its project. The account's list of jobs is the API's; which project each
+ * belongs to, its summary says, so a project whose summary does not say yet is opened.
  */
 export function JobsPage({
   projects,
   runner,
-  unit,
+  onOpen,
 }: {
   projects: ProjectEntry[];
   runner: Runner;
-  unit: DisplayUnit;
+  onOpen: (id: string) => void;
 }) {
-  const [search, setSearch] = useState('');
-  const words = search.trim().toLowerCase();
-  const sections = useMemo(
-    () =>
-      projects
-        .flatMap((entry): Section[] => {
-          const summary = entrySummary(entry);
-          return summary?.jobs ? [{ entry, summary }] : [];
-        })
-        .sort((a, b) => latest(b).localeCompare(latest(a))),
-    [projects],
-  );
-  const shown = sections.filter(({ entry }) => entryName(entry).toLowerCase().includes(words));
+  const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
+  // A job starting or ending anywhere shows on the first page.
+  const running = projects
+    .flatMap((entry) => entrySummary(entry)?.running ?? [])
+    .sort()
+    .join();
+  useEffect(() => {
+    let current = true;
+    patiently(() => client.listJobs()).then(
+      (page) =>
+        current &&
+        setLoaded({ status: 'ready', jobs: page.data, next: page.next_cursor, more: false }),
+      (reason) => current && setLoaded({ status: 'failed', error: explain(reason) }),
+    );
+    return () => {
+      current = false;
+    };
+  }, [running]);
+  const older = (next: string) => {
+    if (loaded.status !== 'ready') return;
+    setLoaded({ ...loaded, more: true });
+    patiently(() => client.listJobs(next)).then(
+      (page) =>
+        setLoaded((now) =>
+          now.status === 'ready'
+            ? {
+                status: 'ready',
+                jobs: [...now.jobs, ...page.data],
+                next: page.next_cursor,
+                more: false,
+              }
+            : now,
+        ),
+      (reason) => setLoaded({ status: 'failed', error: explain(reason) }),
+    );
+  };
+
+  // A project whose summary does not list its jobs yet is opened, to name the project of each.
+  useEffect(() => {
+    for (const entry of projects) {
+      const summary = entrySummary(entry);
+      if (entry.status === 'listed' && summary?.jobs && !summary.jobNumbers) onOpen(entry.id);
+    }
+  }, [projects]);
+  const owners = useMemo(() => {
+    const owners = new Map<string, { entry: ProjectEntry; number: number }>();
+    for (const entry of projects)
+      for (const [id, number] of Object.entries(entrySummary(entry)?.jobNumbers ?? {}))
+        owners.set(id, { entry, number });
+    return owners;
+  }, [projects]);
+
+  const months = useMemo(() => {
+    if (loaded.status !== 'ready') return [];
+    const months: { name: string; jobs: Job[]; credits: number }[] = [];
+    for (const job of loaded.jobs) {
+      const name = new Date(job.created_at).toLocaleDateString('en-GB', {
+        month: 'long',
+        year: 'numeric',
+      });
+      if (months.at(-1)?.name !== name) months.push({ name, jobs: [], credits: 0 });
+      months.at(-1)!.jobs.push(job);
+      months.at(-1)!.credits += job.credits.charged;
+    }
+    return months;
+  }, [loaded]);
+
   return (
     <main className="home">
       <div className="home-head">
         <h1>All jobs</h1>
-        <span className="spacer" />
-        <Search value={search} onChange={setSearch} />
       </div>
-      {!sections.length ? (
+      {loaded.status === 'loading' && <p className="muted">Loading the jobs…</p>}
+      {loaded.status === 'failed' && (
+        <p className="field-error">Could not load the jobs: {loaded.error}</p>
+      )}
+      {loaded.status === 'ready' && !loaded.jobs.length && (
         <div className="empty">
           <p>No jobs yet.</p>
           <p className="muted">Start nesting in a project: its jobs show here.</p>
         </div>
-      ) : !shown.length ? (
-        <p className="muted">No project with jobs is named like that.</p>
-      ) : (
-        shown.map((section) => (
-          <JobSection key={section.entry.id} {...section} runner={runner} unit={unit} />
-        ))
+      )}
+      {months.map((month, index) => (
+        <section key={month.name} className="job-section">
+          <div className="job-section-head">
+            <h2 id={`month-${index}`}>{month.name}</h2>
+            <span className="muted">
+              {month.jobs.length} {month.jobs.length === 1 ? 'job' : 'jobs'} ·{' '}
+              {credits(month.credits)}
+              {loaded.status === 'ready' &&
+                loaded.next &&
+                index === months.length - 1 &&
+                ' so far: older jobs are not loaded'}
+            </span>
+          </div>
+          <table className="job-table account-jobs" aria-labelledby={`month-${index}`}>
+            <colgroup>
+              <col className="started" />
+              <col />
+              <col />
+              <col className="credits" />
+            </colgroup>
+            <thead className="visually-hidden">
+              <tr>
+                <th scope="col">Started</th>
+                <th scope="col">Project and job</th>
+                <th scope="col">Status</th>
+                <th scope="col">Credits</th>
+              </tr>
+            </thead>
+            <tbody>
+              {month.jobs.map((job) => (
+                <JobRow key={job.id} job={job} owner={owners.get(job.id)} runner={runner} />
+              ))}
+            </tbody>
+          </table>
+        </section>
+      ))}
+      {loaded.status === 'ready' && loaded.next && (
+        <span>
+          <button disabled={loaded.more} onClick={() => older(loaded.next!)}>
+            {loaded.more ? 'Loading…' : 'Show older jobs'}
+          </button>
+        </span>
       )}
       {!usesSparrowPro && (
-        <p className="muted">Jobs in this browser run only while studio is open.</p>
+        <p className="muted">Jobs in this browser show here while studio is open.</p>
       )}
     </main>
   );
 }
 
-/** When a project's newest job started. */
-const latest = ({ summary }: Section) => summary.recent[0]?.submittedAt ?? '';
+const credits = (count: number) =>
+  `${count.toLocaleString('en')} ${count === 1 ? 'credit' : 'credits'}`;
 
-/** One project's newest jobs, as a table named after the project. */
-function JobSection({
-  entry,
-  summary,
-  runner,
-  unit,
-}: Section & {
-  runner: Runner;
-  unit: DisplayUnit;
-}) {
-  // Each part's place in the project, for the color the Parts tab gives it to a running job.
-  const parts = entry.status === 'open' ? entry.history.present.parts : undefined;
-  const order = useMemo(() => new Map(parts?.map((part, index) => [part.id, index])), [parts]);
-  const running = summary.running.length;
-  const heading = `jobs-of-${entry.id}`;
-  return (
-    <section className="job-section">
-      <div className="job-section-head">
-        <a id={heading} href={href({ page: 'project', id: entry.id, tab: 'jobs' })}>
-          {entryName(entry)}
-        </a>
-        <span className="muted">
-          {summary.jobs} {summary.jobs === 1 ? 'job' : 'jobs'}
-          {running > 0 && ` · ${running} running`}
-          {summary.jobs > RECENT_JOBS && ` · showing the last ${RECENT_JOBS}`}
-        </span>
-      </div>
-      <table className="job-table" aria-labelledby={heading}>
-        <colgroup>
-          <col className="thumb" />
-          <col className="number" />
-          <col className="started" />
-          <col />
-          <col className="result" />
-        </colgroup>
-        <thead className="visually-hidden">
-          <tr>
-            <th scope="col">Layout</th>
-            <th scope="col">Job</th>
-            <th scope="col">Started</th>
-            <th scope="col">Status</th>
-            <th scope="col">Result</th>
-          </tr>
-        </thead>
-        <tbody>
-          {summary.recent.map((job) => (
-            <JobLine
-              key={job.number}
-              projectId={entry.id}
-              job={job}
-              stale={job.stage !== 'running' && job.input !== summary.input}
-              order={order}
-              runner={runner}
-              unit={unit}
-            />
-          ))}
-        </tbody>
-      </table>
-    </section>
-  );
-}
-
-function JobLine({
-  projectId,
+function JobRow({
   job,
-  stale,
-  order,
+  owner,
   runner,
-  unit,
 }: {
-  projectId: string;
-  job: JobListing;
-  /** Whether the project changed since the job, in anything its input asks. */
-  stale: boolean;
-  order: Map<string, number>;
+  job: Job;
+  owner?: { entry: ProjectEntry; number: number };
   runner: Runner;
-  unit: DisplayUnit;
 }) {
-  // The best layout alone: the search moves on many times a second, the best less often.
-  const id = job.stage === 'running' ? job.id : undefined;
-  const best = useBest(runner, id);
-  const input = id ? runner.get(id)?.request.input : undefined;
-  const figures = jobFigures(job, best, unit);
-  const link = href({ page: 'job', id: projectId, number: job.number, view: 'layout' });
-  const failed = job.stage !== 'completed' && job.stage !== 'running';
+  const state = job.state;
+  const active = state.status === 'queued' || state.status === 'running';
   return (
-    <tr className={id ? 'running' : undefined}>
+    <tr className={active ? 'running' : undefined}>
+      <td className="muted">{formatWhen(job.created_at)}</td>
       <td>
-        <a href={link} tabIndex={-1} aria-hidden="true">
-          {input ? (
-            <LiveJobThumb input={input} best={best} order={order} />
-          ) : (
-            <JobThumb thumb={job.thumb} more={job.more} />
-          )}
-        </a>
-      </td>
-      <td className="mono">
-        <a href={link}>#{job.number}</a>
-      </td>
-      <td className="muted">{formatWhen(job.submittedAt)}</td>
-      <td>
-        {id ? (
-          <span className="job-progress">
-            <JobDot job={job} />
-            <strong>Running</strong>
-            <Progress runner={runner} jobId={id} />
-          </span>
+        {owner ? (
+          <a href={href({ page: 'job', id: owner.entry.id, number: owner.number, view: 'layout' })}>
+            {entryName(owner.entry)} <span className="mono">#{owner.number}</span>
+          </a>
         ) : (
-          <span className="job-progress">
-            <JobDot job={job} />
-            {job.stage === 'completed'
-              ? `${job.stopped ? 'Stopped' : 'Finished'} after ${formatSeconds(job.solverSeconds)}`
-              : jobStatus(job).replace(/^./, (c) => c.toUpperCase())}
-            {stale && <span className="muted"> · project changed since</span>}
-          </span>
+          <span className="muted">Project not known</span>
         )}
       </td>
-      <td className={failed ? 'muted' : 'mono'}>
-        {failed
-          ? jobNote(job)
-          : figures && [figures.utilization, figures.used].filter(Boolean).join(' · ')}
+      <td>
+        <span className="job-progress">
+          {active ? (
+            <i className="live-dot" aria-hidden="true" />
+          ) : (
+            <i
+              className={state.status === 'completed' ? 'status-dot' : 'status-dot failed'}
+              aria-hidden="true"
+            />
+          )}
+          {state.status === 'queued' ? (
+            'Queued'
+          ) : state.status === 'running' ? (
+            <Running runner={runner} jobId={job.id} />
+          ) : state.status === 'completed' ? (
+            `${state.termination === 'stopped' ? 'Stopped' : 'Finished'} after ${formatSeconds(state.solver_seconds)}`
+          ) : state.status === 'cancelled' ? (
+            'Cancelled'
+          ) : (
+            'Failed'
+          )}
+        </span>
+      </td>
+      <td className="mono">
+        {active ? `${credits(job.credits.held)} held` : credits(job.credits.charged)}
       </td>
     </tr>
   );
+}
+
+/** A running job's time so far, once studio has heard it from the job. */
+function Running({ runner, jobId }: { runner: Runner; jobId: string }) {
+  const run = useRun(runner, jobId);
+  const seconds = elapsed(run, useNow(!!run && !run.error));
+  return <>Running{run?.clock && ` for ${formatSeconds(seconds)}`}</>;
 }
 
 /** A running job's time against its limit, as a bar and in figures. */

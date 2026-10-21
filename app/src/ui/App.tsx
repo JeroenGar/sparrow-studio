@@ -172,7 +172,9 @@ export default function App() {
       />
     );
   else if (route.page === 'jobs')
-    page = <JobsPage projects={state.projects} runner={runner} unit={preferences.unit} />;
+    page = (
+      <JobsPage projects={state.projects} runner={runner} onOpen={(id) => workspace.open(id)} />
+    );
   else if (!entry)
     page = (
       <div className="boot stack">
