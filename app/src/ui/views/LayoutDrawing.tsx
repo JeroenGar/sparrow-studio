@@ -4,7 +4,7 @@ import { flattenContour, outline } from '../../engine/geometry/contour';
 import { bounds } from '../../engine/geometry/normalize';
 import type { WorldPart } from '../../engine/geometry/world';
 import type { Job, Ring, Sheet } from '../../engine/model';
-import { inRows, rowGap, type Box } from '../../project/layout';
+import { inBestRows, type Box } from '../../project/layout';
 import type { DrawnLayout } from '../../project/solution';
 import { ringsPath } from '../Canvas';
 
@@ -31,15 +31,7 @@ export function arrangeLayouts(
 ) {
   const own = layouts.map((layout, i) => materialBox(job, layout, lengths[i]));
   if (!own.length) return { offsets: [], boxes: [], extent: [0, 0, 100, 100] as Box };
-  const gap = rowGap(own);
-  let best: { offsets: [number, number][]; boxes: Box[]; extent: Box; size: number } | undefined;
-  for (let columns = 1; columns <= own.length; columns++) {
-    const { offsets, boxes, extent } = inRows(own, columns, gap);
-    // The height the view must show: the larger of the two, the width taken at the view's aspect.
-    const size = Math.max((extent[2] - extent[0]) / aspect, extent[3] - extent[1]);
-    if (!best || size < best.size) best = { offsets, boxes, extent, size };
-  }
-  const { offsets, boxes, extent } = best!;
+  const { offsets, boxes, extent } = inBestRows(own, aspect);
   return { offsets, boxes, extent };
 }
 

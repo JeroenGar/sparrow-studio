@@ -100,6 +100,24 @@ export const rowGap = (own: Box[]) =>
   Math.max(...own.map((box) => Math.max(box[2] - box[0], box[3] - box[1])), 1) * 0.12;
 
 /**
+ * Boxes in rows, as many to a row as fit them best into a view of `aspect`, width over height:
+ * the number that lets the view show them all the largest.
+ */
+export function inBestRows(own: Box[], aspect: number) {
+  const gap = rowGap(own);
+  let best: (ReturnType<typeof inRows> & { size: number }) | undefined;
+  for (let columns = 1; columns <= Math.max(own.length, 1); columns++) {
+    const rows = inRows(own, columns, gap);
+    const [x0, y0, x1, y1] = rows.extent;
+    // The height the view must show: the larger of the two, the width taken at the view's aspect.
+    const size = Math.max((x1 - x0) / aspect, y1 - y0);
+    if (!best || size < best.size) best = { ...rows, size };
+  }
+  const { size: _, ...rows } = best!;
+  return { ...rows, gap };
+}
+
+/**
  * How far to the right of the parts their material lies on the shared canvas, as a share of the
  * wider of the two: far enough that the one in focus fills the view, near enough that the other
  * shows at its edge. Tuned by eye.
@@ -110,16 +128,21 @@ export const MATERIAL_DISTANCE = 0.12;
  * view: the view reaches this far past the gap. Tuned by eye.
  */
 export const MATERIAL_PEEK = 0.1;
+/**
+ * The shape the sheets' rows aim for, width over height: about what the Sheets tab's canvas shows
+ * on a laptop, less the room the view keeps at its sides for the parts. Tuned by eye.
+ */
+export const SHEETS_ASPECT = 1.4;
 
-/** Where the sheets go: in rows as wide as `width`, as many to a row as fit, in their order. */
-export type SheetsPlace = ReturnType<typeof inRows> & { gap: number };
+/** Where the sheets go: in rows, in their order, shaped as `SHEETS_ASPECT` best allows. */
+export type SheetsPlace = ReturnType<typeof inBestRows>;
 /** Where the strip goes: its band, as wide as the strip and as long as drawn. */
 export type StripPlace = { box: Box; width: number; length: number };
 
 /**
  * The shared canvas of the Parts and Sheets tabs, in the order of the tabs: the parts on the left,
  * laid out as `arrangeParts` does, and to their right, `MATERIAL_DISTANCE` away and centred beside
- * them, the sheets in rows as wide as the parts, or the strip.
+ * them, the sheets in rows, or the strip.
  */
 export function arrangeMaterial(parts: Part[], stock: Stock) {
   const arrangement = arrangeParts(parts);
@@ -135,7 +158,10 @@ export function arrangeMaterial(parts: Part[], stock: Stock) {
     const strip: StripPlace = { box: [left, bottom, left + length, bottom + width], width, length };
     return { parts: arrangement, strip, material: strip.box };
   }
-  const sheets = placeSheets(stock.sheets, partsWidth);
+  const sheets = inBestRows(
+    stock.sheets.map((sheet) => bounds(outline(sheet.shape).outer) as Box),
+    SHEETS_ASPECT,
+  );
   const [x0, y0, x1, y1] = sheets.extent;
   const left = partsWidth + MATERIAL_DISTANCE * Math.max(partsWidth, x1 - x0);
   const [dx, dy] = [left - x0, (partsHeight - (y1 - y0)) / 2 - y0];
@@ -147,24 +173,4 @@ export function arrangeMaterial(parts: Part[], stock: Stock) {
     extent: moved(sheets.extent),
   };
   return { parts: arrangement, sheets: placed, material: placed.extent };
-}
-
-/** The sheet entries in rows of at most `width`, but at least one to a row. */
-function placeSheets(sheets: SheetEntry[], width: number): SheetsPlace {
-  const own = sheets.map((sheet) => bounds(outline(sheet.shape).outer) as Box);
-  const gap = rowGap(own);
-  let columns = 1;
-  while (columns < own.length) {
-    const next = columns + 1;
-    const widest = Math.max(
-      ...Array.from({ length: Math.ceil(own.length / next) }, (_, row) =>
-        own
-          .slice(row * next, row * next + next)
-          .reduce((sum, box, i) => sum + (box[2] - box[0]) + (i ? gap : 0), 0),
-      ),
-    );
-    if (widest > width) break;
-    columns = next;
-  }
-  return { ...inRows(own, columns, gap), gap };
 }

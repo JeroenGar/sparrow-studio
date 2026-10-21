@@ -604,7 +604,7 @@ describe('the shared canvas of parts and their material', () => {
   const parts = [square(30), square(10), square(20), square(5), square(25)];
   const sheet = (length: number) => newSheet('Sheet', length, 40);
 
-  it('puts the sheets right of the parts, centred beside them, in rows as wide as the parts', () => {
+  it('puts the sheets right of the parts, centred beside them, in rows shaped for a laptop', () => {
     const project = addParts(newProject('Job'), parts);
     const stock = {
       ...project.stock,
@@ -619,13 +619,16 @@ describe('the shared canvas of parts and their material', () => {
       px1 + MATERIAL_DISTANCE * Math.max(px1 - px0, extent[2] - extent[0]),
     );
     expect((extent[1] + extent[3]) / 2).toBeCloseTo((py0 + py1) / 2);
-    // No row wider than the parts, unless one sheet alone is; read like text.
-    expect(extent[2] - extent[0]).toBeLessThanOrEqual(px1 - px0);
+    // Read like text.
     expect(rows).toEqual([...rows].sort((a, b) => a - b));
     for (let i = 1; i < boxes.length; i++)
       if (rows[i] === rows[i - 1]) expect(boxes[i][0]).toBeGreaterThan(boxes[i - 1][2]);
       else expect(boxes[i][3]).toBeLessThan(boxes[i - 1][1]);
-    // A sheet wider than the parts still has a row of its own.
+    // Twelve sheets near square take four columns and three rows; a long one, a row of its own.
+    const square = { ...stock, sheets: Array.from({ length: 12 }, () => sheet(30)) };
+    expect(arrangeMaterial(parts, square).sheets!.rows).toEqual([
+      0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2,
+    ]);
     expect(
       arrangeMaterial(parts, { ...stock, sheets: [sheet(5000), sheet(10)] }).sheets!.rows,
     ).toEqual([0, 1]);
