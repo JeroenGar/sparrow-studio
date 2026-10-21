@@ -74,6 +74,9 @@ export default function App() {
   const state = useWorkspace(workspace);
   const route = useRoute();
   const [dialog, setDialog] = useState<Dialogs>();
+  // The account is over the page it was opened on: going elsewhere, such as back, closes it.
+  const shownHash = href(route);
+  useEffect(() => setDialog((open) => (open?.type === 'account' ? undefined : open)), [shownHash]);
   const [error, setError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const showError = useCallback((message: string) => setError(message), []);
