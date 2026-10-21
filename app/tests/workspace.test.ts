@@ -32,14 +32,26 @@ function setup(wrap: (fetch: Fetch) => Fetch = (fetch) => fetch) {
   const stored = async (id: string) => (await openProject(api, id)).document;
   const listed = async (id: string) =>
     readSummary((await api.listProjects()).data.find((project) => project.id === id)?.summary);
-  return { api, workspace, open, save, saveBare, stored, listed };
+  /** Waits, however long it takes, until the workspace reaches a state `done` accepts. */
+  const until = (done: () => boolean) =>
+    new Promise<void>((resolve) => {
+      if (done()) return resolve();
+      const stop = workspace.subscribe(() => {
+        if (!done()) return;
+        stop();
+        resolve();
+      });
+    });
+  /** Waits until a project being opened is open, or failed to be. */
+  const loaded = (id: string) => until(() => workspace.find(id)?.status !== 'loading');
+  /** Waits until a project's saves are done, saved or not. */
+  const saveDone = (id: string) => until(() => open(id).save.state !== 'saving');
+  return { api, workspace, open, save, saveBare, stored, listed, loaded, saveDone };
 }
-
-const settled = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 describe('the workspace', () => {
   it('lists projects with summaries, and opens those that need their document', async () => {
-    const { workspace, open, save, saveBare } = setup();
+    const { workspace, open, save, saveBare, loaded } = setup();
     const listedOnly = await save(newProject('Listed'));
     const running = await save(
       addJob(newProject('Running'), 'job_1', projectRequest(newProject('Running')), {}),
@@ -61,7 +73,7 @@ describe('the workspace', () => {
       error: expect.stringContaining('unknown format'),
     });
     workspace.open(listedOnly);
-    await settled();
+    await loaded(listedOnly);
     expect(open(listedOnly)).toMatchObject({
       status: 'open',
       history: { present: { name: 'Listed' } },
@@ -85,14 +97,14 @@ describe('the workspace', () => {
   });
 
   it('saves edits, keeps results out of undo, and stops at a change made elsewhere', async () => {
-    const { api, workspace, open, save, stored, listed } = setup();
+    const { api, workspace, open, save, stored, listed, loaded, saveDone } = setup();
     const id = await save(newProject('Job'));
     await workspace.load();
     workspace.open(id);
-    await settled();
+    await loaded(id);
     workspace.edit(id, (current) => ({ ...current, name: 'Renamed' }));
     expect(open(id).save.state).toBe('saving');
-    await settled();
+    await saveDone(id);
     expect(open(id).save.state).toBe('saved');
     expect((await api.getProject(id)).project.name).toBe('Renamed');
 
@@ -101,7 +113,7 @@ describe('the workspace', () => {
     workspace.results(id, (present) => ({ jobs: addJob(present, 'job_1', request, {}).jobs }));
     workspace.undo(id);
     expect(open(id).history.present).toMatchObject({ name: 'Job', jobs: [{ id: 'job_1' }] });
-    await settled();
+    await saveDone(id);
     expect(await stored(id)).toMatchObject({ jobs: [{ id: 'job_1' }] });
     // Each save writes the summary Home shows.
     expect(await listed(id)).toMatchObject({ jobs: 1, running: ['job_1'] });
@@ -111,7 +123,7 @@ describe('the workspace', () => {
     const elsewhere = new Blob([JSON.stringify(newProject('Elsewhere'))]);
     await api.saveProject(id, { name: 'Elsewhere', document: elsewhere }, version);
     workspace.edit(id, (current) => ({ ...current, name: 'Here' }));
-    await settled();
+    await saveDone(id);
     expect(open(id).save.state).toBe('conflict');
     expect((await api.getProject(id)).project.name).toBe('Elsewhere');
     const before = open(id).updatedAt;
@@ -156,12 +168,12 @@ describe('the workspace', () => {
   });
 
   it('deletes a listed project only once opened', async () => {
-    const { workspace, save } = setup();
+    const { workspace, save, loaded } = setup();
     const id = await save(newProject('Listed'));
     await workspace.load();
     await expect(workspace.remove(id)).rejects.toThrow('Open the project');
     workspace.open(id);
-    await settled();
+    await loaded(id);
     await workspace.remove(id);
     expect(workspace.find(id)).toBeUndefined();
   });
