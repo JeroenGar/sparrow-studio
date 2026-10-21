@@ -99,37 +99,62 @@ export function backendContract(client: () => Client, { timeout }: { timeout: nu
     expect(withCode(missing.error, 'not_found')).toBeDefined();
   });
 
-  it('refuses a save over a stale version', { timeout: 30_000 }, async () => {
-    const created = await client().createProject(
-      { name: 'Integration test', document: { step: 1 } },
-      crypto.randomUUID(),
-    );
-    let current = created.version;
-    try {
-      const saved = await client().saveProject(
-        created.project.id,
-        { name: 'Integration test', document: { step: 2 } },
-        current,
+  it(
+    'keeps summaries and document bytes, and refuses a save over a stale version',
+    { timeout: 30_000 },
+    async () => {
+      const bytes = (step: number) => new Blob([new Uint8Array([0x1f, 0x8b, step, 0, 255])]);
+      const created = await client().createProject(
+        { name: 'Integration test', summary: { step: 1 }, document: bytes(1) },
+        crypto.randomUUID(),
       );
-      current = saved.version;
-      expect(current).not.toBe(created.version);
+      let current = created.version;
+      const id = created.project.id;
+      try {
+        expect(created.project.summary).toEqual({ step: 1 });
+        expect(created.project).not.toHaveProperty('document');
+        const saved = await client().saveProject(
+          id,
+          { name: 'Integration test', summary: { step: 2 }, document: bytes(2) },
+          current,
+        );
+        current = saved.version;
+        expect(current).not.toBe(created.version);
 
-      const stale = await refusal(
-        client().saveProject(
-          created.project.id,
-          { name: 'Integration test', document: { step: 3 } },
-          created.version,
-        ),
-      );
-      expect(stale.status).toBe(412);
-      expect(withCode(stale.error, 'version_conflict')).toBeDefined();
+        const stale = await refusal(
+          client().saveProject(
+            id,
+            { name: 'Integration test', document: bytes(3) },
+            created.version,
+          ),
+        );
+        expect(stale.status).toBe(412);
+        expect(withCode(stale.error, 'version_conflict')).toBeDefined();
 
-      const stored = await client().getProject(created.project.id);
-      expect(stored.project.document).toEqual({ step: 2 });
-      expect(stored.version).toBe(current);
-    } finally {
-      await client().deleteProject(created.project.id, current);
-    }
-    expect((await refusal(client().getProject(created.project.id))).status).toBe(404);
-  });
+        const stored = await client().getProjectDocument(id);
+        expect([...new Uint8Array(await stored.document.arrayBuffer())]).toEqual([
+          0x1f, 0x8b, 2, 0, 255,
+        ]);
+        expect(stored.version).toBe(current);
+        const listed = (await client().listProjects()).data.find((project) => project.id === id);
+        expect(listed?.summary).toEqual({ step: 2 });
+
+        const large = await refusal(
+          client().saveProject(
+            id,
+            { name: 'Integration test', summary: 'x'.repeat(16 * 1024), document: bytes(4) },
+            current,
+          ),
+        );
+        expect(large.status).toBe(422);
+        expect(withCode(large.error, 'limit_exceeded')?.limit.name).toBe(
+          'max_project_summary_bytes',
+        );
+        expect(large.error?.param).toBe('summary');
+      } finally {
+        await client().deleteProject(id, current);
+      }
+      expect((await refusal(client().getProject(id))).status).toBe(404);
+    },
+  );
 }

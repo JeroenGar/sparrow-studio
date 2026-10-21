@@ -1,26 +1,27 @@
 import { useMemo } from 'react';
 import type { DisplayUnit } from '../engine/units';
-import { jobInput, runningJobs, type ProjectJob } from '../project/model';
-import { isStale } from '../project/solution';
+import { RECENT_JOBS, type JobListing, type Summary } from '../project/summary';
 import { usesSparrowPro } from './client';
 import { formatSeconds, formatWhen } from './format';
-import { JobThumb } from './JobThumb';
+import { JobThumb, LiveJobThumb } from './JobThumb';
 import { href } from './route';
 import { elapsed, useBest, useNow, useRun, type Runner } from './runs';
 import { JobDot, jobFigures, jobNote, jobStatus } from './views/JobsView';
-import type { OpenEntry } from './workspace';
+import { entryName, entrySummary, type ProjectEntry } from './workspace';
 
-/** How many of a project's newest jobs Home shows. */
-const SHOWN = 4;
+type Section = { entry: ProjectEntry; summary: Summary };
 
-/** The jobs of every project, by project, the most recently started first. */
+/**
+ * The jobs of every project, by project, the most recently started first, from the projects'
+ * summaries: Home needs no project's document.
+ */
 export function HomeJobs({
   projects,
   searching,
   runner,
   unit,
 }: {
-  projects: OpenEntry[];
+  projects: ProjectEntry[];
   /** Whether a search left out some of the projects. */
   searching: boolean;
   runner: Runner;
@@ -29,7 +30,10 @@ export function HomeJobs({
   const sections = useMemo(
     () =>
       projects
-        .filter((entry) => entry.history.present.jobs.length)
+        .flatMap((entry): Section[] => {
+          const summary = entrySummary(entry);
+          return summary?.jobs ? [{ entry, summary }] : [];
+        })
         .sort((a, b) => latest(b).localeCompare(latest(a))),
     [projects],
   );
@@ -44,8 +48,8 @@ export function HomeJobs({
     );
   return (
     <>
-      {sections.map((entry) => (
-        <JobSection key={entry.id} entry={entry} runner={runner} unit={unit} />
+      {sections.map((section) => (
+        <JobSection key={section.entry.id} {...section} runner={runner} unit={unit} />
       ))}
       {!usesSparrowPro && (
         <p className="muted">Jobs in this browser run only while studio is open.</p>
@@ -55,37 +59,33 @@ export function HomeJobs({
 }
 
 /** When a project's newest job started. */
-const latest = (entry: OpenEntry) => entry.history.present.jobs.at(-1)?.submittedAt ?? '';
+const latest = ({ summary }: Section) => summary.recent[0]?.submittedAt ?? '';
 
 /** One project's newest jobs, as a table named after the project. */
 function JobSection({
   entry,
+  summary,
   runner,
   unit,
-}: {
-  entry: OpenEntry;
+}: Section & {
   runner: Runner;
   unit: DisplayUnit;
 }) {
-  const project = entry.history.present;
-  const jobs = [...project.jobs].reverse();
-  const running = runningJobs(project).length;
-  // Each part's place in the project, for the color the Parts tab gives it.
-  const order = useMemo(
-    () => new Map(project.parts.map((part, index) => [part.id, index])),
-    [project.parts],
-  );
+  // Each part's place in the project, for the color the Parts tab gives it to a running job.
+  const parts = entry.status === 'open' ? entry.history.present.parts : undefined;
+  const order = useMemo(() => new Map(parts?.map((part, index) => [part.id, index])), [parts]);
+  const running = summary.running.length;
   const heading = `jobs-of-${entry.id}`;
   return (
     <section className="job-section">
       <div className="job-section-head">
         <a id={heading} href={href({ page: 'project', id: entry.id, tab: 'jobs' })}>
-          {project.name}
+          {entryName(entry)}
         </a>
         <span className="muted">
-          {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'}
+          {summary.jobs} {summary.jobs === 1 ? 'job' : 'jobs'}
           {running > 0 && ` · ${running} running`}
-          {jobs.length > SHOWN && ` · showing the last ${SHOWN}`}
+          {summary.jobs > RECENT_JOBS && ` · showing the last ${RECENT_JOBS}`}
         </span>
       </div>
       <table className="job-table" aria-labelledby={heading}>
@@ -106,11 +106,12 @@ function JobSection({
           </tr>
         </thead>
         <tbody>
-          {jobs.slice(0, SHOWN).map((job) => (
+          {summary.recent.map((job) => (
             <JobLine
               key={job.number}
-              entry={entry}
+              projectId={entry.id}
               job={job}
+              stale={job.stage !== 'running' && job.input !== summary.input}
               order={order}
               runner={runner}
               unit={unit}
@@ -123,14 +124,17 @@ function JobSection({
 }
 
 function JobLine({
-  entry,
+  projectId,
   job,
+  stale,
   order,
   runner,
   unit,
 }: {
-  entry: OpenEntry;
-  job: ProjectJob;
+  projectId: string;
+  job: JobListing;
+  /** Whether the project changed since the job, in anything its input asks. */
+  stale: boolean;
   order: Map<string, number>;
   runner: Runner;
   unit: DisplayUnit;
@@ -138,19 +142,19 @@ function JobLine({
   // The best layout alone: the search moves on many times a second, the best less often.
   const id = job.stage === 'running' ? job.id : undefined;
   const best = useBest(runner, id);
+  const input = id ? runner.get(id)?.request.input : undefined;
   const figures = jobFigures(job, best, unit);
-  const link = href({ page: 'job', id: entry.id, number: job.number, view: 'layout' });
-  const project = entry.history.present;
-  const stale = useMemo(
-    () => job.stage !== 'running' && isStale(project, jobInput(job)),
-    [project, job],
-  );
-  const failed = job.stage === 'lost' || (job.stage === 'ended' && !job.document.outcome);
+  const link = href({ page: 'job', id: projectId, number: job.number, view: 'layout' });
+  const failed = job.stage !== 'completed' && job.stage !== 'running';
   return (
     <tr className={id ? 'running' : undefined}>
       <td>
         <a href={link} tabIndex={-1} aria-hidden="true">
-          <JobThumb job={job} live={best} order={order} />
+          {input ? (
+            <LiveJobThumb input={input} best={best} order={order} />
+          ) : (
+            <JobThumb thumb={job.thumb} more={job.more} />
+          )}
         </a>
       </td>
       <td className="mono">
@@ -167,8 +171,8 @@ function JobLine({
         ) : (
           <span className="job-progress">
             <JobDot job={job} />
-            {job.stage === 'ended' && job.document.state.status === 'completed'
-              ? `${jobStatus(job) === 'stopped' ? 'Stopped' : 'Finished'} after ${formatSeconds(job.document.state.solver_seconds)}`
+            {job.stage === 'completed'
+              ? `${job.stopped ? 'Stopped' : 'Finished'} after ${formatSeconds(job.solverSeconds)}`
               : jobStatus(job).replace(/^./, (c) => c.toUpperCase())}
             {stale && <span className="muted"> · project changed since</span>}
           </span>

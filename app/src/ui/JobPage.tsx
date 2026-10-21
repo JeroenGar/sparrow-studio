@@ -9,6 +9,7 @@ import { formatLength, formatSeconds, formatWhen } from './format';
 import { go, href, type JobView } from './route';
 import { useRun, useSubmitting } from './runs';
 import { jobNote } from './views/JobsView';
+import { jobFacts } from '../project/summary';
 import { LiveView } from './views/LiveView';
 import { SolutionView, type SolvedJob } from './views/SolutionView';
 
@@ -124,7 +125,7 @@ export function JobPage({ number, view }: { number: number; view: JobView }) {
           <div className="view">
             <section className="list-panel" aria-label="Result">
               <div className="empty">
-                <p>{jobNote(job)}</p>
+                <p>{jobNote(jobFacts(job))}</p>
               </div>
             </section>
             <section className="explanation" />

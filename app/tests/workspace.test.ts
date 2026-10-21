@@ -2,8 +2,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { createClient, type Fetch } from '../src/api/client';
 import { createLocalBackend, type Engine } from '../src/backend/local';
 import { memoryRecords } from '../src/backend/projects';
-import { addJob, newProject } from '../src/project/model';
+import { addJob, newProject, type ProjectDocument } from '../src/project/model';
 import { projectRequest } from '../src/project/solution';
+import { readSummary } from '../src/project/summary';
+import { createProject, openProject } from '../src/ui/projects';
 import { createWorkspace, type OpenEntry } from '../src/ui/workspace';
 
 vi.mock('../src/ui/client', () => ({ usesSparrowPro: false }));
@@ -21,46 +23,73 @@ function setup(wrap: (fetch: Fetch) => Fetch = (fetch) => fetch) {
   const api = client();
   const workspace = createWorkspace(client(), { saveDelay: 0 });
   const open = (id: string) => workspace.find(id) as OpenEntry;
-  return { api, workspace, open };
+  /** Saves a project as studio does, with its summary. */
+  const save = async (document: ProjectDocument) => (await createProject(api, document)).id;
+  /** Saves a document as plain JSON without a summary, as this browser kept projects before. */
+  const saveBare = async (name: string, document: unknown) =>
+    (await api.createProject({ name, document: new Blob([JSON.stringify(document)]) }, name))
+      .project.id;
+  const stored = async (id: string) => (await openProject(api, id)).document;
+  const listed = async (id: string) =>
+    readSummary((await api.listProjects()).data.find((project) => project.id === id)?.summary);
+  return { api, workspace, open, save, saveBare, stored, listed };
 }
 
 const settled = () => new Promise((resolve) => setTimeout(resolve, 20));
 
 describe('the workspace', () => {
-  it('opens every project, and one that does not read stands alone', async () => {
-    const { api, workspace, open } = setup();
-    const good = await api.createProject({ name: 'Good', document: newProject('Good') }, 'a');
-    const bad = await api.createProject({ name: 'Bad', document: { format: 'other' } }, 'b');
+  it('lists projects with summaries, and opens those that need their document', async () => {
+    const { workspace, open, save, saveBare } = setup();
+    const listedOnly = await save(newProject('Listed'));
+    const running = await save(
+      addJob(newProject('Running'), 'job_1', projectRequest(newProject('Running')), {}),
+    );
+    const older = await saveBare('Older', newProject('Older'));
+    const bad = await saveBare('Bad', { format: 'other' });
     await workspace.load();
-    expect(open(good.project.id)).toMatchObject({ status: 'open' });
-    expect(workspace.find(bad.project.id)).toMatchObject({
+    expect(workspace.find(listedOnly)).toMatchObject({
+      status: 'listed',
+      name: 'Listed',
+      summary: { jobs: 0 },
+    });
+    // Its job is followed from its document, and a project without a summary shows from its own.
+    expect(open(running).status).toBe('open');
+    expect(open(older).status).toBe('open');
+    expect(workspace.find(bad)).toMatchObject({
       status: 'failed',
       name: 'Bad',
       error: expect.stringContaining('unknown format'),
+    });
+    workspace.open(listedOnly);
+    await settled();
+    expect(open(listedOnly)).toMatchObject({
+      status: 'open',
+      history: { present: { name: 'Listed' } },
     });
   });
 
   it('asks a busy API again after the time it names', async () => {
     let refused = 0;
-    const { api, workspace, open } = setup((fetch) => async (request) => {
-      if (request.method === 'GET' && request.url.includes('/projects/') && refused++ < 2)
+    const { workspace, open, saveBare } = setup((fetch) => async (request) => {
+      if (request.url.endsWith('/document') && refused++ < 2)
         return Response.json(
           { error: { code: 'unavailable', message: 'Busy.' } },
           { status: 503, headers: { 'Retry-After': '0' } },
         );
       return fetch(request);
     });
-    const { project } = await api.createProject({ name: 'Job', document: newProject('Job') }, 'a');
+    const id = await saveBare('Job', newProject('Job'));
     await workspace.load();
-    expect(open(project.id).status).toBe('open');
+    expect(open(id).status).toBe('open');
     expect(refused).toBe(3);
   });
 
   it('saves edits, keeps results out of undo, and stops at a change made elsewhere', async () => {
-    const { api, workspace, open } = setup();
-    const { project } = await api.createProject({ name: 'Job', document: newProject('Job') }, 'a');
+    const { api, workspace, open, save, stored, listed } = setup();
+    const id = await save(newProject('Job'));
     await workspace.load();
-    const id = project.id;
+    workspace.open(id);
+    await settled();
     workspace.edit(id, (current) => ({ ...current, name: 'Renamed' }));
     expect(open(id).save.state).toBe('saving');
     await settled();
@@ -73,11 +102,14 @@ describe('the workspace', () => {
     workspace.undo(id);
     expect(open(id).history.present).toMatchObject({ name: 'Job', jobs: [{ id: 'job_1' }] });
     await settled();
-    expect((await api.getProject(id)).project.document).toMatchObject({ jobs: [{ id: 'job_1' }] });
+    expect(await stored(id)).toMatchObject({ jobs: [{ id: 'job_1' }] });
+    // Each save writes the summary Home shows.
+    expect(await listed(id)).toMatchObject({ jobs: 1, running: ['job_1'] });
 
     // Another tab saves; this one's next save finds the project changed, and keeps it as it is.
     const { version } = await api.getProject(id);
-    await api.saveProject(id, { name: 'Elsewhere', document: newProject('Elsewhere') }, version);
+    const elsewhere = new Blob([JSON.stringify(newProject('Elsewhere'))]);
+    await api.saveProject(id, { name: 'Elsewhere', document: elsewhere }, version);
     workspace.edit(id, (current) => ({ ...current, name: 'Here' }));
     await settled();
     expect(open(id).save.state).toBe('conflict');
@@ -98,20 +130,17 @@ describe('the workspace', () => {
   });
 
   it('keeps a project changed elsewhere when deleting it, and lets go of one already gone', async () => {
-    const { api, workspace, open } = setup();
-    const kept = await api.createProject({ name: 'Kept', document: newProject('Kept') }, 'a');
-    const gone = await api.createProject({ name: 'Gone', document: { format: 'other' } }, 'b');
+    const { api, workspace, open, saveBare } = setup();
+    const kept = await saveBare('Kept', newProject('Kept'));
+    const gone = await saveBare('Gone', { format: 'other' });
     await workspace.load();
-    await api.saveProject(
-      kept.project.id,
-      { name: 'Elsewhere', document: newProject('Elsewhere') },
-      kept.version,
-    );
-    await expect(workspace.remove(kept.project.id)).rejects.toThrow('changed since');
-    expect(open(kept.project.id).save.state).toBe('conflict');
+    const elsewhere = new Blob([JSON.stringify(newProject('Elsewhere'))]);
+    await api.saveProject(kept, { name: 'Elsewhere', document: elsewhere }, '"1"');
+    await expect(workspace.remove(kept)).rejects.toThrow('changed since');
+    expect(open(kept).save.state).toBe('conflict');
     // Deleted in another tab after the list: its card goes without a fuss.
-    await api.deleteProject(gone.project.id, gone.version);
-    await workspace.remove(gone.project.id);
-    expect(workspace.find(gone.project.id)).toBeUndefined();
+    await api.deleteProject(gone, '"1"');
+    await workspace.remove(gone);
+    expect(workspace.find(gone)).toBeUndefined();
   });
 });

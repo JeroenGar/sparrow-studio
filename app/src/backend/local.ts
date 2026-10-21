@@ -49,6 +49,7 @@ const LIMITS: Schemas['Limits'] = {
   max_queued_jobs: 0,
   max_projects: 1000,
   max_project_bytes: 100 * 1024 * 1024,
+  max_project_summary_bytes: 16 * 1024,
 };
 
 type ApiErrorBody = Schemas['ErrorBody']['error'];
@@ -136,11 +137,12 @@ function readRequest(body: unknown): { input: unknown; settings: Settings } {
   };
 }
 
-function limitExceeded(name: Schemas['LimitName'], value: number) {
+function limitExceeded(name: Schemas['LimitName'], value: number, param?: string) {
   return new Refusal(422, {
     code: 'limit_exceeded',
     message: `The request exceeds ${name}, ${value}.`,
     limit: { name, value },
+    param,
   });
 }
 
@@ -419,7 +421,7 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
     };
 
     if (request.method === 'GET' && path === '/limits') return respond(200, LIMITS);
-    if (parts[0] === 'projects') return projects(request, parts[1], json);
+    if (parts[0] === 'projects') return projects(request, parts[1], parts.slice(2));
     if (request.method === 'POST' && path === '/jobs/validate') {
       await check(readRequest(await json()));
       return respond(204);
@@ -496,29 +498,57 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
     throw notFound(`route ${request.method} ${path}`);
   }
 
-  /** The project routes: opaque documents, each change naming the version it starts from. */
-  async function projects(
-    request: Request,
-    projectId: string | undefined,
-    json: () => Promise<unknown>,
-  ) {
-    const versioned = (record: ProjectRecord, status = 200) => {
-      const { version: _, ...project } = record;
-      return respond(status, project, { ETag: `"${record.version}"` });
-    };
-    const body = async (): Promise<Pick<ProjectRecord, 'name' | 'document'>> => {
-      const body = (await json()) as { name?: unknown; document?: unknown };
-      if (
-        typeof body?.name !== 'string' ||
-        !body.name.length ||
-        body.name.length > 256 ||
-        !('document' in body)
-      )
-        throw new Refusal(400, {
-          code: 'malformed_request',
-          message: 'Send a `name` of 1 to 256 characters and a `document`.',
-        });
-      return { name: body.name, document: body.document };
+  /**
+   * The project routes: names and summaries, and documents as the client's bytes, each change
+   * naming the version it starts from.
+   */
+  async function projects(request: Request, projectId: string | undefined, rest: string[]) {
+    const metadata = ({ id, name, created_at, updated_at, summary }: ProjectRecord) => ({
+      id,
+      name,
+      created_at,
+      updated_at,
+      summary: summary ?? null,
+    });
+    const versioned = (record: ProjectRecord, status = 200) =>
+      respond(status, metadata(record), { ETag: `"${record.version}"` });
+    const malformed = (message: string, param?: string) =>
+      new Refusal(400, { code: 'malformed_request', message, param });
+    const body = async (): Promise<Pick<ProjectRecord, 'name' | 'summary' | 'document'>> => {
+      let form: FormData;
+      try {
+        form = await request.formData();
+      } catch {
+        throw malformed('Send the project as multipart/form-data with name, summary and document.');
+      }
+      const keys: string[] = [];
+      form.forEach((_, key) => keys.push(key));
+      for (const key of keys) {
+        if (!['name', 'summary', 'document'].includes(key))
+          throw malformed('The parts are name, summary, and document.', key);
+        if (form.getAll(key).length > 1) throw malformed('A part may come only once.', key);
+      }
+      const name = form.get('name');
+      if (typeof name !== 'string' || !name.length || name.length > 256)
+        throw malformed('name must have 1 to 256 characters.', 'name');
+      const document = form.get('document');
+      if (document === null) throw malformed('The document part is required.', 'document');
+      const part = form.get('summary');
+      const text = typeof part === 'string' ? part : await part?.text();
+      const most = LIMITS.max_project_summary_bytes;
+      if (text !== undefined && new TextEncoder().encode(text).length > most)
+        throw limitExceeded('max_project_summary_bytes', most, 'summary');
+      let summary: unknown = null;
+      try {
+        if (text !== undefined) summary = JSON.parse(text);
+      } catch {
+        throw malformed('summary must be JSON.', 'summary');
+      }
+      return {
+        name,
+        summary,
+        document: typeof document === 'string' ? new Blob([document]) : document,
+      };
     };
     const version = () => {
       const match = request.headers.get('If-Match')?.match(/^"(\d+)"$/);
@@ -538,6 +568,20 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
         });
       return change;
     };
+    if (projectId && rest.join('/') === 'document' && request.method === 'GET') {
+      const record = await records.get(projectId);
+      if (!record) throw notFound(`project ${projectId}`);
+      if (request.headers.has('If-Match') && version() !== record.version) changed('conflict');
+      // A project this browser kept before documents were bytes holds its JSON.
+      const document =
+        record.document instanceof Blob
+          ? record.document
+          : new Blob([JSON.stringify(record.document)]);
+      return new Response(document, {
+        headers: { 'Content-Type': 'application/octet-stream', ETag: `"${record.version}"` },
+      });
+    }
+    if (rest.length) throw notFound(`route ${request.method} ${new URL(request.url).pathname}`);
     if (!projectId) {
       if (request.method === 'GET') {
         const all = (await records.all()).sort(
@@ -546,9 +590,7 @@ export function createLocalBackend(engine: Engine, records: ProjectRecords): Fet
         const url = new URL(request.url);
         const start = Number(url.searchParams.get('cursor') ?? 0);
         const limit = Math.min(100, Number(url.searchParams.get('limit') ?? 20));
-        const data = all
-          .slice(start, start + limit)
-          .map(({ document: _, version: __, ...summary }) => summary);
+        const data = all.slice(start, start + limit).map(metadata);
         return respond(200, {
           data,
           next_cursor: start + limit < all.length ? String(start + limit) : null,

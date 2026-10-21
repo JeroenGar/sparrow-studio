@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { Client } from '../api/client';
 import type { ProjectDocument } from '../project/model';
+import { readSummary, summarize, type Summary } from '../project/summary';
 import { explain } from './explain';
 import { patiently } from './patiently';
 import {
@@ -27,12 +28,14 @@ export type SaveState =
   | { state: 'error' | 'conflict'; message: string };
 
 /**
- * A project in the workspace: still loading, failed to load, or open, with its undo history and
- * the document last saved. One that fails to load stands alone: the others open as usual.
+ * A project in the workspace: listed, with the summary Home shows of it; loading its document,
+ * or failed to; or open, with its undo history and the document last saved. One that fails to
+ * load stands alone: the others open as usual.
  */
 export type ProjectEntry = { id: string; updatedAt: string } & (
-  | { status: 'loading'; name: string }
-  | { status: 'failed'; name: string; error: string }
+  | { status: 'listed'; name: string; summary: Summary }
+  | { status: 'loading'; name: string; summary?: Summary }
+  | { status: 'failed'; name: string; summary?: Summary; error: string }
   | {
       status: 'open';
       version: string;
@@ -52,8 +55,12 @@ export type WorkspaceState =
 export const entryName = (entry: ProjectEntry) =>
   entry.status === 'open' ? entry.history.present.name : entry.name;
 
-/** How many projects load at the same time. */
-const LOADING = 3;
+/** What Home shows of a project: of its document as it is now once open, the list's before. */
+export const entrySummary = (entry: ProjectEntry): Summary | undefined =>
+  entry.status === 'open' ? summarize(entry.history.present) : entry.summary;
+
+/** How many documents load at the same time: the API reads two at a time for an account. */
+const LOADING = 2;
 
 const opened = (stored: StoredProject): OpenEntry => ({
   id: stored.id,
@@ -92,6 +99,20 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
   };
   const replaceOpen = (id: string, change: (entry: OpenEntry) => OpenEntry) =>
     replace(id, (entry) => (entry.status === 'open' ? change(entry) : entry));
+  // The documents waiting to load, and how many are loading.
+  const waiting: (() => void)[] = [];
+  let reading = 0;
+  /** Reads a document once fewer than `LOADING` are being read. */
+  async function read(id: string) {
+    if (reading >= LOADING) await new Promise<void>((resolve) => waiting.push(resolve));
+    reading++;
+    try {
+      return await openProject(client, id);
+    } finally {
+      reading--;
+      waiting.shift()?.();
+    }
+  }
 
   /** Saves a project's latest document after any save in progress; resolves to whether it is saved. */
   function flush(id: string): Promise<boolean> {
@@ -149,17 +170,18 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
     if (!entry) return;
     clearTimeout(timers.get(id));
     timers.delete(id);
-    const name = entryName(entry);
-    replace(id, () => ({ id, updatedAt: entry.updatedAt, status: 'loading', name }));
+    const [name, summary] = [entryName(entry), entrySummary(entry)];
+    replace(id, () => ({ id, updatedAt: entry.updatedAt, status: 'loading', name, summary }));
     try {
-      const stored = await patiently(() => openProject(client, id));
-      replace(id, () => opened(stored));
+      const { version, document } = await read(id);
+      replace(id, (current) => opened({ id, updatedAt: current.updatedAt, version, document }));
     } catch (reason) {
       replace(id, (current) => ({
         id,
         updatedAt: current.updatedAt,
         status: 'failed',
         name,
+        summary,
         error: explain(reason),
       }));
     }
@@ -173,34 +195,37 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
     get: () => state,
     find,
 
-    /** Lists the account's projects, then opens each of them side by side. */
+    /**
+     * Lists the account's projects with their summaries, then opens those whose summary cannot
+     * stand in for them: those with jobs running, to follow them, and those without a summary
+     * studio reads, such as one saved before summaries.
+     */
     async load() {
       emit({ status: 'loading' });
-      let summaries;
+      let listed;
       try {
-        summaries = await listProjects(client, patiently);
+        listed = await listProjects(client);
       } catch (reason) {
         emit({ status: 'failed', error: explain(reason) });
         throw reason;
       }
-      emit({
-        status: 'ready',
-        projects: summaries.map((summary) => ({
-          id: summary.id,
-          updatedAt: summary.updated_at,
-          status: 'loading',
-          name: summary.name,
-        })),
+      const projects = listed.map((project): ProjectEntry => {
+        const summary = readSummary(project.summary);
+        const base = { id: project.id, updatedAt: project.updated_at, name: project.name };
+        return summary && !summary.running.length
+          ? { ...base, status: 'listed', summary }
+          : { ...base, status: 'loading', summary };
       });
-      // A few at a time, so a busy API is not asked for all of them at once.
-      const queue = summaries.map((summary) => summary.id);
+      emit({ status: 'ready', projects });
       await Promise.all(
-        Array.from({ length: LOADING }, async () => {
-          for (let id = queue.shift(); id !== undefined; id = queue.shift()) await reload(id);
-        }),
+        projects.flatMap((entry) => (entry.status === 'loading' ? [reload(entry.id)] : [])),
       );
     },
     reload,
+    /** Opens a listed project, such as when it is shown; one loading or open already stays so. */
+    open(id: string) {
+      if (find(id)?.status === 'listed') void reload(id);
+    },
 
     /** Applies an edit to a project's document; edits with the same key in quick succession form one undo step. */
     edit(id: string, change: (project: ProjectDocument) => ProjectDocument, key?: string) {
@@ -233,7 +258,9 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
       if (!entry) return;
       try {
         const version =
-          entry.status === 'open' ? entry.version : (await client.getProject(id)).version;
+          entry.status === 'open'
+            ? entry.version
+            : (await patiently(() => client.getProject(id))).version;
         await deleteProject(client, id, version);
       } catch (reason) {
         if (!isMissing(reason)) {

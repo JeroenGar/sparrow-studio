@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { Part } from '../../engine/model';
 import {
   resolvedParts,
@@ -9,7 +9,7 @@ import {
 } from '../../project/model';
 import { backend } from '../client';
 import { formatAgo } from '../format';
-import { useWorkspace, type OpenEntry, type Workspace } from '../workspace';
+import { entryName, useWorkspace, type ProjectEntry, type Workspace } from '../workspace';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength } from '../format';
@@ -49,12 +49,33 @@ export function ImportFromProjectDialog({
     machines: 'Import machine presets from another project',
   }[what];
   const state = useWorkspace(workspace);
-  // The other projects that opened; one that failed to open has nothing to import.
+  // The other projects; one that failed to open has nothing to import.
   const projects = (state.status === 'ready' ? state.projects : [])
-    .filter((entry): entry is OpenEntry => entry.status === 'open' && entry.id !== currentId)
+    .filter((entry) => entry.status !== 'failed' && entry.id !== currentId)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   const [source, setSource] = useState<ProjectDocument>();
   const [chosen, setChosen] = useState<Set<string>>(new Set());
+  // The project chosen while its document loads, and why it would not.
+  const [opening, setOpening] = useState<string>();
+  const [error, setError] = useState('');
+  const waited =
+    opening && state.status === 'ready' ? state.projects.find((e) => e.id === opening) : undefined;
+  useEffect(() => {
+    if (waited?.status === 'open') {
+      setOpening(undefined);
+      open(waited.history.present);
+    } else if (waited?.status === 'failed') {
+      setOpening(undefined);
+      setError(`Could not open ${waited.name}: ${waited.error}`);
+    }
+  }, [waited]);
+  /** Shows a project's content, once its document is here. */
+  function choose(entry: ProjectEntry) {
+    setError('');
+    if (entry.status === 'open') return open(entry.history.present);
+    setOpening(entry.id);
+    workspace.open(entry.id);
+  }
 
   function open(document: ProjectDocument) {
     setSource(document);
@@ -137,14 +158,17 @@ export function ImportFromProjectDialog({
       {!source && (
         <>
           <p className="muted">Choose a project saved {backend.saves}.</p>
+          {error && <p className="field-error">{error}</p>}
           {!projects.length && <p>There are no other projects yet.</p>}
           <ul className="project-list">
             {projects.map((entry) => (
               <li key={entry.id}>
-                <button className="row" onClick={() => open(entry.history.present)}>
+                <button className="row" disabled={!!opening} onClick={() => choose(entry)}>
                   <span className="row-text">
-                    <span>{entry.history.present.name}</span>
-                    <span className="muted">Changed {formatAgo(entry.updatedAt)}</span>
+                    <span>{entryName(entry)}</span>
+                    <span className="muted">
+                      {opening === entry.id ? 'Opening…' : `Changed ${formatAgo(entry.updatedAt)}`}
+                    </span>
                   </span>
                 </button>
               </li>

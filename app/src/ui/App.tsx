@@ -23,6 +23,7 @@ import { createRunner, useSubmitting } from './runs';
 import {
   createWorkspace,
   entryName,
+  entrySummary,
   useWorkspace,
   type OpenEntry,
   type ProjectEntry,
@@ -136,6 +137,11 @@ export default function App() {
 
   const entry = route.page === 'home' ? undefined : workspace.find(route.id);
   const open = entry?.status === 'open' ? entry : undefined;
+  // A project shown is opened: Home lists projects without their documents.
+  const shownListed = entry?.status === 'listed' ? entry.id : undefined;
+  useEffect(() => {
+    if (shownListed) workspace.open(shownListed);
+  }, [shownListed]);
 
   let page;
   if (state.status === 'loading' || (starting && state.status === 'ready'))
@@ -172,7 +178,8 @@ export default function App() {
         </span>
       </div>
     );
-  else if (entry.status === 'loading') page = <p className="boot">Opening {entry.name}…</p>;
+  else if (entry.status === 'listed' || entry.status === 'loading')
+    page = <p className="boot">Opening {entry.name}…</p>;
   else if (entry.status === 'failed')
     page = (
       <div className="boot stack">
@@ -423,8 +430,9 @@ function DeleteDialog({
   onDelete: () => void;
   onClose: () => void;
 }) {
-  const jobs = entry.status === 'open' ? entry.history.present.jobs.length : 0;
-  const running = entry.status === 'open' ? runningJobs(entry.history.present).length : 0;
+  const summary = entrySummary(entry);
+  const jobs = summary?.jobs ?? 0;
+  const running = summary?.running.length ?? 0;
   return (
     <Dialog
       title="Delete project"

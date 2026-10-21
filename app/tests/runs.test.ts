@@ -4,8 +4,9 @@ import { createLocalBackend, type Engine, type EngineMessage } from '../src/back
 import { memoryRecords } from '../src/backend/projects';
 import { polygonShape } from '../src/engine/geometry/contour';
 import { newPart } from '../src/engine/model';
-import { addParts, newProject } from '../src/project/model';
+import { addJob, addParts, newProject } from '../src/project/model';
 import { projectRequest } from '../src/project/solution';
+import { createProject } from '../src/ui/projects';
 import { createRunner } from '../src/ui/runs';
 import { createWorkspace, type OpenEntry } from '../src/ui/workspace';
 
@@ -126,26 +127,14 @@ describe('the runner', () => {
   });
 
   it('finds a job in this browser gone after the page closed, and records it as lost', async () => {
-    const first = page();
-    await first.workspace.load();
-    const id = await first.workspace.create(addParts(newProject('Job'), [square()]));
+    const records = memoryRecords();
     // Saved with its job running, as when the page closes during the run.
-    first.workspace.results(id, (present) => ({
-      jobs: [
-        {
-          number: 1,
-          submittedAt: 'then',
-          names: {},
-          stage: 'running',
-          id: 'job_from_before',
-          request: projectRequest(present),
-        },
-      ],
-      seenTabs: present.seenTabs,
-    }));
-    await first.workspace.flushAll();
-    const next = page(first.records);
+    const project = addParts(newProject('Job'), [square()]);
+    const running = addJob(project, 'job_from_before', projectRequest(project), {});
+    const { id } = await createProject(page(records).client, running);
+    const next = page(records);
     await next.workspace.load();
+    // Its summary says a job runs, so the project opens at once to follow it.
     await until(() => next.project(id).jobs[0].stage === 'lost');
   });
 });

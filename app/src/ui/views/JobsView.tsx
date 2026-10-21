@@ -3,6 +3,7 @@ import { worldParts } from '../../engine/geometry/world';
 import type { Schemas } from '../../api/client';
 import type { DisplayUnit } from '../../engine/units';
 import { jobInput, type ProjectJob } from '../../project/model';
+import { jobFacts, usedBy, type JobFacts } from '../../project/summary';
 import { drawable, isStale } from '../../project/solution';
 import { Canvas } from '../Canvas';
 import { usesSparrowPro } from '../client';
@@ -15,35 +16,44 @@ import { elapsed, useBest, useNow, useRun, type Run } from '../runs';
 import { arrangeLayouts, LayoutDrawing } from './LayoutDrawing';
 
 /** How a job stands, in a few words, for lists. */
-export function jobStatus(job: ProjectJob): string {
-  if (job.stage === 'running') return 'running';
-  if (job.stage === 'lost') return 'result lost';
-  const state = job.document.state;
-  if (state.status === 'completed') return state.termination === 'stopped' ? 'stopped' : 'finished';
-  return state.status;
+export function jobStatus(job: JobFacts): string {
+  switch (job.stage) {
+    case 'running':
+      return 'running';
+    case 'lost':
+      return 'result lost';
+    case 'completed':
+      return job.stopped ? 'stopped' : 'finished';
+    case 'cancelled':
+    case 'failed':
+      return job.stage;
+  }
 }
 
 /** What a job found, for lists: the utilization and the material used, or so far. */
 export function jobFigures(
-  job: ProjectJob,
+  job: JobFacts,
   live: Schemas['Snapshot'] | undefined,
   unit: DisplayUnit,
 ) {
-  const best =
-    job.stage === 'ended' ? job.document.outcome : job.stage === 'running' ? live : undefined;
-  if (!best) return undefined;
-  const input = jobInput(job);
-  const layouts = best.solution.layouts;
-  const cut = best.stats.layouts[0]?.cut_x;
-  const used =
-    input.problem.type === 'minimize_sheets_in_order'
-      ? `${layouts.length} ${layouts.length === 1 ? 'sheet' : 'sheets'}`
-      : cut != null
-        ? `${formatLength(cut, unit)} ${unit}`
+  const found =
+    job.stage === 'completed'
+      ? { utilization: job.utilization, used: job.used, soFar: '' }
+      : job.stage === 'running' && live
+        ? {
+            utilization: live.stats.density * 100,
+            used: usedBy(live, job.onSheets),
+            soFar: ' so far',
+          }
         : undefined;
+  if (!found) return undefined;
+  const { utilization, used, soFar } = found;
   return {
-    utilization: `${formatPercent(best.stats.density * 100)}${job.stage === 'running' ? ' so far' : ''}`,
-    used,
+    utilization: `${formatPercent(utilization)}${soFar}`,
+    used:
+      used && 'sheets' in used
+        ? `${used.sheets} ${used.sheets === 1 ? 'sheet' : 'sheets'}`
+        : used && `${formatLength(used.lengthMm, unit)} ${unit}`,
   };
 }
 
@@ -98,18 +108,19 @@ function JobRow({
 }) {
   const { unit, runner } = useStudio();
   const run = useRun(runner, job.stage === 'running' ? job.id : undefined);
-  const figures = jobFigures(job, run?.best, unit);
+  const facts = useMemo(() => jobFacts(job), [job]);
+  const figures = jobFigures(facts, run?.best, unit);
   return (
     <button
       className={selected ? 'row selected' : 'row'}
       aria-pressed={selected}
       onClick={onSelect}
     >
-      <JobDot job={job} />
+      <JobDot job={facts} />
       <span className="row-text">
         <span>#{job.number}</span>
         <span className="muted">
-          {formatWhen(job.submittedAt)} · {jobStatus(job)}
+          {formatWhen(job.submittedAt)} · {jobStatus(facts)}
           {job.stage === 'running' && run && <RunTime run={run} />}
           {figures && job.stage !== 'running' && ` · ${figures.used}`}
         </span>
@@ -131,27 +142,27 @@ function RunTime({ run }: { run: Run }) {
 }
 
 /** Why a job has no layout to draw. */
-export function jobNote(job: ProjectJob): string {
-  if (job.stage === 'running')
-    return 'The job is starting. Its best layout shows here as soon as it has one.';
-  if (job.stage === 'lost')
-    return usesSparrowPro
-      ? 'Sparrow Pro no longer has this job, and studio did not get its result.'
-      : 'This job ended when studio closed: jobs in this browser run only while studio is open.';
-  const state = job.document.state;
-  if (state.status === 'failed')
-    return explainJobError(
-      state.error,
-      job.document.input.problem.type === 'minimize_sheets_in_order',
-    );
-  if (state.status === 'cancelled') return 'The job was cancelled before it started.';
-  return 'The job found no layout.';
+export function jobNote(job: JobFacts): string {
+  switch (job.stage) {
+    case 'running':
+      return 'The job is starting. Its best layout shows here as soon as it has one.';
+    case 'lost':
+      return usesSparrowPro
+        ? 'Sparrow Pro no longer has this job, and studio did not get its result.'
+        : 'This job ended when studio closed: jobs in this browser run only while studio is open.';
+    case 'failed':
+      return explainJobError(job.error, job.onSheets);
+    case 'cancelled':
+      return 'The job was cancelled before it started.';
+    case 'completed':
+      return 'The job found no layout.';
+  }
 }
 
 /** A dot for how a job stands: pulsing while it runs. */
-export function JobDot({ job }: { job: ProjectJob }) {
+export function JobDot({ job }: { job: JobFacts }) {
   if (job.stage === 'running') return <i className="live-dot" aria-hidden="true" />;
-  const failed = job.stage === 'lost' || job.document.state.status !== 'completed';
+  const failed = job.stage !== 'completed';
   return <i className={failed ? 'status-dot failed' : 'status-dot'} aria-hidden="true" />;
 }
 
@@ -183,7 +194,8 @@ function JobPreview({ job }: { job: ProjectJob }) {
       ),
     [drawn, aspect],
   );
-  const figures = jobFigures(job, live, unit);
+  const facts = useMemo(() => jobFacts(job), [job]);
+  const figures = jobFigures(facts, live, unit);
   const onSheets = input.problem.type === 'minimize_sheets_in_order';
   const [x0, y0, x1, y1] = stack?.extent ?? [0, 0, 1000, 600];
   const pad = Math.max(x1 - x0, y1 - y0) * 0.05;
@@ -196,7 +208,7 @@ function JobPreview({ job }: { job: ProjectJob }) {
             #{job.number} · {formatWhen(job.submittedAt)}
           </strong>
           <span className="muted">
-            {[jobStatus(job), figures?.utilization, figures?.used].filter(Boolean).join(' · ')} ·{' '}
+            {[jobStatus(facts), figures?.utilization, figures?.used].filter(Boolean).join(' · ')} ·{' '}
             {stale ? 'the project has changed since' : "its inputs are the project's now"}
           </span>
         </span>
@@ -209,7 +221,7 @@ function JobPreview({ job }: { job: ProjectJob }) {
       </div>
       {!drawn ? (
         <div className="empty">
-          <p className="muted">{jobNote(job)}</p>
+          <p className="muted">{jobNote(facts)}</p>
         </div>
       ) : (
         <Canvas

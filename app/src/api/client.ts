@@ -9,13 +9,27 @@ export type Job = Schemas['Job'];
 export type JobDocument = Schemas['JobDocument'];
 export type JobRequest = Schemas['JobRequest'];
 export type Project = Schemas['Project'];
-export type ProjectRequest = Schemas['ProjectRequest'];
+/**
+ * What a project is saved as: its name, the client's summary for its lists, and the document's
+ * bytes, in whatever format the client chose. A save without a summary clears it.
+ */
+export type ProjectParts = { name: string; summary?: unknown; document: Blob };
 
 /** What the client sends requests with: the browser's `fetch`, or a backend that answers in the browser. */
 export type Fetch = (request: Request) => Promise<Response>;
 
 /** A project with its version: the `ETag` it was read or written with, which a save or delete must name. */
 export type Versioned = { project: Project; version: string };
+
+/** A project's parts as a multipart body; the browser sets its type, with the boundary. */
+function multipart({ name, summary, document }: ProjectParts): FormData {
+  const form = new FormData();
+  form.append('name', name);
+  if (summary !== undefined)
+    form.append('summary', new Blob([JSON.stringify(summary)], { type: 'application/json' }));
+  form.append('document', document);
+  return form;
+}
 
 /**
  * One event of a job's live stream. The specification types the stream as text and names its
@@ -96,12 +110,17 @@ async function ok<D>(request: Promise<Result<D>>): Promise<D> {
   return data as D;
 }
 
+/** The version a response names in its `ETag`. */
+function versionOf(response: Response, what: string): string {
+  const version = response.headers.get('ETag');
+  if (!version) throw new Error(`The API returned ${what} without its version.`);
+  return version;
+}
+
 async function versioned(request: Promise<Result<Project>>): Promise<Versioned> {
   const { response } = await request;
   const project = await ok(request);
-  const version = response.headers.get('ETag');
-  if (!version) throw new Error(`The API returned project ${project.id} without its version.`);
-  return { project, version };
+  return { project, version: versionOf(response, `project ${project.id}`) };
 }
 
 /**
@@ -143,19 +162,36 @@ export function createClient({ fetch, baseUrl }: { fetch: Fetch; baseUrl: string
         if (EVENT_TYPES.includes(event)) yield { type: event, data: JSON.parse(data) } as JobEvent;
     },
 
+    /** The account's projects, with their summaries but without their documents. */
     listProjects: (cursor?: string) => ok(api.GET('/projects', { params: { query: { cursor } } })),
-    /** Creates a project. Retrying the same creation must reuse its key, so it never creates two. */
-    createProject: (body: ProjectRequest, idempotencyKey: string) =>
+    /** Creates a project. Retrying the same creation must reuse its key and its bytes, so it never creates two. */
+    createProject: (parts: ProjectParts, idempotencyKey: string) =>
       versioned(
-        api.POST('/projects', { body, params: { header: { 'Idempotency-Key': idempotencyKey } } }),
+        api.POST('/projects', {
+          body: parts as never,
+          bodySerializer: () => multipart(parts),
+          params: { header: { 'Idempotency-Key': idempotencyKey } },
+        }),
       ),
+    /** A project, without its document. */
     getProject: (projectId: string) =>
       versioned(api.GET('/projects/{project_id}', { params: { path: project(projectId) } })),
+    /** A project's document, its bytes exactly as saved, with the version they belong to. */
+    async getProjectDocument(projectId: string): Promise<{ document: Blob; version: string }> {
+      const request = api.GET('/projects/{project_id}/document', {
+        params: { path: project(projectId) },
+        parseAs: 'blob',
+      });
+      const { response } = await request;
+      const document = await ok(request);
+      return { document, version: versionOf(response, `the document of project ${projectId}`) };
+    },
     /** Saves a project over `version`; a project changed since fails with `version_conflict`. */
-    saveProject: (projectId: string, body: ProjectRequest, version: string) =>
+    saveProject: (projectId: string, parts: ProjectParts, version: string) =>
       versioned(
         api.PUT('/projects/{project_id}', {
-          body,
+          body: parts as never,
+          bodySerializer: () => multipart(parts),
           params: { path: project(projectId), header: { 'If-Match': version } },
         }),
       ),

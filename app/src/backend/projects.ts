@@ -1,6 +1,7 @@
 /**
  * The local backend's project storage: the API's project resources, kept in this browser. The
- * document is opaque here, as it is to the API. Each record counts its versions; a change names
+ * summary and the document are opaque here, as they are to the API: the document is the bytes
+ * saved, or the JSON of a project this browser kept before documents were bytes. Each record counts its versions; a change names
  * the version it starts from, checked in the same transaction, so two tabs never overwrite each
  * other's work.
  */
@@ -10,6 +11,8 @@ export type ProjectRecord = {
   created_at: string;
   updated_at: string;
   version: number;
+  /** Absent in a project this browser kept before summaries. */
+  summary?: unknown;
   document: unknown;
 };
 
@@ -23,7 +26,7 @@ export interface ProjectRecords {
   replace(
     id: string,
     version: number,
-    change: Pick<ProjectRecord, 'name' | 'document'>,
+    change: Pick<ProjectRecord, 'name' | 'summary' | 'document'>,
   ): Promise<Change>;
   remove(id: string, version: number): Promise<Change>;
 }
@@ -137,10 +140,11 @@ export const browserRecords: ProjectRecords = {
     transaction<void>('readwrite', (store, done) => {
       store.add(record).onsuccess = () => done();
     }),
-  replace: (id, version, { name, document }) =>
+  replace: (id, version, { name, summary, document }) =>
     change(id, version, (current) => ({
       ...current,
       name,
+      summary,
       document,
       version: version + 1,
       updated_at: new Date().toISOString(),

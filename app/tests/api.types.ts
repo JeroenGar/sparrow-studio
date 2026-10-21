@@ -22,9 +22,12 @@ withCode(body, 'not_a_code');
 // Projects come with their version, and saving or deleting needs one.
 void (async () => {
   const { project, version } = await client.getProject('prj_1');
-  await client.saveProject(project.id, { name: project.name, document: project.document }, version);
+  const { document } = await client.getProjectDocument(project.id);
+  await client.saveProject(project.id, { name: project.name, document }, version);
   // @ts-expect-error A save without a version does not compile.
-  await client.saveProject(project.id, { name: project.name, document: project.document });
+  await client.saveProject(project.id, { name: project.name, document });
+  // @ts-expect-error A document is bytes, not JSON.
+  await client.saveProject(project.id, { name: project.name, document: {} }, version);
   // @ts-expect-error Submitting needs an idempotency key.
   await client.submitJob({ settings: { time_limit_seconds: 1 }, input: null! });
   for await (const event of client.streamJobEvents('job_1', { search: true })) {

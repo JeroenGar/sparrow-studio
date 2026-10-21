@@ -17,9 +17,9 @@ const job = {
 const project = {
   id: 'prj_1',
   name: 'Brackets',
-  document: { parts: [] },
   created_at: '2026-10-16T00:00:00Z',
   updated_at: '2026-10-16T00:00:00Z',
+  summary: { parts: 3 },
 };
 
 const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
@@ -105,16 +105,47 @@ describe('versions', () => {
         ETag: request.method === 'PUT' ? '"v2"' : '"v1"',
       }),
     );
-    const created = await client.createProject({ name: 'Brackets', document: {} }, 'key-2');
+    const document = new Blob(['bytes as chosen']);
+    const created = await client.createProject(
+      { name: 'Brackets', summary: { parts: 3 }, document },
+      'key-2',
+    );
     expect(created).toEqual({ project, version: '"v1"' });
     expect(requests[0].headers.get('Idempotency-Key')).toBe('key-2');
     const saved = await client.saveProject(
       'prj_1',
-      { name: 'Brackets', document: {} },
+      { name: 'Brackets', document },
       created.version,
     );
     expect(saved.version).toBe('"v2"');
     expect(requests[1].headers.get('If-Match')).toBe('"v1"');
+  });
+
+  it('saves a project as its parts, and reads its document as bytes', async () => {
+    const { client, requests } = stub((request) =>
+      request.url.endsWith('/document')
+        ? new Response('stored bytes', {
+            headers: { 'Content-Type': 'application/octet-stream', ETag: '"v3"' },
+          })
+        : json(project, 201, { ETag: '"v1"' }),
+    );
+    await client.createProject(
+      { name: 'Brackets', summary: { parts: 3 }, document: new Blob(['bytes']) },
+      'key-3',
+    );
+    expect(requests[0].headers.get('Content-Type')).toMatch(/^multipart\/form-data; boundary=/);
+    const form = await requests[0].formData();
+    expect(form.get('name')).toBe('Brackets');
+    expect(JSON.parse(await (form.get('summary') as Blob).text())).toEqual({ parts: 3 });
+    expect(await (form.get('document') as Blob).text()).toBe('bytes');
+    // Without a summary, the part is left out, and the save clears it.
+    await client.createProject({ name: 'Brackets', document: new Blob(['bytes']) }, 'key-4');
+    expect((await requests[1].formData()).has('summary')).toBe(false);
+
+    const { document, version } = await client.getProjectDocument('prj_1');
+    expect(requests[2].url).toBe(`${BASE}/projects/prj_1/document`);
+    expect(await document.text()).toBe('stored bytes');
+    expect(version).toBe('"v3"');
   });
 
   it('refuses a project without a version', async () => {

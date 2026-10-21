@@ -1,21 +1,13 @@
 import { useMemo, useState } from 'react';
-import { colors } from '../engine/colors';
-import { outline } from '../engine/geometry/contour';
-import { bounds } from '../engine/geometry/normalize';
-import { arrangeParts } from '../project/layout';
-import { copyCount, resolvedParts, runningJobs, type ProjectDocument } from '../project/model';
-import { ringsPath } from './Canvas';
 import { backend, usesSparrowPro } from './client';
 import { formatAgo } from './format';
 import { Trash } from './icons';
 import { href } from './route';
 import { HomeJobs } from './HomeJobs';
+import { ThumbDrawing } from './JobThumb';
 import type { Runner } from './runs';
-import { entryName, type OpenEntry, type ProjectEntry, type WorkspaceState } from './workspace';
+import { entryName, entrySummary, type ProjectEntry, type WorkspaceState } from './workspace';
 import type { DisplayUnit } from '../engine/units';
-
-/** How many of a project's largest parts its card draws. */
-const THUMB_PARTS = 10;
 
 /** The account's projects, as cards, most recently changed first. */
 export function HomePage({
@@ -47,9 +39,7 @@ export function HomePage({
       .filter((entry) => entryName(entry).toLowerCase().includes(words));
   }, [state.projects, search]);
   const count = state.projects.length;
-  const running = state.projects.some(
-    (entry) => entry.status === 'open' && runningJobs(entry.history.present).length,
-  );
+  const running = state.projects.some((entry) => entrySummary(entry)?.running.length);
   return (
     <main className="home">
       <div className="home-head">
@@ -96,7 +86,7 @@ export function HomePage({
       </div>
       {view === 'jobs' ? (
         <HomeJobs
-          projects={shown.filter((entry): entry is OpenEntry => entry.status === 'open')}
+          projects={shown}
           searching={shown.length < state.projects.length}
           runner={runner}
           unit={unit}
@@ -155,36 +145,42 @@ function ProjectCard({
       <Trash />
     </button>
   );
-  if (entry.status !== 'open')
+  const summary = entrySummary(entry);
+  const link = href({ page: 'project', id: entry.id, tab: 'parts' });
+  const problem =
+    entry.status === 'failed' ? (
+      <>
+        <span className="field-error">Could not open this project: {entry.error}</span>
+        <span className="row-actions">
+          <button className="small" onClick={onRetry}>
+            Try again
+          </button>
+        </span>
+      </>
+    ) : entry.status === 'open' && 'message' in entry.save ? (
+      <span className="field-error">Not saved: {entry.save.message}</span>
+    ) : undefined;
+  // Without a summary, such as one saved before summaries, the card waits for the document.
+  if (!summary)
     return (
       <div className="project-card">
         <div className="card-thumb" />
         <div className="card-body">
           <span className="card-name">{name}</span>
-          {entry.status === 'loading' ? (
-            <span className="muted">Opening…</span>
-          ) : (
-            <>
-              <span className="field-error">Could not open this project: {entry.error}</span>
-              <span className="row-actions">
-                <button className="small" onClick={onRetry}>
-                  Try again
-                </button>
-              </span>
-            </>
-          )}
+          {problem ?? <span className="muted">Opening…</span>}
         </div>
         {entry.status === 'failed' && remove}
       </div>
     );
-  const project = entry.history.present;
-  const jobs = project.jobs.length;
-  const running = runningJobs(project).length;
-  const sheets = copyCount(project.stock.sheets);
+  const running = summary.running.length;
   return (
     <div className="project-card">
-      <a className="card-link" href={href({ page: 'project', id: entry.id, tab: 'parts' })}>
-        <ProjectThumb project={project} />
+      <a className="card-link" href={link}>
+        {summary.thumb ? (
+          <ThumbDrawing className="card-thumb" thumb={summary.thumb} outlined />
+        ) : (
+          <span className="card-thumb" />
+        )}
         <span className="card-body">
           <span className="card-title">
             <span className="card-name">{name}</span>
@@ -197,66 +193,21 @@ function ProjectCard({
             )}
           </span>
           <span className="muted">
-            Changed {formatAgo(entry.updatedAt)} · {copyCount(project.parts)} parts ·{' '}
-            {project.stock.packing === 'sheets'
-              ? `${sheets} ${sheets === 1 ? 'sheet' : 'sheets'}`
+            Changed {formatAgo(entry.updatedAt)} · {summary.copies} parts ·{' '}
+            {summary.packing === 'sheets'
+              ? `${summary.sheets} ${summary.sheets === 1 ? 'sheet' : 'sheets'}`
               : 'strip'}
           </span>
           <span className="muted">
-            {jobs ? `${jobs} ${jobs === 1 ? 'job' : 'jobs'}` : 'No jobs yet'}
+            {summary.jobs
+              ? `${summary.jobs} ${summary.jobs === 1 ? 'job' : 'jobs'}`
+              : 'No jobs yet'}
             {running > 0 && ` · ${running} running`}
           </span>
-          {'message' in entry.save && (
-            <span className="field-error">Not saved: {entry.save.message}</span>
-          )}
         </span>
       </a>
+      {problem && <span className="card-body">{problem}</span>}
       {remove}
     </div>
-  );
-}
-
-/** The project's largest parts, laid out side by side at true scale. */
-function ProjectThumb({ project }: { project: ProjectDocument }) {
-  const drawn = useMemo(() => {
-    const parts = resolvedParts(project);
-    const size = (index: number) => {
-      const b = bounds(outline(parts[index].shape).outer);
-      return (b[2] - b[0]) * (b[3] - b[1]);
-    };
-    // Each keeps its index, so its color is the one the Parts tab gives it.
-    const largest = parts
-      .map((_, index) => index)
-      .sort((a, b) => size(b) - size(a))
-      .slice(0, THUMB_PARTS);
-    const arrangement = arrangeParts(largest.map((index) => parts[index]));
-    return { parts, largest, arrangement };
-  }, [project.parts]);
-  const { parts, largest, arrangement } = drawn;
-  const [x0, y0, x1, y1] = arrangement.extent;
-  const pad = Math.max(x1 - x0, y1 - y0) * 0.06;
-  return (
-    <svg
-      className="card-thumb"
-      viewBox={`${x0 - pad} ${-y1 - pad} ${x1 - x0 + 2 * pad} ${y1 - y0 + 2 * pad}`}
-      aria-hidden="true"
-    >
-      {largest.map((index) => {
-        const part = parts[index];
-        const [dx, dy] = arrangement.offsets.get(part.id)!;
-        const { outer, holes } = outline(part.shape);
-        return (
-          <path
-            key={part.id}
-            d={ringsPath([outer, ...holes], dx, dy)}
-            fillRule="evenodd"
-            fill={colors[index % colors.length]}
-            stroke="var(--ink)"
-            strokeWidth={0.8}
-            vectorEffect="non-scaling-stroke"
-          />
-        );
-      })}
-    </svg>
   );
 }

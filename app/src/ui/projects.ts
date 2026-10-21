@@ -1,6 +1,8 @@
-import { ApiError, withCode, type Client, type Schemas } from '../api/client';
+import { ApiError, withCode, type Client, type Project, type ProjectParts } from '../api/client';
 import { parseProject } from '../project/file';
 import type { ProjectDocument } from '../project/model';
+import { summarize } from '../project/summary';
+import { patiently } from './patiently';
 
 /** A project as studio holds it: its document, the version a save must start from, and when it last changed. */
 export type StoredProject = {
@@ -9,37 +11,40 @@ export type StoredProject = {
   updatedAt: string;
   document: ProjectDocument;
 };
-export type ProjectSummary = Schemas['ProjectSummary'];
 
-/** Every project, most recently changed first. */
-export async function listProjects(
-  client: Client,
-  /** Makes each request: the client's own, or with retries. */
-  request: <T>(call: () => Promise<T>) => Promise<T> = (call) => call(),
-): Promise<ProjectSummary[]> {
-  const all: ProjectSummary[] = [];
+/** Every project, most recently changed first, with its summary but without its document. */
+export async function listProjects(client: Client): Promise<Project[]> {
+  const all: Project[] = [];
   let cursor: string | undefined;
   do {
-    const page = await request(() => client.listProjects(cursor));
+    const page = await patiently(() => client.listProjects(cursor));
     all.push(...page.data);
     cursor = page.next_cursor ?? undefined;
   } while (cursor);
   return all;
 }
 
-export async function openProject(client: Client, id: string): Promise<StoredProject> {
-  const { project, version } = await client.getProject(id);
-  return { id, version, updatedAt: project.updated_at, document: parseProject(project.document) };
+/** A project's document, with the version it was saved at. */
+export async function openProject(client: Client, id: string) {
+  const { document, version } = await patiently(() => client.getProjectDocument(id));
+  return { version, document: parseProject(await decode(document)) };
 }
 
-/** The API stores a project's name beside its document; studio names it from the document. */
-const request = (document: ProjectDocument) => ({ name: document.name, document });
+/**
+ * What a project is saved as: its name, which the API lists beside it, its summary for Home, and
+ * the document as gzipped JSON.
+ */
+async function parts(document: ProjectDocument): Promise<ProjectParts> {
+  return { name: document.name, summary: summarize(document), document: await encode(document) };
+}
 
 export async function createProject(
   client: Client,
   document: ProjectDocument,
 ): Promise<StoredProject> {
-  const { project, version } = await client.createProject(request(document), crypto.randomUUID());
+  // Asked again with the same key and the same bytes, a busy API still creates one project.
+  const [body, key] = [await parts(document), crypto.randomUUID()];
+  const { project, version } = await patiently(() => client.createProject(body, key));
   return { id: project.id, version, updatedAt: project.updated_at, document };
 }
 
@@ -50,15 +55,35 @@ export async function saveProject(
   document: ProjectDocument,
   version: string,
 ) {
-  const saved = await client.saveProject(id, request(document), version);
+  const body = await parts(document);
+  const saved = await patiently(() => client.saveProject(id, body, version));
   return { version: saved.version, updatedAt: saved.project.updated_at };
 }
 
 /** Deletes a project at `version`; one already gone counts as deleted. */
 export async function deleteProject(client: Client, id: string, version: string) {
-  await client.deleteProject(id, version).catch((reason) => {
+  await patiently(() => client.deleteProject(id, version)).catch((reason) => {
     if (!isMissing(reason)) throw reason;
   });
+}
+
+/** A document as studio saves it: its JSON, gzipped in the browser. */
+async function encode(document: ProjectDocument): Promise<Blob> {
+  const json = new Blob([JSON.stringify(document)]).stream();
+  return new Response(json.pipeThrough(new CompressionStream('gzip'))).blob();
+}
+
+/**
+ * A saved document's JSON, gzipped as studio saves it, or plain as this browser kept projects
+ * before; its first bytes tell.
+ */
+async function decode(document: Blob): Promise<unknown> {
+  const start = new Uint8Array(await document.slice(0, 2).arrayBuffer());
+  const gzipped = start[0] === 0x1f && start[1] === 0x8b;
+  const text = gzipped
+    ? await new Response(document.stream().pipeThrough(new DecompressionStream('gzip'))).text()
+    : await document.text();
+  return JSON.parse(text);
 }
 
 /** Whether the API has no such project, such as one deleted in another tab. */
