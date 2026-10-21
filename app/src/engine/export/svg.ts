@@ -42,7 +42,7 @@ export function exportSVG(doc: Job,result: Result,utilization: number,sheets?: S
   };
   for(const [key,value] of Object.entries({width:`${pageWidth}mm`,height:`${pageHeight}mm`,viewBox,preserveAspectRatio:'xMidYMid meet',style:'width:100%;height:100%',role:'img','aria-labelledby':'layout-title layout-description'}))root.setAttribute(key,value);
   add(root,'title',{id:'layout-title'},`${doc.name} — sparrow studio`);
-  add(root,'desc',{id:'layout-description'},`${summary}. Valid nesting layout; geometry is in millimetres.`);
+  add(root,'desc',{id:'layout-description'},`${summary}. A nesting layout; geometry is in millimetres.`);
   const decoration=add(root,'g',{'data-sparrow-decoration':'true','aria-hidden':'true'});
   add(decoration,'rect',{x:left-padX,y:top-padY,width:pageWidth,height:pageHeight,fill:'#ffffff'});
   // Material coordinates have y up; the SVG's run down from the material's top.
