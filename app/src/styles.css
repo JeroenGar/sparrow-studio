@@ -1468,7 +1468,7 @@ input[aria-invalid='true'] {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
 }
-@media (max-width: 1100px) {
+@media (max-width: 1240px) {
   .project-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1488,6 +1488,7 @@ input[aria-invalid='true'] {
 .last-job {
   margin-top: auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
@@ -1509,10 +1510,12 @@ input[aria-invalid='true'] {
 .last-job .job-thumb {
   flex: none;
   width: 132px;
+  max-width: 100%;
   height: 44px;
 }
+/* Its text keeps room to be read: on a narrow card the figures go under it. */
 .last-job-text {
-  flex: 1;
+  flex: 1 1 140px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1529,8 +1532,16 @@ input[aria-invalid='true'] {
   align-items: flex-end;
   white-space: nowrap;
 }
+@container (max-width: 400px) {
+  .last-job-figures {
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+  }
+}
 .project-card {
   position: relative;
+  container-type: inline-size;
   display: flex;
   flex-direction: column;
   background: var(--panel);

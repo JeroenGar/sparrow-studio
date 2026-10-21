@@ -216,14 +216,16 @@ function LastJob({
       <a className="last-job" href={href({ page: 'project', id: entry.id, tab: 'parts' })}>
         <JobThumb />
         <span className="last-job-text">
-          <span>No jobs yet</span>
+          <span>
+            <span className="visually-hidden">{entryName(entry)}: </span>No jobs yet
+          </span>
           <span className="muted">Start nesting from the project</span>
         </span>
       </a>
     );
   const figures = jobFigures(job, best, unit);
   const failed = job.stage !== 'completed' && job.stage !== 'running';
-  const stale = !id && job.input !== summary.input;
+  const stale = job.input !== summary.input;
   return (
     <a
       className={id ? 'last-job running' : 'last-job'}
@@ -236,6 +238,7 @@ function LastJob({
       )}
       <span className="last-job-text">
         <span className="job-progress">
+          <span className="visually-hidden">{entryName(entry)}, job </span>
           <JobDot job={job} />
           <strong className="mono">#{job.number}</strong>
           {id
@@ -244,19 +247,19 @@ function LastJob({
               ? `${job.stopped ? 'Stopped' : 'Finished'} after ${formatSeconds(job.solverSeconds)}`
               : jobStatus(job).replace(/^./, (c) => c.toUpperCase())}
         </span>
+        {id && (
+          <span className="job-progress muted">
+            <Progress runner={runner} jobId={id} />
+          </span>
+        )}
+        {failed && (
+          <span className="muted" title={jobNote(job)}>
+            {jobNote(job)}
+          </span>
+        )}
         <span className="muted">
-          {id ? (
-            <span className="job-progress">
-              <Progress runner={runner} jobId={id} />
-            </span>
-          ) : failed ? (
-            jobNote(job)
-          ) : (
-            <>
-              {formatWhen(job.submittedAt)}
-              {stale && ' · project changed since'}
-            </>
-          )}
+          {formatWhen(job.submittedAt)}
+          {stale && ' · project changed since'}
         </span>
       </span>
       {figures && !failed && (
