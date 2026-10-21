@@ -119,20 +119,14 @@ export function inBestRows(own: Box[], aspect: number) {
 
 /**
  * How far to the right of the parts their material lies on the shared canvas, as a share of the
- * wider of the two: far enough that the one in focus fills the view, near enough that the other
- * shows at its edge. Tuned by eye.
+ * wider of the two: far enough apart to read as two, near enough to pan between. Tuned by eye.
  */
 export const MATERIAL_DISTANCE = 0.12;
 /**
- * How much of the other block a view of one shows at its edge at least, as a share of the block in
- * view: the view reaches this far past the gap. Tuned by eye.
- */
-export const MATERIAL_PEEK = 0.1;
-/**
  * The shape the sheets' rows aim for, width over height: about what the Sheets tab's canvas shows
- * on a laptop, less the room the view keeps at its sides for the parts. Tuned by eye.
+ * on a laptop. Tuned by eye.
  */
-export const SHEETS_ASPECT = 1.4;
+export const SHEETS_ASPECT = 1.5;
 
 /** Where the sheets go: in rows, in their order, shaped as `SHEETS_ASPECT` best allows. */
 export type SheetsPlace = ReturnType<typeof inBestRows>;

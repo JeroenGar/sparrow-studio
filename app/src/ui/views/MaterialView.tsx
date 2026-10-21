@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react';
-import { arrangeMaterial, MATERIAL_PEEK, type Box } from '../../project/layout';
+import { arrangeMaterial, type Box } from '../../project/layout';
 import { resolvedParts } from '../../project/model';
 import { Canvas } from '../Canvas';
 import { useStudio } from '../context';
@@ -10,10 +10,10 @@ import { SheetsList, StripLayer, useSheetSelection, useSheetsLayer } from './She
 const PADDING = 0.06;
 
 /**
- * The Parts and Sheets tabs, around one canvas: the parts above, and their material below, at one
- * scale. The tab's own shapes are in the middle of the view; the other tab's float faded at its
- * edge, and a click on one opens that tab with it chosen. Switching tabs slides the canvas from
- * one to the other: it stays as it is, as the tabs share it.
+ * The Parts and Sheets tabs, around one canvas: the parts, and beside them their material, at one
+ * scale. The view frames the tab's own shapes; the other tab's lie faded beside them, to pan to,
+ * and a click on one opens that tab with it chosen. Switching tabs slides the canvas from one to
+ * the other: it stays as it is, as the tabs share it.
  */
 export function MaterialView({ tab }: { tab: 'parts' | 'sheets' }) {
   const { project, unit, setTab } = useStudio();
@@ -47,14 +47,9 @@ export function MaterialView({ tab }: { tab: 'parts' | 'sheets' }) {
       setTab('sheets');
     },
   });
-  // The view frames the tab's own shapes in its middle, and reaches past the gap into the other
-  // tab's, beside them, so they show at its edge whatever the view's shape.
-  const focused = onParts ? place.parts.extent : place.material;
-  const [x0, y0, x1, y1] = focused;
+  const [x0, y0, x1, y1] = onParts ? place.parts.extent : place.material;
   const pad = Math.max(x1 - x0, y1 - y0, 1) * PADDING;
-  const gap = place.material[0] - place.parts.extent[2];
-  const reach = gap + (x1 - x0) * MATERIAL_PEEK;
-  const extent: Box = [x0 - reach, y0 - pad, x1 + reach, y1 + pad];
+  const extent: Box = [x0 - pad, y0 - pad, x1 + pad, y1 + pad];
   const hint = onParts
     ? 'Parts and their material at one scale. Select either to change it.'
     : place.strip
