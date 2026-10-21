@@ -36,6 +36,7 @@ import { historyReducer, initialHistory } from '../src/ui/history';
 import { nextRotation, parseAngles, rotationKind, rotationRule } from '../src/ui/rotations';
 import { outline, polygonShape } from '../src/engine/geometry/contour';
 import { worldParts } from '../src/engine/geometry/world';
+import { onStrip } from './fixtures/strip';
 
 const square = (size: number, quantity = 1): Part => ({
   ...newPart(
@@ -50,13 +51,19 @@ const square = (size: number, quantity = 1): Part => ({
 });
 
 describe('project document', () => {
+  it('starts with no material: sheets, none of them yet', () => {
+    const project = addParts(newProject('Shop job'), [square(10)]);
+    expect(project.stock).toMatchObject({ packing: 'sheets', sheets: [] });
+    expect(startBlockers(project)).toEqual(['Add a sheet in the Sheets tab.']);
+  });
+
   it('round-trips through a project file', () => {
     const project = addParts(newProject('Shop job'), [square(10, 3)]);
     expect(parseProject(JSON.parse(serializeProject(project)))).toEqual(project);
   });
 
   it('keeps its jobs, numbered, each with the fields of its stage', () => {
-    const project = addParts(newProject('Shop job'), [square(10, 3)]);
+    const project = addParts(onStrip(newProject('Shop job')), [square(10, 3)]);
     const request = projectRequest(project);
     const names = jobNames(project);
     let withJobs = addJob(addJob(project, 'job_1', request, names), 'job_2', request, names);
@@ -187,7 +194,7 @@ describe('project document', () => {
 
   it('builds the job request from the strip, the active machine and the settings', () => {
     const machine = newMachine('Laser', 0.5);
-    const project = addParts(newProject('Job', machine), [square(10, 2), square(20, 0)]);
+    const project = addParts(onStrip(newProject('Job', machine)), [square(10, 2), square(20, 0)]);
     const { input, settings } = projectRequest(project);
     expect(input.problem).toEqual({ type: 'minimize_strip_length', height: 1000 });
     expect(input.minimum_separation_distance).toEqual({ parts: 0.5, boundary: 0.5 });
@@ -329,7 +336,7 @@ describe('project document', () => {
   });
 
   it('draws a layout in the format as copies of the project parts', () => {
-    const project = addParts(newProject('Job'), [{ ...square(10, 2), name: 'Plate' }]);
+    const project = addParts(onStrip(newProject('Job')), [{ ...square(10, 2), name: 'Plate' }]);
     const input = projectInput(project);
     const id = project.parts[0].id;
     const at = (x: number) => ({
@@ -359,7 +366,7 @@ describe('project document', () => {
         [0, 5],
       ]),
     );
-    const project = addParts(newProject('Job'), [triangle]);
+    const project = addParts(onStrip(newProject('Job')), [triangle]);
     const id = project.parts[0].id;
     const mirrored = {
       part_id: id,
@@ -381,7 +388,7 @@ describe('project document', () => {
     const first = { ...newSheet('Remnant', 500, 300), quantity: 1 };
     const none = { ...newSheet('Used up', 100, 100), quantity: 0 };
     const plate = { ...newSheet('Plate', 3000, 1500), quantity: 4 };
-    let project = addParts(newProject('Job'), [square(10)]);
+    let project = addParts(onStrip(newProject('Job')), [square(10)]);
     project = { ...project, stock: { ...project.stock, sheets: [first, none, plate] } };
     // A project keeps its sheets while it nests into the strip.
     expect(projectInput(project).problem.type).toBe('minimize_strip_length');
@@ -539,7 +546,7 @@ describe('project document', () => {
   });
 
   it('explains why a job cannot start', () => {
-    const empty = newProject('Job');
+    const empty = onStrip(newProject('Job'));
     expect(startBlockers(empty)).toEqual(['Import parts to nest.']);
     const seen = empty;
     const zero = { ...seen, parts: [square(10, 0)] };
@@ -551,7 +558,7 @@ describe('project document', () => {
 
   it('keeps parts the gap away from the material edge, unless the machine has its own distance', () => {
     const machine = newMachine('Laser', 2);
-    const project = addParts(newProject('Job', machine), [square(10)]);
+    const project = addParts(onStrip(newProject('Job', machine)), [square(10)]);
     expect(projectInput(project).minimum_separation_distance).toEqual({ parts: 2, boundary: 2 });
     const own = { ...project, machines: [{ ...project.machines[0], boundaryMm: 5 }] };
     expect(projectInput(own).minimum_separation_distance).toEqual({ parts: 2, boundary: 5 });
@@ -635,7 +642,7 @@ describe('the shared canvas of parts and their material', () => {
   });
 
   it('puts the strip right of the parts, as wide as set', () => {
-    const project = addParts(newProject('Job'), parts);
+    const project = addParts(onStrip(newProject('Job')), parts);
     const place = arrangeMaterial(parts, {
       ...project.stock,
       strip: { ...project.stock.strip, widthMm: 50 },

@@ -163,7 +163,7 @@ export function newProject(name: string, machine: MachinePreset = newMachine()):
       nestInHoles: true,
     },
     stock: {
-      packing: 'strip',
+      packing: 'sheets',
       strip: { id: newId(), name: 'Material strip', widthMm: 1000 },
       sheets: [],
     },

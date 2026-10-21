@@ -12,6 +12,7 @@ import {
 } from '../src/project/summary';
 import { MATERIAL, packThumb, unpackThumb } from '../src/project/thumb';
 import { colors } from '../src/engine/colors';
+import { onStrip } from './fixtures/strip';
 
 /** A part with a round outline of `points` points, `size` across. */
 const round = (size: number, points: number, quantity = 1): Part => ({
@@ -59,7 +60,10 @@ const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)
 
 describe('project summaries', () => {
   it('say what Home shows, and read back', () => {
-    const project = withJobs(addParts(newProject('Job'), [round(100, 40, 3), round(40, 12)]), 2);
+    const project = withJobs(
+      addParts(onStrip(newProject('Job')), [round(100, 40, 3), round(40, 12)]),
+      2,
+    );
     const summary = summarize(project);
     expect(summary).toMatchObject({ copies: 4, packing: 'strip', jobs: 2, running: [] });
     expect(summary.recent.map((job) => job.number)).toEqual([2, 1]);
@@ -80,7 +84,7 @@ describe('project summaries', () => {
 
   it('stay within the limit for a large project, dropping the oldest drawings first', () => {
     const parts = Array.from({ length: 60 }, (_, i) => round(50 + i, 400, 5));
-    const project = withJobs(addParts(newProject('Large'), parts), 6);
+    const project = withJobs(addParts(onStrip(newProject('Large')), parts), 6);
     const summary = summarize(project);
     expect(bytes(summary)).toBeLessThanOrEqual(SUMMARY_BYTES);
     expect(summary.recent).toHaveLength(4);

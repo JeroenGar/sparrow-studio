@@ -9,6 +9,7 @@ import { projectRequest } from '../src/project/solution';
 import { createProject } from '../src/ui/projects';
 import { createRunner } from '../src/ui/runs';
 import { createWorkspace, type OpenEntry } from '../src/ui/workspace';
+import { onStrip } from './fixtures/strip';
 
 vi.mock('../src/ui/client', () => ({ usesSparrowPro: false }));
 
@@ -94,7 +95,7 @@ describe('the runner', () => {
   it('records a job in every project that has it, and lets go of one no project has', async () => {
     const { workspace, runner, project } = page();
     await workspace.load();
-    const first = await workspace.create(addParts(newProject('Job'), [square()]));
+    const first = await workspace.create(addParts(onStrip(newProject('Job')), [square()]));
     await runner.start(first);
     // The same project opened from its file holds the same running job.
     const second = await workspace.create(project(first));
@@ -117,7 +118,7 @@ describe('the runner', () => {
     await workspace.remove(third);
     await reloading;
     await until(() => project(fourth).jobs[2].stage === 'ended');
-    const id = await workspace.create(addParts(newProject('Again'), [square()]));
+    const id = await workspace.create(addParts(onStrip(newProject('Again')), [square()]));
 
     await runner.start(id);
     const jobId = project(id).jobs[0].id!;
