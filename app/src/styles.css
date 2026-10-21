@@ -1492,7 +1492,6 @@ input[aria-invalid='true'] {
 .last-job {
   margin: auto 10px 10px;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   gap: 12px;
   padding: 8px 12px 8px 8px;
@@ -1524,8 +1523,9 @@ input[aria-invalid='true'] {
   aspect-ratio: 5;
   background: var(--panel);
 }
+/* The text keeps room to be read; the picture gives way first. */
 .last-job-text {
-  flex: 1 1 100px;
+  flex: 1 0 150px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1751,10 +1751,6 @@ a.button.primary {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-}
-.progress.small {
-  width: 90px;
-  height: 4px;
 }
 .job-thumb {
   position: relative;

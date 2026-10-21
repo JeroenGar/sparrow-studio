@@ -36,7 +36,8 @@ export function packThumb(box: Box, shapes: { fill: number; rings: Point[][] }[]
           width,
           height,
         );
-        if (grid.length >= 3) return [grid];
+        // A ring whose corners rounded into a line has no outline left to draw.
+        if (grid.length >= 3 && twiceArea(grid) !== 0) return [grid];
         return index === 0
           ? [extent(ring.map(([x, y]) => [(x - x0) * scale, (y1 - y) * scale]))]
           : [];
@@ -79,6 +80,13 @@ export const thumbPath = (rings: Point[][]) =>
   rings.map((ring) => `M${ring.map(([x, y]) => `${x},${y}`).join('L')}Z`).join('');
 
 const clamp = (value: number, max: number) => Math.min(max, Math.max(0, value));
+
+/** Twice a ring's signed area, by the shoelace formula; zero for one whose points lie on a line. */
+const twiceArea = (ring: Point[]) =>
+  ring.reduce((sum, [x, y], i) => {
+    const [nx, ny] = ring[(i + 1) % ring.length];
+    return sum + x * ny - nx * y;
+  }, 0);
 
 /** A ring's extent as a rectangle of at least one step, for shapes smaller than the grid. */
 function extent(ring: Point[]): Point[] {

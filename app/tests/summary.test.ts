@@ -182,6 +182,18 @@ describe('thumbs', () => {
     expect(unpackThumb({ ...thumb, shapes: 'AAEF' })).toBeUndefined();
   });
 
+  it('draw a sliver whose corners round into a line as its extent', () => {
+    // On a grid of whole millimetres, a flat triangle half a step tall rounds onto one line.
+    const sliver: [number, number][] = [
+      [0, 253.51],
+      [10, 253.51],
+      [5, 254.49],
+    ];
+    const [shape] = unpackThumb(packThumb([0, 0, 255, 255], [{ fill: 0, rings: [sliver] }]))!;
+    expect(shape.rings).toHaveLength(1);
+    expect(shape.rings[0]).toHaveLength(4);
+  });
+
   it('keep at most the rings a byte can count', () => {
     const holes = Array.from({ length: 300 }, (_, i) =>
       square((i % 20) * 50 + 10, Math.floor(i / 20) * 50 + 10, 30),
