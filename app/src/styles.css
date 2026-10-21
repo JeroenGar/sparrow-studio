@@ -37,6 +37,8 @@
   --overlap: rgba(220, 38, 38, 0.72);
   --differs: #e5372c;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* What the pointer is over shades by a touch of the ink, whatever it lies on. */
+  --hover: color-mix(in srgb, var(--ink) 8%, transparent);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     system-ui,
@@ -1490,6 +1492,7 @@ input[aria-invalid='true'] {
 }
 /* A project's newest job, set in at the foot of its card, apart from the project above it. */
 .last-job {
+  position: relative;
   margin: auto 10px 10px;
   display: flex;
   flex-wrap: wrap;
@@ -1505,6 +1508,14 @@ input[aria-invalid='true'] {
 }
 .last-job:hover {
   border-color: var(--control);
+}
+.last-job:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--hover);
+  pointer-events: none;
 }
 .last-job.running {
   background: var(--accent-soft);
@@ -1557,14 +1568,20 @@ input[aria-invalid='true'] {
   border-radius: 10px;
   overflow: hidden;
 }
-.project-card:hover {
-  border-color: var(--control);
-}
 .card-link {
+  position: relative;
   display: flex;
   flex-direction: column;
   color: inherit;
   text-decoration: none;
+}
+/* The project's part of its card shades alone under the pointer, apart from its last job. */
+.card-link:hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--hover);
+  pointer-events: none;
 }
 .card-link:focus-visible {
   outline: 2px solid var(--accent);
