@@ -3,7 +3,6 @@ import type { Client } from '../api/client';
 import type { ProjectDocument } from '../project/model';
 import { readSummary, summarize, type Summary } from '../project/summary';
 import { explain } from './explain';
-import { patiently } from './patiently';
 import {
   historyReducer,
   initialHistory,
@@ -173,8 +172,8 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
     const [name, summary] = [entryName(entry), entrySummary(entry)];
     replace(id, () => ({ id, updatedAt: entry.updatedAt, status: 'loading', name, summary }));
     try {
-      const { version, document } = await read(id);
-      replace(id, (current) => opened({ id, updatedAt: current.updatedAt, version, document }));
+      const stored = await read(id);
+      replace(id, () => opened(stored));
     } catch (reason) {
       replace(id, (current) => ({
         id,
@@ -248,19 +247,18 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
     },
 
     /**
-     * Deletes a project, after any save in progress, at the version last saved or read. One that
-     * changed elsewhere since stays, to be reloaded; one already gone is gone here too.
+     * Deletes a project, after any save in progress, at the version last saved or read: an open
+     * project's own, or for one that is not, the version it was shown at. One that changed
+     * elsewhere since stays, to be reloaded; one already gone is gone here too.
      */
-    async remove(id: string) {
+    async remove(id: string, shown?: string) {
       // Saving first gives the version to delete at, and a save cannot land after the deletion.
       await flush(id);
       const entry = find(id);
       if (!entry) return;
       try {
-        const version =
-          entry.status === 'open'
-            ? entry.version
-            : (await patiently(() => client.getProject(id))).version;
+        const version = entry.status === 'open' ? entry.version : shown;
+        if (!version) throw Error('Open the project to delete it.');
         await deleteProject(client, id, version);
       } catch (reason) {
         if (!isMissing(reason)) {

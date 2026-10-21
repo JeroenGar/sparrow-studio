@@ -4,8 +4,8 @@ type Point = [number, number];
 
 /**
  * A small drawing for lists, packed to fit a project's summary: shapes on a grid of whole steps,
- * at most 255 across, y pointing down. `shapes` is base64 of bytes: for each shape, its fill (a
- * part's place in the project, from 0, or `MATERIAL`), its ring count, and per ring its point
+ * at most 255 across, y pointing down. `shapes` is base64 of bytes: for each shape, its fill (its
+ * color's place in the palette, from 0, or `MATERIAL`), its ring count, and per ring its point
  * count and its points as x, y pairs. Rings fill even-odd, so holes cut through.
  */
 export type Thumb = { width: number; height: number; shapes: string };
@@ -18,7 +18,7 @@ const GRID = 255;
 /**
  * Draws shapes within `box`, in drawing coordinates with y pointing up, as a thumb. Each ring
  * is simplified to the grid; a shape too small to keep its outline keeps its extent, so it still
- * shows, and a hole too small to show is left out.
+ * shows, and a hole too small to show is left out, as are holes past the 254 a byte can count.
  */
 export function packThumb(box: Box, shapes: { fill: number; rings: Point[][] }[]): Thumb {
   const [x0, y0, x1, y1] = box;
@@ -27,20 +27,22 @@ export function packThumb(box: Box, shapes: { fill: number; rings: Point[][] }[]
   const height = Math.max(1, Math.ceil((y1 - y0) * scale));
   const bytes: number[] = [];
   for (const { fill, rings } of shapes) {
-    const kept = rings.flatMap((ring, index) => {
-      const grid = simplify(
-        ring.map(
-          ([x, y]): Point => [
-            clamp(Math.round((x - x0) * scale), width),
-            clamp(Math.round((y1 - y) * scale), height),
-          ],
-        ),
-      );
-      if (grid.length >= 3) return [grid];
-      return index === 0
-        ? [extent(ring.map(([x, y]) => [(x - x0) * scale, (y1 - y) * scale]))]
-        : [];
-    });
+    const kept = rings
+      .flatMap((ring, index) => {
+        const grid = simplify(
+          ring.map(
+            ([x, y]): Point => [
+              clamp(Math.round((x - x0) * scale), width),
+              clamp(Math.round((y1 - y) * scale), height),
+            ],
+          ),
+        );
+        if (grid.length >= 3) return [grid];
+        return index === 0
+          ? [extent(ring.map(([x, y]) => [(x - x0) * scale, (y1 - y) * scale]))]
+          : [];
+      })
+      .slice(0, 255);
     bytes.push(fill, kept.length);
     for (const ring of kept) bytes.push(ring.length, ...ring.flat());
   }

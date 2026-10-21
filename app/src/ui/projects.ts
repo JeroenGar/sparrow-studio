@@ -24,10 +24,21 @@ export async function listProjects(client: Client): Promise<Project[]> {
   return all;
 }
 
-/** A project's document, with the version it was saved at. */
-export async function openProject(client: Client, id: string) {
-  const { document, version } = await patiently(() => client.getProjectDocument(id));
-  return { version, document: parseProject(await decode(document)) };
+/**
+ * A project with its document, both at one version: one saved between reading the two is read
+ * again.
+ */
+export async function openProject(client: Client, id: string): Promise<StoredProject> {
+  for (let attempt = 1; ; attempt++) {
+    const { project, version } = await patiently(() => client.getProject(id));
+    try {
+      const { document } = await patiently(() => client.getProjectDocument(id, version));
+      const parsed = parseProject(await decode(document));
+      return { id, version, updatedAt: project.updated_at, document: parsed };
+    } catch (reason) {
+      if (!isConflict(reason) || attempt >= 3) throw reason;
+    }
+  }
 }
 
 /**

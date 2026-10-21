@@ -5,6 +5,7 @@ import { addJob, addParts, endJob, newProject, type ProjectDocument } from '../s
 import { projectRequest } from '../src/project/solution';
 import { readSummary, summarize, SUMMARY_BYTES, type JobListing } from '../src/project/summary';
 import { MATERIAL, packThumb, unpackThumb } from '../src/project/thumb';
+import { colors } from '../src/engine/colors';
 
 /** A part with a round outline of `points` points, `size` across. */
 const round = (size: number, points: number, quantity = 1): Part => ({
@@ -53,7 +54,7 @@ const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)
 describe('project summaries', () => {
   it('say what Home shows, and read back', () => {
     const project = withJobs(addParts(newProject('Job'), [round(100, 40, 3), round(40, 12)]), 2);
-    const summary = summarize(project);
+    const summary = summarize(project)!;
     expect(summary).toMatchObject({ copies: 4, packing: 'strip', jobs: 2, running: [] });
     expect(summary.recent.map((job) => job.number)).toEqual([2, 1]);
     expect(summary.recent[0]).toMatchObject({
@@ -74,7 +75,7 @@ describe('project summaries', () => {
   it('stay within the limit for a large project, dropping the oldest drawings first', () => {
     const parts = Array.from({ length: 60 }, (_, i) => round(50 + i, 400, 5));
     const project = withJobs(addParts(newProject('Large'), parts), 6);
-    const summary = summarize(project);
+    const summary = summarize(project)!;
     expect(bytes(summary)).toBeLessThanOrEqual(SUMMARY_BYTES);
     expect(summary.recent).toHaveLength(4);
     const drawn = summary.recent.map((job: JobListing) => !!job.thumb);
@@ -82,16 +83,60 @@ describe('project summaries', () => {
     expect(drawn).toEqual([...drawn].sort().reverse());
     expect(summary.thumb).toBeDefined();
   });
+
+  it('keep a failed job’s error short, and are none when they cannot fit', () => {
+    let project = addParts(newProject('Job'), [round(100, 40)]);
+    const request = projectRequest(project);
+    const fields = Array.from({ length: 400 }, (_, i) => ({
+      param: `/input/parts/${i}`,
+      message: 'This part is not closed. '.repeat(10),
+    }));
+    project = endJob(addJob(project, 'job_1', request, {}), 'job_1', {
+      schema_version: 1,
+      input: request.input,
+      settings: request.settings as never,
+      state: {
+        status: 'failed',
+        error: {
+          code: 'invalid_job_input',
+          message: 'Long.',
+          doc_url: null,
+          param: null,
+          field_errors: fields,
+        },
+      } as never,
+    });
+    const summary = summarize(project)!;
+    expect(bytes(summary)).toBeLessThan(4000);
+    expect(summary.recent[0]).toMatchObject({
+      stage: 'failed',
+      error: { code: 'invalid_job_input', field_errors: [fields[0]] },
+    });
+    // A project whose summary would not fit even without drawings has none.
+    const named = {
+      ...project,
+      jobs: project.jobs.map((job) => ({ ...job, submittedAt: 'x'.repeat(20_000) })),
+    };
+    expect(summarize(named)).toBeUndefined();
+  });
+
+  it('color parts as the Parts tab does, past the palette', () => {
+    const parts = Array.from({ length: 300 }, (_, i) => round(10 + (i === 290 ? 1000 : 0), 8));
+    const thumb = summarize(addParts(newProject('Many'), parts))!.thumb!;
+    // The largest part is the 291st: it comes first, in its palette color.
+    expect(unpackThumb(thumb)![0].fill).toBe(290 % colors.length);
+  });
 });
+
+const square = (x: number, y: number, size: number): [number, number][] => [
+  [x, y],
+  [x + size, y],
+  [x + size, y + size],
+  [x, y + size],
+];
 
 describe('thumbs', () => {
   it('pack shapes onto a small grid and unpack them', () => {
-    const square = (x: number, y: number, size: number): [number, number][] => [
-      [x, y],
-      [x + size, y],
-      [x + size, y + size],
-      [x, y + size],
-    ];
     const thumb = packThumb(
       [0, 0, 1000, 500],
       [
@@ -112,5 +157,16 @@ describe('thumbs', () => {
     expect(shapes[2].rings[0]).toHaveLength(4);
     expect(shapes[1].rings[0]).toContainEqual([26, 102]);
     expect(unpackThumb({ ...thumb, shapes: 'AAEF' })).toBeUndefined();
+  });
+
+  it('keep at most the rings a byte can count', () => {
+    const holes = Array.from({ length: 300 }, (_, i) =>
+      square((i % 20) * 50 + 10, Math.floor(i / 20) * 50 + 10, 30),
+    );
+    const thumb = packThumb(
+      [0, 0, 1000, 1000],
+      [{ fill: 0, rings: [square(0, 0, 1000), ...holes] }],
+    );
+    expect(unpackThumb(thumb)![0].rings).toHaveLength(255);
   });
 });

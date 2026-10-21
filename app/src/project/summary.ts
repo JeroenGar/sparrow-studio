@@ -1,4 +1,5 @@
-import type { Input, Schemas } from '../api/client';
+import { withCode, type Input, type Schemas } from '../api/client';
+import { colors } from '../engine/colors';
 import { outline } from '../engine/geometry/contour';
 import { bounds } from '../engine/geometry/normalize';
 import { worldParts } from '../engine/geometry/world';
@@ -111,7 +112,7 @@ export function usedBy(
 
 // Keys and summaries are worked out once per input and per document: neither ever changes.
 const keys = new WeakMap<Input, string>();
-const summaries = new WeakMap<ProjectDocument, Summary>();
+const summaries = new WeakMap<ProjectDocument, Summary | null>();
 
 /** A short key of what an input asks, however it was written. */
 export function inputKey(input: Input): string {
@@ -125,11 +126,11 @@ export function inputKey(input: Input): string {
 
 /**
  * The project's summary, within `SUMMARY_BYTES` as sent: when it would not fit, the drawings of
- * the oldest jobs listed go first, then the card's.
+ * the oldest jobs listed go first, then the card's. One that still would not fit is none: the
+ * project is then shown from its document.
  */
-export function summarize(project: ProjectDocument): Summary {
-  const known = summaries.get(project);
-  if (known) return known;
+export function summarize(project: ProjectDocument): Summary | undefined {
+  if (summaries.has(project)) return summaries.get(project) ?? undefined;
   const order = new Map(project.parts.map((part, index) => [part.id, index]));
   const summary: Summary = {
     format: SUMMARY_FORMAT,
@@ -145,7 +146,7 @@ export function summarize(project: ProjectDocument): Summary {
       .reverse()
       .slice(0, RECENT_JOBS)
       .map((job) => ({
-        ...jobFacts(job),
+        ...listed(jobFacts(job)),
         input: inputKey(jobInput(job)),
         ...firstSheet(job, order),
       })),
@@ -156,8 +157,26 @@ export function summarize(project: ProjectDocument): Summary {
     summary.recent[i] = rest;
   }
   if (!fits()) delete summary.thumb;
-  summaries.set(project, summary);
-  return summary;
+  summaries.set(project, fits() ? summary : null);
+  return summaries.get(project) ?? undefined;
+}
+
+/**
+ * A job's facts as a summary keeps them: a failed job's error with no more than studio says of
+ * it, its first field error, cut short, so a long list of them cannot fill the summary.
+ */
+function listed(facts: JobFacts): JobFacts {
+  if (facts.stage !== 'failed') return facts;
+  const field = withCode(facts.error, 'invalid_job_input')?.field_errors[0];
+  const short = (text: string) => text.slice(0, 500);
+  const error = {
+    ...facts.error,
+    message: '',
+    doc_url: null,
+    param: null,
+    ...(field && { field_errors: [{ param: short(field.param), message: short(field.message) }] }),
+  } as Schemas['JobError'];
+  return { ...facts, error };
 }
 
 /** The project's largest parts as its card draws them, each in the color the Parts tab gives it. */
@@ -179,7 +198,7 @@ function cardThumb(project: ProjectDocument): Thumb | undefined {
       const { outer, holes } = outline(parts[index].shape);
       const [dx, dy] = arrangement.offsets.get(parts[index].id)!;
       return {
-        fill: index % MATERIAL,
+        fill: index % colors.length,
         rings: [outer, ...holes].map((ring) =>
           ring.map(([x, y]): [number, number] => [x + dx, y + dy]),
         ),
@@ -228,7 +247,7 @@ export function layoutThumb(
         holes: [],
       };
   const place = (partId: string) =>
-    (order.get(partId) ?? input.parts.findIndex((part) => part.id === partId)) % MATERIAL;
+    (order.get(partId) ?? input.parts.findIndex((part) => part.id === partId)) % colors.length;
   const thumb = packThumb(bounds(material.outer) as Box, [
     { fill: MATERIAL, rings: [material.outer, ...material.holes] },
     ...worldParts(drawn, layout.result).map((part) => ({

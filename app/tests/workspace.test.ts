@@ -114,8 +114,17 @@ describe('the workspace', () => {
     await settled();
     expect(open(id).save.state).toBe('conflict');
     expect((await api.getProject(id)).project.name).toBe('Elsewhere');
+    const before = open(id).updatedAt;
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await api.saveProject(
+      id,
+      { name: 'Later', document: elsewhere },
+      (await api.getProject(id)).version,
+    );
     await workspace.reload(id);
+    // Reloaded as it is now, with when it last changed.
     expect(open(id).history.present.name).toBe('Elsewhere');
+    expect(open(id).updatedAt > before).toBe(true);
   });
 
   it('creates and deletes projects, after any save on its way', async () => {
@@ -138,9 +147,22 @@ describe('the workspace', () => {
     await api.saveProject(kept, { name: 'Elsewhere', document: elsewhere }, '"1"');
     await expect(workspace.remove(kept)).rejects.toThrow('changed since');
     expect(open(kept).save.state).toBe('conflict');
+    // One that does not open is deleted at the version it was shown at, and only then.
+    await expect(workspace.remove(gone)).rejects.toThrow('Open the project');
     // Deleted in another tab after the list: its card goes without a fuss.
     await api.deleteProject(gone, '"1"');
-    await workspace.remove(gone);
+    await workspace.remove(gone, '"1"');
     expect(workspace.find(gone)).toBeUndefined();
+  });
+
+  it('deletes a listed project only once opened', async () => {
+    const { workspace, save } = setup();
+    const id = await save(newProject('Listed'));
+    await workspace.load();
+    await expect(workspace.remove(id)).rejects.toThrow('Open the project');
+    workspace.open(id);
+    await settled();
+    await workspace.remove(id);
+    expect(workspace.find(id)).toBeUndefined();
   });
 });

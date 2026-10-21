@@ -17,6 +17,7 @@ import { HomePage } from './HomePage';
 import { ChevronDown, Gear } from './icons';
 import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
+import { patiently } from './patiently';
 import { isProjectLimit } from './projects';
 import { go, HOME, href, useRoute } from './route';
 import { createRunner, useSubmitting } from './runs';
@@ -42,7 +43,7 @@ type Dialogs =
   | { type: 'preferences' }
   | { type: 'about' }
   | { type: 'rename'; id: string; name: string }
-  | { type: 'delete'; entry: ProjectEntry };
+  | { type: 'delete'; id: string };
 
 /** The page for the location: home, or a project, under the top bar. */
 export default function App() {
@@ -163,7 +164,7 @@ export default function App() {
         onExample={() => setDialog({ type: 'examples' })}
         onOpenFile={() => fileInput.current?.click()}
         onRetry={(id) => void workspace.reload(id)}
-        onDelete={(entry) => setDialog({ type: 'delete', entry })}
+        onDelete={(entry) => setDialog({ type: 'delete', id: entry.id })}
         view={route.view}
         runner={runner}
         unit={preferences.unit}
@@ -262,7 +263,7 @@ export default function App() {
                 else if (action === 'redo') workspace.redo(open.id);
                 else if (action === 'rename')
                   setDialog({ type: 'rename', id: open.id, name: project.name });
-                else if (action === 'delete') setDialog({ type: 'delete', entry: open });
+                else if (action === 'delete') setDialog({ type: 'delete', id: open.id });
                 else if (action === 'export')
                   download(
                     projectFileName(project.name, 'sparrow-project.json'),
@@ -356,13 +357,13 @@ export default function App() {
       )}
       {dialog?.type === 'delete' && (
         <DeleteDialog
-          entry={dialog.entry}
+          entry={workspace.find(dialog.id)}
           onClose={() => setDialog(undefined)}
-          onDelete={async () => {
-            const id = dialog.entry.id;
+          onDelete={async (version) => {
+            const id = dialog.id;
             if (route.page !== 'home' && route.id === id) go(HOME, { replace: true });
             setDialog(undefined);
-            await workspace.remove(id).catch(failed);
+            await workspace.remove(id, version).catch(failed);
           }}
         />
       )}
@@ -421,15 +422,38 @@ function SaveState({ entry }: { entry: OpenEntry }) {
 }
 
 /** Asks before deleting a project, with its jobs. */
+/**
+ * Asks before deleting a project, with its jobs, as it is now: a listed project is opened first,
+ * and one whose document does not open is deleted at the version read when asked, so changes made
+ * elsewhere since are never deleted unseen.
+ */
 function DeleteDialog({
   entry,
   onDelete,
   onClose,
 }: {
-  entry: ProjectEntry;
-  onDelete: () => void;
+  entry: ProjectEntry | undefined;
+  onDelete: (version?: string) => void;
   onClose: () => void;
 }) {
+  const [pinned, setPinned] = useState<string>();
+  const status = entry?.status;
+  const id = entry?.id;
+  useEffect(() => {
+    if (!id) return;
+    if (status === 'listed') workspace.open(id);
+    if (status === 'failed')
+      void patiently(() => client.getProject(id)).then(
+        ({ version }) => setPinned(version),
+        () => {},
+      );
+  }, [id, status]);
+  // Gone meanwhile, such as deleted in another tab: nothing is left to ask about.
+  useEffect(() => {
+    if (!entry) onClose();
+  }, [entry, onClose]);
+  if (!entry) return null;
+  const ready = entry.status === 'open' || (entry.status === 'failed' && !!pinned);
   const summary = entrySummary(entry);
   const jobs = summary?.jobs ?? 0;
   const running = summary?.running.length ?? 0;
@@ -440,8 +464,12 @@ function DeleteDialog({
       actions={
         <>
           <button onClick={onClose}>Keep</button>
-          <button className="danger" onClick={onDelete}>
-            Delete
+          <button
+            className="danger"
+            disabled={!ready}
+            onClick={() => onDelete(entry.status === 'open' ? undefined : pinned)}
+          >
+            {ready ? 'Delete' : 'Opening…'}
           </button>
         </>
       }

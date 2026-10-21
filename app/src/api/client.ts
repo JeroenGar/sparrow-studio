@@ -176,10 +176,16 @@ export function createClient({ fetch, baseUrl }: { fetch: Fetch; baseUrl: string
     /** A project, without its document. */
     getProject: (projectId: string) =>
       versioned(api.GET('/projects/{project_id}', { params: { path: project(projectId) } })),
-    /** A project's document, its bytes exactly as saved, with the version they belong to. */
-    async getProjectDocument(projectId: string): Promise<{ document: Blob; version: string }> {
+    /**
+     * A project's document, its bytes exactly as saved, with the version they belong to. With a
+     * version, only at that version: a project changed since fails with `version_conflict`.
+     */
+    async getProjectDocument(
+      projectId: string,
+      version?: string,
+    ): Promise<{ document: Blob; version: string }> {
       const request = api.GET('/projects/{project_id}/document', {
-        params: { path: project(projectId) },
+        params: { path: project(projectId), header: version ? { 'If-Match': version } : {} },
         parseAs: 'blob',
       });
       const { response } = await request;
