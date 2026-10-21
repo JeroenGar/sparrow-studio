@@ -16,9 +16,11 @@ export const MATERIAL = 255;
 const GRID = 255;
 
 /**
- * Draws shapes within `box`, in drawing coordinates with y pointing up, as a thumb. Each ring
- * is simplified to the grid; a shape too small to keep its outline keeps its extent, so it still
- * shows, and a hole too small to show is left out, as are holes past the 254 a byte can count.
+ * Draws shapes within `box`, in drawing coordinates with y pointing up, as a thumb. Each ring is
+ * simplified first, then its corners put on the grid, so a smooth slope stays one straight edge
+ * rather than a staircase of steps; a shape too small to keep its outline keeps its extent, so
+ * it still shows, and a hole too small to show is left out, as are holes past the 254 a byte can
+ * count.
  */
 export function packThumb(box: Box, shapes: { fill: number; rings: Point[][] }[]): Thumb {
   const [x0, y0, x1, y1] = box;
@@ -29,13 +31,10 @@ export function packThumb(box: Box, shapes: { fill: number; rings: Point[][] }[]
   for (const { fill, rings } of shapes) {
     const kept = rings
       .flatMap((ring, index) => {
-        const grid = simplify(
-          ring.map(
-            ([x, y]): Point => [
-              clamp(Math.round((x - x0) * scale), width),
-              clamp(Math.round((y1 - y) * scale), height),
-            ],
-          ),
+        const grid = onGrid(
+          simplify(ring.map(([x, y]): Point => [(x - x0) * scale, (y1 - y) * scale])),
+          width,
+          height,
         );
         if (grid.length >= 3) return [grid];
         return index === 0
@@ -98,31 +97,39 @@ function extent(ring: Point[]): Point[] {
   ];
 }
 
-/**
- * A ring on the grid without repeated points, with the points that lie within half a step of the
- * line through their neighbours left out, and at most 255 points.
- */
-function simplify(ring: Point[]): Point[] {
-  const distinct = ring.filter(
+/** A ring without repeated points, its last not the first again. */
+function distinct(ring: Point[]): Point[] {
+  const kept = ring.filter(
     (point, i) => i === 0 || point[0] !== ring[i - 1][0] || point[1] !== ring[i - 1][1],
   );
-  while (
-    distinct.length > 1 &&
-    distinct[0][0] === distinct.at(-1)![0] &&
-    distinct[0][1] === distinct.at(-1)![1]
-  )
-    distinct.pop();
-  if (distinct.length < 3) return distinct;
-  for (let tolerance = 0.5; ; tolerance *= 2) {
+  while (kept.length > 1 && kept[0][0] === kept.at(-1)![0] && kept[0][1] === kept.at(-1)![1])
+    kept.pop();
+  return kept;
+}
+
+/** A simplified ring's corners on the grid's whole steps. */
+const onGrid = (ring: Point[], width: number, height: number) =>
+  distinct(
+    ring.map(([x, y]): Point => [clamp(Math.round(x), width), clamp(Math.round(y), height)]),
+  );
+
+/**
+ * A ring in grid steps with the points that lie within a step of the line through their
+ * neighbours left out, and at most 255 points.
+ */
+function simplify(ring: Point[]): Point[] {
+  const points = distinct(ring);
+  if (points.length < 3) return points;
+  for (let tolerance = 1; ; tolerance *= 2) {
     // Split the ring at its first point and the point farthest from it, and simplify both halves.
-    const far = distinct.reduce(
+    const far = points.reduce(
       (best, point, i) =>
-        distance2(point, distinct[0]) > distance2(distinct[best], distinct[0]) ? i : best,
+        distance2(point, points[0]) > distance2(points[best], points[0]) ? i : best,
       0,
     );
     const kept = [
-      ...peucker(distinct.slice(0, far + 1), tolerance).slice(0, -1),
-      ...peucker([...distinct.slice(far), distinct[0]], tolerance).slice(0, -1),
+      ...peucker(points.slice(0, far + 1), tolerance).slice(0, -1),
+      ...peucker([...points.slice(far), points[0]], tolerance).slice(0, -1),
     ];
     if (kept.length <= 255) return kept;
   }

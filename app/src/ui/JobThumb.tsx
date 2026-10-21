@@ -32,7 +32,7 @@ export function ThumbDrawing({
           fill={
             fill === MATERIAL ? 'var(--sheet)' : plain ? 'var(--ink)' : colors[fill % colors.length]
           }
-          {...(plain && fill !== MATERIAL && { fillOpacity: 0.5 })}
+          {...(plain && fill !== MATERIAL && { fillOpacity: 0.3 })}
           {...((plain || fill === MATERIAL) && {
             stroke: 'var(--ink)',
             strokeWidth: 0.8,

@@ -1488,24 +1488,27 @@ input[aria-invalid='true'] {
   align-items: center;
   gap: 16px;
 }
-/* A project's newest job, along the foot of its card. */
+/* A project's newest job, set in at the foot of its card, apart from the project above it. */
 .last-job {
-  margin-top: auto;
+  margin: auto 10px 10px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line-soft);
+  padding: 8px 12px 8px 8px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
   color: inherit;
   text-decoration: none;
   font-size: 13px;
 }
 .last-job:hover {
-  background: var(--panel-soft);
+  border-color: var(--control);
 }
 .last-job.running {
   background: var(--accent-soft);
+  border-color: var(--accent-line);
 }
 .last-job:focus-visible {
   outline: 2px solid var(--accent);
@@ -1516,6 +1519,7 @@ input[aria-invalid='true'] {
   width: 132px;
   max-width: 100%;
   height: 44px;
+  background: var(--panel);
 }
 /* Its text keeps room to be read: on a narrow card the figures go under it. */
 .last-job-text {
