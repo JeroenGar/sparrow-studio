@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { arrangeMaterial, MATERIAL_PEEK, type Box } from '../../project/layout';
 import { resolvedParts } from '../../project/model';
 import { Canvas } from '../Canvas';
@@ -22,6 +22,13 @@ export function MaterialView({ tab }: { tab: 'parts' | 'sheets' }) {
   const partSelection = usePartSelection();
   const sheetSelection = useSheetSelection();
   const onParts = tab === 'parts';
+  // A part's menu, a zoom asked of the list, and a defect tool belong to the tab and packing they
+  // were opened in; the selections stay.
+  useEffect(() => {
+    partSelection.setMenu(undefined);
+    partSelection.setFocus(undefined);
+    sheetSelection.setTool(undefined);
+  }, [tab, project.stock.packing]);
   const partsLayer = usePartsLayer({
     selection: partSelection,
     arrangement: place.parts,

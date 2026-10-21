@@ -556,11 +556,17 @@ export function useSheetsLayer({
   const [dx, dy] = place && index >= 0 ? place.offsets[index] : [0, 0];
   // The selected sheet's own coordinates of a canvas point, to the millimetre.
   const local = ([x, y]: [number, number]): Point => [Math.round(x - dx), Math.round(y - dy)];
+  // A press on a part, faded beside the sheets, goes to the part: it opens the Parts tab.
+  const onPart = (event: { target: EventTarget }) =>
+    !!(event.target as Element).closest('.part-shape');
   const canvasTool: CanvasTool | undefined =
     tool && index >= 0
       ? tool === 'rectangle'
         ? {
-            down: (point) => setDraft({ corners: [], from: local(point), at: local(point) }),
+            down: (point, event) => {
+              if (onPart(event)) return false;
+              setDraft({ corners: [], from: local(point), at: local(point) });
+            },
             move: (point) => setDraft((d) => (d.from ? { ...d, at: local(point) } : d)),
             cancel: () => setDraft({ corners: [] }),
             up: (point) => {
@@ -580,6 +586,7 @@ export function useSheetsLayer({
             },
           }
         : {
+            down: (_, event) => !onPart(event),
             move: (point) => setDraft((d) => ({ ...d, at: local(point) })),
             up: (point) => setDraft((d) => ({ ...d, corners: [...d.corners, local(point)] })),
             double: () => {
@@ -748,17 +755,18 @@ export function useSheetsLayer({
                 />
               )}
               {/* Its name below it, where it fits at this zoom, clear of its neighbours. */}
-              {(box[2] - box[0]) / upp > label.length * 7 && (
-                <text
-                  className={chosen ? 'sheet-label selected' : 'sheet-label'}
-                  x={(box[0] + box[2]) / 2}
-                  y={-box[1] + 18 * upp}
-                  fontSize={12 * upp}
-                  textAnchor="middle"
-                >
-                  {label}
-                </text>
-              )}
+              {(box[2] - box[0]) / upp > label.length * 7 &&
+                (place.gap / upp > 17 || place.rows[i] === place.rows.at(-1)) && (
+                  <text
+                    className={chosen ? 'sheet-label selected' : 'sheet-label'}
+                    x={(box[0] + box[2]) / 2}
+                    y={-box[1] + 14 * upp}
+                    fontSize={12 * upp}
+                    textAnchor="middle"
+                  >
+                    {label}
+                  </text>
+                )}
             </g>
           );
         })}
@@ -797,7 +805,7 @@ export function useSheetsLayer({
     );
   return {
     // Sheets only shown keep their order.
-    tool: active ? (canvasTool ?? (tool || readOnly ? undefined : reorder)) : undefined,
+    tool: active && place ? (canvasTool ?? (tool || readOnly ? undefined : reorder)) : undefined,
     hint:
       sheets.length > 1
         ? `Nested in this order, #1 first.${readOnly ? '' : ' Drag a sheet to move it.'}`
