@@ -17,7 +17,7 @@
                 "type": "string"
               },
               "param": {
-                "description": "The JSON Pointer of the field at fault within the request body, if any.",
+                "description": "The field at fault, if any: its JSON Pointer within a JSON request body, or the name of a\nquery parameter or of a part of a multipart body.",
                 "type": [
                   "string",
                   "null"
@@ -1362,63 +1362,7 @@
         ]
       },
       "Project": {
-        "description": "A client's project, stored with the account. Every response with a project carries its version\nin an `ETag` header, which a save or deletion sends back in `If-Match`.",
-        "properties": {
-          "created_at": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "document": {
-            "description": "Opaque to the API: the client defines its format, and the API stores it as given."
-          },
-          "id": {
-            "$ref": "#/components/schemas/ProjectId"
-          },
-          "name": {
-            "type": "string"
-          },
-          "summary": {
-            "description": "The client's own summary of the project, such as what its list shows: opaque to the API,\nstored as given, and `null` when none was set."
-          },
-          "updated_at": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "required": [
-          "id",
-          "name",
-          "created_at",
-          "updated_at",
-          "summary",
-          "document"
-        ],
-        "type": "object"
-      },
-      "ProjectId": {
-        "description": "A project's ID, such as `prj_…`.",
-        "type": "string"
-      },
-      "ProjectRequest": {
-        "description": "The body of `POST /v1/projects` and `PUT /v1/projects/{project_id}`.",
-        "properties": {
-          "document": {},
-          "name": {
-            "description": "From 1 to 256 characters.",
-            "type": "string"
-          },
-          "summary": {
-            "description": "Any JSON, opaque to the API, of at most `max_project_summary_bytes` as sent; it counts\ntowards `max_project_bytes`. A save replaces the whole project, so a save without it\nclears it."
-          }
-        },
-        "required": [
-          "name",
-          "document"
-        ],
-        "type": "object"
-      },
-      "ProjectSummary": {
-        "description": "A project in a list, with its summary but without its document; lists are ordered by\n`updated_at`, most recent first.",
+        "description": "A client's project, stored with the account, without its document, which\n`GET /v1/projects/{project_id}/document` returns; also an item of the project list, ordered by\n`updated_at`, most recent first. Every response about one project carries its version in an\n`ETag` header, which a save or deletion sends back in `If-Match`.",
         "properties": {
           "created_at": {
             "format": "date-time",
@@ -1431,7 +1375,7 @@
             "type": "string"
           },
           "summary": {
-            "description": "The client's own summary of the project, such as what its list shows: opaque to the API,\nstored as given, and `null` when none was set."
+            "description": "The client's own summary of the project, such as what its list shows: opaque to the API,\nstored as sent, and `null` when none was set."
           },
           "updated_at": {
             "format": "date-time",
@@ -1447,12 +1391,16 @@
         ],
         "type": "object"
       },
-      "ProjectSummaryList": {
+      "ProjectId": {
+        "description": "A project's ID, such as `prj_…`.",
+        "type": "string"
+      },
+      "ProjectList": {
         "description": "One page of a list, ordered by the listed timestamp, ties broken by ID.",
         "properties": {
           "data": {
             "items": {
-              "$ref": "#/components/schemas/ProjectSummary"
+              "$ref": "#/components/schemas/Project"
             },
             "type": "array"
           },
@@ -2081,7 +2029,7 @@
     }
   },
   "info": {
-    "description": "The job API of Sparrow Pro: submit nesting jobs, follow them live, and fetch their results; store projects for clients. Bodies are JSON, and requests may be gzip-compressed. Requests are read strictly: unknown fields and explicit nulls are refused, although these schemas do not say so. Responses are read tolerantly: clients ignore fields they do not know, and treat unknown values of open enumerations, such as error codes, diagnostic kinds, and termination reasons, as unknown. Every response carries an X-Request-Id header. See docs/job_api_contract.md and docs/io_format.md.",
+    "description": "The job API of Sparrow Pro: submit nesting jobs, follow them live, and fetch their results; store projects for clients. Bodies are JSON, except project saves (multipart) and project documents (opaque bytes), and requests may be gzip-compressed. Requests are read strictly: unknown fields and explicit nulls are refused, although these schemas do not say so. Responses are read tolerantly: clients ignore fields they do not know, and treat unknown values of open enumerations, such as error codes, diagnostic kinds, and termination reasons, as unknown. Every response carries an X-Request-Id header. See docs/job_api_contract.md and docs/io_format.md.",
     "title": "Sparrow Pro API",
     "version": "1"
   },
@@ -3135,7 +3083,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ProjectSummaryList"
+                  "$ref": "#/components/schemas/ProjectList"
                 }
               }
             },
@@ -3236,9 +3184,37 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
+              "encoding": {
+                "document": {
+                  "contentType": "application/octet-stream"
+                },
+                "summary": {
+                  "contentType": "application/json"
+                }
+              },
               "schema": {
-                "$ref": "#/components/schemas/ProjectRequest"
+                "properties": {
+                  "document": {
+                    "description": "Opaque bytes, in any format and compression the client chooses; stored and returned exactly as sent. They count towards `max_project_bytes` as sent.",
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "From 1 to 256 characters.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "Any JSON, opaque to the API, of at most `max_project_summary_bytes` as sent; it counts towards `max_project_bytes`. A save without it clears it."
+                  }
+                },
+                "required": [
+                  "name",
+                  "document"
+                ],
+                "type": "object"
               }
             }
           },
@@ -3616,7 +3592,7 @@
             }
           }
         },
-        "summary": "Get a project with its document"
+        "summary": "Get a project, without its document"
       },
       "put": {
         "operationId": "saveProject",
@@ -3642,9 +3618,37 @@
         ],
         "requestBody": {
           "content": {
-            "application/json": {
+            "multipart/form-data": {
+              "encoding": {
+                "document": {
+                  "contentType": "application/octet-stream"
+                },
+                "summary": {
+                  "contentType": "application/json"
+                }
+              },
               "schema": {
-                "$ref": "#/components/schemas/ProjectRequest"
+                "properties": {
+                  "document": {
+                    "description": "Opaque bytes, in any format and compression the client chooses; stored and returned exactly as sent. They count towards `max_project_bytes` as sent.",
+                    "format": "binary",
+                    "type": "string"
+                  },
+                  "name": {
+                    "description": "From 1 to 256 characters.",
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "summary": {
+                    "description": "Any JSON, opaque to the API, of at most `max_project_summary_bytes` as sent; it counts towards `max_project_bytes`. A save without it clears it."
+                  }
+                },
+                "required": [
+                  "name",
+                  "document"
+                ],
+                "type": "object"
               }
             }
           },
@@ -3796,7 +3800,130 @@
             }
           }
         },
-        "summary": "Replace a project's name and document"
+        "summary": "Replace a project's name, summary, and document"
+      }
+    },
+    "/projects/{project_id}/document": {
+      "get": {
+        "operationId": "getProjectDocument",
+        "parameters": [
+          {
+            "description": "The project's ID, such as `prj_…`.",
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "The project's version, as an ETag gave it: 412 version_conflict if the project changed since.",
+            "in": "header",
+            "name": "If-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The document's bytes as saved, never compressed by the API.",
+            "headers": {
+              "ETag": {
+                "description": "The project's version.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "not_found: no such resource for this account; for a repeated idempotency key, the project was deleted."
+          },
+          "412": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "version_conflict: the project changed since the version in If-Match."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get a project's document, exactly as it was saved"
       }
     }
   },
