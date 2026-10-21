@@ -220,7 +220,7 @@ export default function App() {
         <header className="top-bar">
           <button
             className="brand"
-            title="About sparrow studio"
+            title="About"
             onClick={() => setDialog({ type: 'about' })}
           >
             <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
