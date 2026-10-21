@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Job } from '../api/client';
 import { client, usesSparrowPro } from './client';
 import { explain } from './explain';
@@ -34,23 +34,28 @@ export function JobsPage({
     .flatMap((entry) => entrySummary(entry)?.running ?? [])
     .sort()
     .join();
+  // Each reload starts the list again from its first page: an answer to an earlier one is dropped.
+  const generation = useRef(0);
   useEffect(() => {
-    let current = true;
+    const mine = ++generation.current;
     patiently(() => client.listJobs()).then(
       (page) =>
-        current &&
+        generation.current === mine &&
         setLoaded({ status: 'ready', jobs: page.data, next: page.next_cursor, more: false }),
-      (reason) => current && setLoaded({ status: 'failed', error: explain(reason) }),
+      (reason) =>
+        generation.current === mine && setLoaded({ status: 'failed', error: explain(reason) }),
     );
     return () => {
-      current = false;
+      generation.current++;
     };
   }, [running]);
   const older = (next: string) => {
     if (loaded.status !== 'ready') return;
+    const mine = generation.current;
     setLoaded({ ...loaded, more: true });
     patiently(() => client.listJobs(next)).then(
       (page) =>
+        generation.current === mine &&
         setLoaded((now) =>
           now.status === 'ready'
             ? {
@@ -61,7 +66,8 @@ export function JobsPage({
               }
             : now,
         ),
-      (reason) => setLoaded({ status: 'failed', error: explain(reason) }),
+      (reason) =>
+        generation.current === mine && setLoaded({ status: 'failed', error: explain(reason) }),
     );
   };
 
@@ -172,7 +178,9 @@ function JobRow({
   owner?: { entry: ProjectEntry; number: number };
   runner: Runner;
 }) {
-  const state = job.state;
+  // The job as studio follows it, while it does: a queued job starts, a running one ends.
+  const current = useRun(runner, job.id)?.job ?? job;
+  const state = current.state;
   const active = state.status === 'queued' || state.status === 'running';
   return (
     <tr className={active ? 'running' : undefined}>
@@ -210,7 +218,7 @@ function JobRow({
         </span>
       </td>
       <td className="mono">
-        {active ? `${credits(job.credits.held)} held` : credits(job.credits.charged)}
+        {active ? `${credits(current.credits.held)} held` : credits(current.credits.charged)}
       </td>
     </tr>
   );

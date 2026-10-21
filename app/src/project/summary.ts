@@ -165,6 +165,8 @@ export function summarize(project: ProjectDocument): Summary {
     summary.recent[i] = rest;
   }
   if (!fits()) delete summary.thumb;
+  // A project of very many jobs lists them no more: All jobs opens it to know them.
+  if (!fits()) delete summary.jobNumbers;
   summaries.set(project, summary);
   return summary;
 }
@@ -314,7 +316,10 @@ export function readSummary(value: unknown): Summary | undefined {
   const valid =
     ['copies', 'sheets', 'jobs'].every(count) &&
     (value.jobNumbers === undefined ||
-      (isRecord(value.jobNumbers) && Object.values(value.jobNumbers).every(Number.isInteger))) &&
+      (isRecord(value.jobNumbers) &&
+        Object.values(value.jobNumbers).every(
+          (number) => Number.isInteger(number) && (number as number) >= 1,
+        ))) &&
     (value.packing === 'strip' || value.packing === 'sheets') &&
     Array.isArray(value.running) &&
     value.running.every((id) => typeof id === 'string') &&

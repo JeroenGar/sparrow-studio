@@ -77,6 +77,7 @@ describe('project summaries', () => {
     expect(summary.recent.map((job) => job.number)).toEqual([2]);
     expect(summary.jobNumbers).toEqual({ job_1: 1, job_2: 2 });
     expect(readSummary({ ...summary, jobNumbers: { job_1: 'one' } })).toBeUndefined();
+    expect(readSummary({ ...summary, jobNumbers: { job_1: 0 } })).toBeUndefined();
     // A summary saved before it listed its jobs still reads.
     const { jobNumbers: _, ...before } = summary;
     expect(readSummary(before)).toEqual(before);

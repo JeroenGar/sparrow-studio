@@ -1661,7 +1661,7 @@ a.button.primary {
   background: var(--bar-line);
 }
 
-/* Every job: a small table per project, newest first. */
+/* Every job of the account: a table per month, newest first. */
 .job-section {
   display: flex;
   flex-direction: column;
@@ -1671,14 +1671,6 @@ a.button.primary {
   display: flex;
   align-items: baseline;
   gap: 10px;
-}
-.job-section-head a {
-  color: var(--ink);
-  font-weight: 600;
-  text-decoration: none;
-}
-.job-section-head a:hover {
-  color: var(--accent);
 }
 .job-table {
   width: 100%;
@@ -1703,21 +1695,12 @@ a.button.primary {
   color: var(--ink);
   font-weight: 600;
 }
-/* The same columns in every project's table, so they line up down the page. */
+/* The same columns in every month's table, so they line up down the page. */
 .job-table {
   table-layout: fixed;
 }
-.job-table col.thumb {
-  width: 120px;
-}
-.job-table col.number {
-  width: 64px;
-}
 .job-table col.started {
   width: 160px;
-}
-.job-table col.result {
-  width: 32%;
 }
 .job-table col.credits {
   width: 180px;
