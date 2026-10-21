@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Account, Job } from '../../api/client';
-import { credits } from '../account';
+import type { Job } from '../../api/client';
+import { credits, useAccount } from '../account';
 import { client } from '../client';
 import { Dialog } from '../Dialog';
 import { explain } from '../explain';
@@ -23,19 +23,18 @@ type Loaded =
  * is opened.
  */
 export function AccountDialog({
-  account,
   projects,
   runner,
   onOpen,
   onClose,
 }: {
-  /** The account and its credits, once read. */
-  account?: Account;
   projects: ProjectEntry[];
   runner: Runner;
   onOpen: (id: string) => void;
   onClose: () => void;
 }) {
+  // The account's credits as they are when it opens.
+  const account = useAccount();
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
   // A job starting or ending anywhere shows on the first page.
   const running = projects
