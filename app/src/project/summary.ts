@@ -56,7 +56,7 @@ export type JobListing = JobFacts & {
   /** The key of what its input asks, to tell whether the project changed since. */
   input: string;
   thumb?: Thumb;
-  /** How many more sheets than the one drawn. */
+  /** How many more sheets than the ones drawn. */
   more?: number;
 };
 
@@ -148,7 +148,7 @@ export function summarize(project: ProjectDocument): Summary {
       .map((job) => ({
         ...listed(jobFacts(job)),
         input: inputKey(jobInput(job)),
-        ...firstSheet(job, order),
+        ...firstLayouts(job, order),
       })),
   };
   const fits = () => bytes(summary) <= SUMMARY_BYTES;
@@ -219,11 +219,11 @@ function cardThumb(project: ProjectDocument): Thumb | undefined {
 }
 
 /**
- * The first sheet of a job's layout, or of the strip, drawn on its material, with how many more
- * sheets it used; nothing for a job without a layout. `order` gives each part's place in the
- * project, for its color; a part the project no longer has takes its place in the job.
+ * The first layouts of a job, side by side on their material, with how many more it used;
+ * nothing for a job without a layout. `order` gives each part's place in the project, for its
+ * color; a part the project no longer has takes its place in the job.
  */
-export function firstSheet(
+export function firstLayouts(
   job: ProjectJob,
   order: Map<string, number>,
   live?: Schemas['Snapshot'],
@@ -233,7 +233,15 @@ export function firstSheet(
   return layoutThumb(jobInput(job), best, order);
 }
 
-/** The first layout of a solution on its material, with how many more layouts there are. */
+/** The width over height of a job's thumb, which holds as many of its first layouts as fit. */
+export const JOB_THUMB_ASPECT = 3;
+/** The most layouts a job's thumb holds, however narrow they are. */
+const THUMB_LAYOUTS = 6;
+
+/**
+ * A solution's first layouts on their material, in a row, as many as about fit
+ * `JOB_THUMB_ASPECT` and one at least, with how many more layouts there are.
+ */
 export function layoutThumb(
   input: Input,
   best: Pick<Schemas['Outcome'], 'solution' | 'stats'>,
@@ -241,32 +249,50 @@ export function layoutThumb(
 ): { thumb: Thumb; more: number } {
   const { job: drawn, layouts } = drawable(
     input,
-    { layouts: best.solution.layouts.slice(0, 1) },
+    { layouts: best.solution.layouts.slice(0, THUMB_LAYOUTS) },
     undefined,
     best.stats,
   );
-  const layout = layouts[0];
-  const material = layout.sheet
-    ? outline(layout.sheet.shape)
-    : {
-        outer: [
-          [0, 0],
-          [layout.result.usedLengthMm, 0],
-          [layout.result.usedLengthMm, drawn.settings.materialWidthMm],
-          [0, drawn.settings.materialWidthMm],
-        ] as [number, number][],
-        holes: [],
-      };
+  const materials = layouts.map((layout) =>
+    layout.sheet
+      ? outline(layout.sheet.shape)
+      : {
+          outer: [
+            [0, 0],
+            [layout.result.usedLengthMm, 0],
+            [layout.result.usedLengthMm, drawn.settings.materialWidthMm],
+            [0, drawn.settings.materialWidthMm],
+          ] as [number, number][],
+          holes: [],
+        },
+  );
+  // Each layout's material from the left, its bottom on the line, a gap of a share of the tallest.
+  const placed: { index: number; dx: number; dy: number }[] = [];
+  let [width, height] = [0, 0];
+  for (const [index, material] of materials.entries()) {
+    const [x0, y0, x1, y1] = bounds(material.outer);
+    const tall = Math.max(height, y1 - y0);
+    const left = index ? width + tall * 0.08 : 0;
+    // A row a little wider than the thumb is drawn a little smaller, rather than a sheet less.
+    if (index && left + (x1 - x0) > tall * JOB_THUMB_ASPECT * 1.2) break;
+    placed.push({ index, dx: left - x0, dy: -y0 });
+    [width, height] = [left + (x1 - x0), tall];
+  }
   const place = (partId: string) =>
     (order.get(partId) ?? input.parts.findIndex((part) => part.id === partId)) % colors.length;
-  const thumb = packThumb(bounds(material.outer) as Box, [
-    { fill: MATERIAL, rings: [material.outer, ...material.holes] },
-    ...worldParts(drawn, layout.result).map((part) => ({
-      fill: place(part.partId),
-      rings: [part.outer, ...part.holes],
-    })),
-  ]);
-  return { thumb, more: best.solution.layouts.length - 1 };
+  const moved = (rings: [number, number][][], dx: number, dy: number) =>
+    rings.map((ring) => ring.map(([x, y]): [number, number] => [x + dx, y + dy]));
+  const thumb = packThumb(
+    [0, 0, width, height],
+    placed.flatMap(({ index, dx, dy }) => [
+      { fill: MATERIAL, rings: moved([materials[index].outer, ...materials[index].holes], dx, dy) },
+      ...worldParts(drawn, layouts[index].result).map((part) => ({
+        fill: place(part.partId),
+        rings: moved([part.outer, ...part.holes], dx, dy),
+      })),
+    ]),
+  );
+  return { thumb, more: best.solution.layouts.length - placed.length };
 }
 
 /**

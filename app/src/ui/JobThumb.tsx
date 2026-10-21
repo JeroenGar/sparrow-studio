@@ -42,8 +42,8 @@ export function ThumbDrawing({
 }
 
 /**
- * A job at a glance: the first sheet of its layout, with the number of further sheets in a badge;
- * an empty frame for a job without one.
+ * A job at a glance: the first sheets of its layout, as many as its thumb holds, with the number
+ * of further sheets in a badge; an empty frame for a job without one.
  */
 export function JobThumb({ thumb, more = 0 }: { thumb?: Thumb; more?: number }) {
   if (!thumb) return <span className="job-thumb" />;

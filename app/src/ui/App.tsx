@@ -13,13 +13,14 @@ import { ProDialog } from './dialogs/ProDialog';
 import { Dialog } from './Dialog';
 import { download } from './download';
 import { explain } from './explain';
-import { HomePage } from './HomePage';
+import { JobsPage } from './JobsPage';
+import { ProjectsPage } from './ProjectsPage';
 import { ChevronDown, Gear } from './icons';
 import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
 import { patiently } from './patiently';
 import { isMissing, isProjectLimit } from './projects';
-import { go, HOME, href, useRoute } from './route';
+import { go, PROJECTS, href, useRoute } from './route';
 import { createRunner, useSubmitting } from './runs';
 import {
   createWorkspace,
@@ -28,6 +29,7 @@ import {
   useWorkspace,
   type OpenEntry,
   type ProjectEntry,
+  type WorkspaceState,
 } from './workspace';
 
 const FIRST_EXAMPLE = 'albano.json';
@@ -78,7 +80,7 @@ export default function App() {
   /** Shows why something failed; a full account goes home, where projects can be deleted. */
   const failed = (reason: unknown) => {
     setError(explain(reason));
-    if (isProjectLimit(reason)) go(HOME);
+    if (isProjectLimit(reason)) go(PROJECTS);
   };
   /** Creates a project and opens it. */
   const create = async (document: ProjectDocument) => {
@@ -87,7 +89,7 @@ export default function App() {
     go({ page: 'project', id, tab: 'parts' });
   };
 
-  // Home waits for startup, so a first example is not made beside a project made meanwhile.
+  // The projects wait for startup, so a first example is not made beside a project made meanwhile.
   const [starting, setStarting] = useState(true);
   useEffect(() => {
     const start = async () => {
@@ -136,9 +138,9 @@ export default function App() {
     return () => window.removeEventListener('beforeunload', warn);
   }, [unsaved, leaving]);
 
-  const entry = route.page === 'home' ? undefined : workspace.find(route.id);
+  const entry = 'id' in route ? workspace.find(route.id) : undefined;
   const open = entry?.status === 'open' ? entry : undefined;
-  // A project shown is opened: Home lists projects without their documents.
+  // A project shown is opened: the projects are listed without their documents.
   const shownListed = entry?.status === 'listed' ? entry.id : undefined;
   useEffect(() => {
     if (shownListed) workspace.open(shownListed);
@@ -156,20 +158,21 @@ export default function App() {
         </span>
       </div>
     );
-  else if (route.page === 'home')
+  else if (route.page === 'projects')
     page = (
-      <HomePage
+      <ProjectsPage
         state={state}
         onNew={() => setDialog({ type: 'new', name: newProjectName() })}
         onExample={() => setDialog({ type: 'examples' })}
         onOpenFile={() => fileInput.current?.click()}
         onRetry={(id) => void workspace.reload(id)}
         onDelete={(entry) => setDialog({ type: 'delete', id: entry.id })}
-        view={route.view}
         runner={runner}
         unit={preferences.unit}
       />
     );
+  else if (route.page === 'jobs')
+    page = <JobsPage projects={state.projects} runner={runner} unit={preferences.unit} />;
   else if (!entry)
     page = (
       <div className="boot stack">
@@ -220,14 +223,24 @@ export default function App() {
             <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
           </button>
           <nav className="breadcrumb" aria-label="Breadcrumb">
-            {route.page === 'home' ? (
+            {route.page === 'projects' ? (
               <span className="crumb" aria-current="page">
-                Home
+                Projects
               </span>
+            ) : route.page === 'jobs' ? (
+              <>
+                <a className="crumb" href="#/">
+                  Projects
+                </a>
+                <span aria-hidden="true">›</span>
+                <span className="crumb" aria-current="page">
+                  All jobs
+                </span>
+              </>
             ) : (
               <>
                 <a className="crumb" href="#/">
-                  Home
+                  Projects
                 </a>
                 <span aria-hidden="true">›</span>
                 {route.page === 'job' ? (
@@ -265,6 +278,7 @@ export default function App() {
             )}
           </nav>
           <span className="spacer" />
+          <AllJobsLink current={route.page === 'jobs'} state={state} />
           {/* A job's inputs are only shown: the project's menu would act on the project unseen. */}
           {open && !(route.page === 'job' && route.view === 'inputs') && (
             <ProjectMenu
@@ -374,7 +388,7 @@ export default function App() {
           onClose={() => setDialog(undefined)}
           onDelete={async (version) => {
             const id = dialog.id;
-            if (route.page !== 'home' && route.id === id) go(HOME, { replace: true });
+            if ('id' in route && route.id === id) go(PROJECTS, { replace: true });
             setDialog(undefined);
             await workspace.remove(id, version).catch(failed);
           }}
@@ -561,5 +575,17 @@ function ProjectMenu({
         {item('delete', 'Delete project…')}
       </div>
     </details>
+  );
+}
+
+/** The way to every job of the account, with a dot while any of them runs. */
+function AllJobsLink({ current, state }: { current: boolean; state: WorkspaceState }) {
+  const running =
+    state.status === 'ready' && state.projects.some((entry) => entrySummary(entry)?.running.length);
+  return (
+    <a className="button bar-link" href="#/jobs" aria-current={current ? 'page' : undefined}>
+      All jobs
+      {running && <i className="live-dot" role="img" aria-label="Jobs running" />}
+    </a>
   );
 }

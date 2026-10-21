@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { DisplayUnit } from '../engine/units';
 import { RECENT_JOBS, type JobListing, type Summary } from '../project/summary';
 import { usesSparrowPro } from './client';
 import { formatSeconds, formatWhen } from './format';
 import { JobThumb, LiveJobThumb } from './JobThumb';
 import { href } from './route';
+import { Search } from './Search';
 import { elapsed, useBest, useNow, useRun, type Runner } from './runs';
 import { JobDot, jobFigures, jobNote, jobStatus } from './views/JobsView';
 import { entryName, entrySummary, type ProjectEntry } from './workspace';
@@ -13,20 +14,19 @@ type Section = { entry: ProjectEntry; summary: Summary };
 
 /**
  * The jobs of every project, by project, the most recently started first, from the projects'
- * summaries: Home needs no project's document.
+ * summaries: the page needs no project's document.
  */
-export function HomeJobs({
+export function JobsPage({
   projects,
-  searching,
   runner,
   unit,
 }: {
   projects: ProjectEntry[];
-  /** Whether a search left out some of the projects. */
-  searching: boolean;
   runner: Runner;
   unit: DisplayUnit;
 }) {
+  const [search, setSearch] = useState('');
+  const words = search.trim().toLowerCase();
   const sections = useMemo(
     () =>
       projects
@@ -37,24 +37,30 @@ export function HomeJobs({
         .sort((a, b) => latest(b).localeCompare(latest(a))),
     [projects],
   );
-  if (!sections.length)
-    return searching ? (
-      <p className="muted">No project with jobs is named like that.</p>
-    ) : (
-      <div className="empty">
-        <p>No jobs yet.</p>
-        <p className="muted">Start nesting in a project: its jobs show here.</p>
-      </div>
-    );
+  const shown = sections.filter(({ entry }) => entryName(entry).toLowerCase().includes(words));
   return (
-    <>
-      {sections.map((section) => (
-        <JobSection key={section.entry.id} {...section} runner={runner} unit={unit} />
-      ))}
+    <main className="home">
+      <div className="home-head">
+        <h1>All jobs</h1>
+        <span className="spacer" />
+        <Search value={search} onChange={setSearch} />
+      </div>
+      {!sections.length ? (
+        <div className="empty">
+          <p>No jobs yet.</p>
+          <p className="muted">Start nesting in a project: its jobs show here.</p>
+        </div>
+      ) : !shown.length ? (
+        <p className="muted">No project with jobs is named like that.</p>
+      ) : (
+        shown.map((section) => (
+          <JobSection key={section.entry.id} {...section} runner={runner} unit={unit} />
+        ))
+      )}
       {!usesSparrowPro && (
         <p className="muted">Jobs in this browser run only while studio is open.</p>
       )}
-    </>
+    </main>
   );
 }
 
@@ -188,7 +194,7 @@ function JobLine({
 }
 
 /** A running job's time against its limit, as a bar and in figures. */
-function Progress({ runner, jobId }: { runner: Runner; jobId: string }) {
+export function Progress({ runner, jobId }: { runner: Runner; jobId: string }) {
   const run = useRun(runner, jobId);
   const seconds = elapsed(run, useNow(!!run && !run.error));
   if (!run) return null;

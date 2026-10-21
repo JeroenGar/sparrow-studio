@@ -1,9 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { polygonShape } from '../src/engine/geometry/contour';
 import { newPart, type Part } from '../src/engine/model';
-import { addJob, addParts, endJob, newProject, type ProjectDocument } from '../src/project/model';
+import {
+  addJob,
+  addParts,
+  endJob,
+  newProject,
+  newSheet,
+  type ProjectDocument,
+} from '../src/project/model';
 import { projectRequest } from '../src/project/solution';
 import {
+  layoutThumb,
   readSummary,
   savedSummary,
   summarize,
@@ -180,5 +188,31 @@ describe('thumbs', () => {
       [{ fill: 0, rings: [square(0, 0, 1000), ...holes] }],
     );
     expect(unpackThumb(thumb)![0].rings).toHaveLength(255);
+  });
+});
+
+describe('job thumbs', () => {
+  it('hold the first layouts side by side, as many as about fit three to one', () => {
+    const project = addParts(newProject('Sheets'), [round(20, 12)]);
+    const sheets = Array.from({ length: 5 }, (_, i) => newSheet(`Sheet ${i + 1}`, 100, 100));
+    const { input } = projectRequest({ ...project, stock: { ...project.stock, sheets } });
+    const part = input.parts[0].id;
+    const placed = { rotation: 0, translation: [50, 50], reflection: 'none' as const };
+    const layout = { cut_x: null, consumed_area: 1, placed_area: 0.1, density: 0.1 };
+    const best = {
+      solution: {
+        layouts: sheets.map((sheet) => ({
+          sheet_id: sheet.id,
+          placements: [{ part_id: part, transformation: placed }],
+        })),
+      },
+      stats: { ...layout, layouts: sheets.map(() => layout) },
+    };
+    const { thumb, more } = layoutThumb(input, best as never, new Map());
+    const shapes = unpackThumb(thumb)!;
+    // Three squares and their gaps are a little over three to one; a fourth would not fit.
+    expect(shapes.filter((shape) => shape.fill === MATERIAL)).toHaveLength(3);
+    expect(more).toBe(2);
+    expect(thumb.width / thumb.height).toBeGreaterThan(3);
   });
 });

@@ -4,22 +4,23 @@ import type { Tab } from './context';
 /** What a job's page shows: its layout, live or final, or the inputs it ran with. */
 export type JobView = 'layout' | 'inputs';
 
-/** Where studio is: home, with its projects or its jobs, a tab of a project, or one of its jobs. */
+/** Where studio is: the projects, every job, a tab of a project, or one of its jobs. */
 export type Route =
-  | { page: 'home'; view: 'projects' | 'jobs' }
+  | { page: 'projects' }
+  | { page: 'jobs' }
   | { page: 'project'; id: string; tab: Tab }
   | { page: 'job'; id: string; number: number; view: JobView };
 
 const TABS: Tab[] = ['parts', 'sheets', 'machine', 'settings', 'jobs'];
 
-/** Home, with its projects. */
-export const HOME: Route = { page: 'home', view: 'projects' };
+/** The projects, where studio starts. */
+export const PROJECTS: Route = { page: 'projects' };
 
-/** The route of a location hash, such as `#/projects/<id>/jobs/3`; anything else is home. */
+/** The route of a location hash, such as `#/projects/<id>/jobs/3`; anything else is the projects. */
 export function parseRoute(hash: string): Route {
   const [first, encoded, tab, number, view, ...rest] = hash.replace(/^#\/?/, '').split('/');
-  const home = HOME;
-  if (first === 'jobs' && encoded === undefined) return { page: 'home', view: 'jobs' };
+  const home = PROJECTS;
+  if (first === 'jobs' && encoded === undefined) return { page: 'jobs' };
   const id = decoded(encoded);
   if (first !== 'projects' || !id || rest.length) return home;
   if (tab === undefined) return { page: 'project', id, tab: 'parts' };
@@ -42,7 +43,8 @@ function decoded(part: string | undefined) {
 
 /** The location hash of a route, for links. */
 export function href(route: Route): string {
-  if (route.page === 'home') return route.view === 'jobs' ? '#/jobs' : '#/';
+  if (route.page === 'projects') return '#/';
+  if (route.page === 'jobs') return '#/jobs';
   const project = `#/projects/${encodeURIComponent(route.id)}`;
   if (route.page === 'project') return `${project}/${route.tab}`;
   return `${project}/jobs/${route.number}${route.view === 'inputs' ? '/inputs' : ''}`;
