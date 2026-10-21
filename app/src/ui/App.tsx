@@ -218,11 +218,7 @@ export default function App() {
     <>
       <div className="app">
         <header className="top-bar">
-          <button
-            className="brand"
-            title="About"
-            onClick={() => setDialog({ type: 'about' })}
-          >
+          <button className="brand" title="About" onClick={() => setDialog({ type: 'about' })}>
             <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
           </button>
           <nav className="breadcrumb" aria-label="Breadcrumb">
