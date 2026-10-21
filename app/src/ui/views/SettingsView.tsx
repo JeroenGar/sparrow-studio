@@ -69,8 +69,7 @@ export function SettingsView() {
       <Explanation title="Time and stopping">
         <p>
           The search runs up to the time limit. Stopping early ends it sooner, once the layout no
-          longer gets shorter. You can stop any run yourself; the best valid layout found so far is
-          kept.
+          longer gets shorter. You can stop any run yourself; the best result found so far is kept.
         </p>
         <p className="muted">
           Settings apply to the next job. Jobs already started keep the settings they started with.

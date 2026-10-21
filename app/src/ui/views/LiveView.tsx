@@ -131,7 +131,7 @@ const union = (a: Box, b: Box): Box => [
 ];
 
 /**
- * A running job, live: its best valid layout so far, or the layout the search is working on.
+ * A running job, live: its best result so far, or the layout the search is working on.
  * `run` is how far following it got, absent before it is followed.
  */
 export function LiveView({
@@ -206,7 +206,7 @@ export function LiveView({
                   Live search
                 </button>
                 <button aria-pressed={!showLive} disabled={!best} onClick={() => setMode('best')}>
-                  Best valid
+                  Best result
                 </button>
               </div>
               {showLive && (
@@ -258,7 +258,7 @@ export function LiveView({
                 >
                   {run?.stopping ? 'Stopping…' : 'Stop'}
                 </button>
-                <span className="muted">Stopping keeps the best valid layout so far.</span>
+                <span className="muted">Stopping keeps the best result so far.</span>
               </>
             )}
           </div>
@@ -288,7 +288,7 @@ export function LiveView({
                 </div>
               )}
             </div>
-            <span className="muted">Of the best valid layout so far.</span>
+            <span className="muted">Of the best result so far.</span>
             <RunClock run={run} running={running} />
             {run.history.length > 1 && <LiveChart run={run} running={running} />}
             {failure && <p className="field-error">{failure}</p>}
@@ -307,7 +307,7 @@ export function LiveView({
 }
 
 /**
- * Utilization of the best valid layout over time, as a step line: each improvement holds until
+ * Utilization of the best result over time, as a step line: each improvement holds until
  * the next. Utilization is plotted by its distance below the current best on a log scale, so even
  * small late improvements show; time runs linearly.
  */
