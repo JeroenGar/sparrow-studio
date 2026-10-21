@@ -76,7 +76,11 @@ export async function loadExample(file: string, machine?: MachinePreset): Promis
     {
       ...project,
       partDefaults: { ...project.partDefaults, rotations },
-      stock: { ...project.stock, strip: { ...project.stock.strip, widthMm: width } },
+      stock: {
+        ...project.stock,
+        packing: 'strip',
+        strip: { ...project.stock.strip, widthMm: width },
+      },
     },
     job.parts,
   );

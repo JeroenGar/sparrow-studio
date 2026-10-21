@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { outline } from '../src/engine/geometry/contour';
+import { isSimpleRing } from '../src/engine/geometry/normalize';
 import { importPro, isProInput } from '../src/engine/import/pro';
 
 const square = (side: number, at = 0) => ({
@@ -77,7 +78,7 @@ describe('sparrow Pro job inputs', () => {
       'job.json',
       keep,
     );
-    expect(review.document.settings.materialWidthMm).toBe(50);
+    expect(review.stripWidthMm).toBe(50);
     expect(review.sheets).toEqual([]);
   });
 
@@ -98,5 +99,38 @@ describe('sparrow Pro job inputs', () => {
       ),
     ).toThrow('no geometry gone');
     expect(() => importPro(input({ type: 'pack_bins' }), 'job.json', keep)).toThrow('unsupported');
+    const sheets = (sheet: object) =>
+      input({
+        type: 'minimize_sheets_in_order',
+        sheets: [{ id: '1', geometry_id: 'hide', ...sheet }],
+      });
+    expect(() => importPro(sheets({ quantity: 1.5 }), 'job.json', keep)).toThrow('Sheet 1:');
+    expect(() =>
+      importPro(sheets({ defects: [{ type: 'circle', radius: 5 }] }), 'job.json', keep),
+    ).toThrow('Sheet 1: defect 1:');
+    expect(() =>
+      importPro(input({ type: 'minimize_sheets_in_order', sheets: [] }), 'job.json', keep),
+    ).toThrow('a list of sheets');
+    expect(() =>
+      importPro({ ...strip, parts: [{ ...strip.parts[0], quantity: -1 }] }, 'job.json', keep),
+    ).toThrow('Part a:');
+    const twice = { ...strip, geometries: [...strip.geometries, { id: 'plate', shape: round }] };
+    expect(() => importPro(twice, 'job.json', keep)).toThrow('Geometry plate is there twice');
+  });
+
+  it('give a sheets job no strip width, and polygons as the project stores them', () => {
+    const closed = [...square(5).outer.points, [0, 0]];
+    const review = importPro(
+      input({
+        type: 'minimize_sheets_in_order',
+        sheets: [{ id: '1', geometry_id: 'hide', defects: [{ type: 'polygon', points: closed }] }],
+      }),
+      'job.json',
+      keep,
+    );
+    expect(review.stripWidthMm).toBeUndefined();
+    const [defect] = review.sheets![0].defects;
+    expect(defect.type === 'polygon' && defect.points.length).toBe(4);
+    expect(isSimpleRing(outline({ outer: defect }).outer)).toBe(true);
   });
 });

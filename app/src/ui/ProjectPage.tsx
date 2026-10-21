@@ -274,8 +274,9 @@ export function ProjectPage({
                 ...current,
                 stock: {
                   ...current.stock,
-                  // Sheets imported are sheets to nest into.
+                  // Sheets imported are sheets to nest into, and a strip width a strip.
                   ...(added.length && { packing: 'sheets' as const }),
+                  ...(widthMm && { packing: 'strip' as const }),
                   strip: widthMm ? { ...current.stock.strip, widthMm } : current.stock.strip,
                   sheets: [...current.stock.sheets, ...added],
                 },

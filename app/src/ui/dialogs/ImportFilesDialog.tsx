@@ -120,7 +120,6 @@ export function ImportFilesDialog({
   }
 
   const hasDrawings = !!files?.some((file) => !file.text.trimStart().startsWith('{'));
-  const isInstance = files?.length === 1 && files[0].text.trimStart().startsWith('{');
   const availableLayers = review?.layers ?? [];
   const parts = review?.document.parts ?? [];
   const sheets = review?.sheets ?? [];
@@ -166,15 +165,7 @@ export function ImportFilesDialog({
             <button
               className="primary"
               disabled={blocked}
-              onClick={() =>
-                onAdd(
-                  parts,
-                  sheets,
-                  isInstance && useWidth && !sheets.length
-                    ? review!.document.settings.materialWidthMm
-                    : undefined,
-                )
-              }
+              onClick={() => onAdd(parts, sheets, useWidth ? review!.stripWidthMm : undefined)}
             >
               {adding ? `Add ${adding}` : 'Add'}
             </button>
@@ -376,16 +367,14 @@ export function ImportFilesDialog({
               </label>
             </>
           )}
-          {/* A job on sheets has no strip width to offer. */}
-          {isInstance && kind === 'parts' && !sheets.length && (
+          {review.stripWidthMm !== undefined && (
             <label className="choice">
               <input
                 type="checkbox"
                 checked={useWidth}
                 onChange={(event) => setUseWidth(event.target.checked)}
               />
-              Also use its strip width,{' '}
-              {formatLength(review.document.settings.materialWidthMm, unit)} {unit}
+              Also use its strip width, {formatLength(review.stripWidthMm, unit)} {unit}
             </label>
           )}
         </>
