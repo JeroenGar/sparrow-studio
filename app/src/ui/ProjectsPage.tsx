@@ -158,7 +158,7 @@ function ProjectCard({
     <div className="project-card">
       <a className="card-link" href={link}>
         {summary.thumb ? (
-          <ThumbDrawing className="card-thumb" thumb={summary.thumb} outlined />
+          <ThumbDrawing className="card-thumb" thumb={summary.thumb} plain />
         ) : (
           <span className="card-thumb" />
         )}

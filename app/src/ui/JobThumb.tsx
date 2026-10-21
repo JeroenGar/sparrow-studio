@@ -6,16 +6,16 @@ import { MATERIAL, thumbPath, unpackThumb, type Thumb } from '../project/thumb';
 
 /**
  * A thumb from a project's summary: its shapes in the colors the Parts tab gives each part, on
- * the material when there is one. `outlined` draws each part's outline, as project cards do.
+ * the material when there is one; `plain` draws every part alike in the ink, as project cards do.
  */
 export function ThumbDrawing({
   thumb,
   className,
-  outlined = false,
+  plain = false,
 }: {
   thumb: Thumb;
   className?: string;
-  outlined?: boolean;
+  plain?: boolean;
 }) {
   const shapes = useMemo(() => unpackThumb(thumb), [thumb]);
   return (
@@ -29,8 +29,11 @@ export function ThumbDrawing({
           key={i}
           d={thumbPath(rings)}
           fillRule="evenodd"
-          fill={fill === MATERIAL ? 'var(--sheet)' : colors[fill % colors.length]}
-          {...((outlined || fill === MATERIAL) && {
+          fill={
+            fill === MATERIAL ? 'var(--sheet)' : plain ? 'var(--ink)' : colors[fill % colors.length]
+          }
+          {...(plain && fill !== MATERIAL && { fillOpacity: 0.5 })}
+          {...((plain || fill === MATERIAL) && {
             stroke: 'var(--ink)',
             strokeWidth: 0.8,
             vectorEffect: 'non-scaling-stroke',

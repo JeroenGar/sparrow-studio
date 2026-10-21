@@ -23,7 +23,7 @@ export const SUMMARY_BYTES = 16 * 1024;
 /** How many of a project's newest jobs its summary lists: its card shows the newest. */
 export const RECENT_JOBS = 1;
 /** How many of a project's largest parts its card draws. */
-const CARD_PARTS = 10;
+const CARD_PARTS = 40;
 
 /**
  * How a job stands, as lists show it, without its layout: running, or how it ended. Studio works
