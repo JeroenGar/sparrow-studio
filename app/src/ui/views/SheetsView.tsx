@@ -229,7 +229,7 @@ function SheetThumb({ sheet }: { sheet: SheetEntry }) {
 }
 
 function SheetList({ selected, select: setSelected, tool, setTool }: Selection) {
-  const { project, edit, unit, openImport } = useStudio();
+  const { project, edit, unit, openImport, readOnly } = useStudio();
   const sheets = project.stock.sheets;
   const setSheets = (change: (sheets: SheetEntry[]) => SheetEntry[], key?: string) =>
     edit((current) => withStock(current, { sheets: change(current.stock.sheets) }), key);
@@ -319,13 +319,13 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
               }}
             >
               <button
-                draggable
+                draggable={!readOnly}
                 onDragStart={(event) => {
                   event.dataTransfer.effectAllowed = 'move';
                   setDragged({ id: sheet.id });
                 }}
                 onDragEnd={() => setDragged(undefined)}
-                title="Drag to change the nesting order"
+                title={readOnly ? undefined : 'Drag to change the nesting order'}
                 className={sheet.id === selected ? 'row selected' : 'row'}
                 aria-expanded={sheet.id === selected}
                 onClick={() => setSelected(sheet.id === selected ? undefined : sheet.id)}
@@ -553,7 +553,7 @@ function describeDefect(defect: Contour, unit: DisplayUnit): string {
 type Draft = { from?: Point; corners: Point[]; at?: Point };
 
 function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
-  const { project, edit, showError } = useStudio();
+  const { project, edit, showError, readOnly } = useStudio();
   const sheets = project.stock.sheets;
   const arrangement = useMemo(() => arrangeSheets(sheets), [sheets]);
   const [draft, setDraft] = useState<Draft>({ corners: [] });
@@ -683,12 +683,14 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
     <Canvas
       label="The sheets"
       extent={[x0 - pad, y0 - pad * 2, x1 + pad, y1 + pad * 2]}
-      tool={canvasTool ?? (tool ? undefined : reorder)}
+      // Sheets only shown keep their order.
+      tool={canvasTool ?? (tool || readOnly ? undefined : reorder)}
       onBackgroundClick={() => !tool && select(undefined)}
       toolbar={
         sheets.length > 1 && (
           <span className="chip">
-            Nested in this order: sheet 1 first. Drag a sheet to move it in the order.
+            Nested in this order: sheet 1 first.
+            {!readOnly && ' Drag a sheet to move it in the order.'}
           </span>
         )
       }
@@ -716,7 +718,7 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
                     ? `translate(${moving.at[0] - moving.from[0]} ${-(moving.at[1] - moving.from[1])})`
                     : undefined
                 }
-                style={tool ? undefined : { cursor: lifted ? 'grabbing' : 'grab' }}
+                style={tool || readOnly ? undefined : { cursor: lifted ? 'grabbing' : 'grab' }}
               >
                 {/* An arrow to the next sheet in the order. */}
                 {next && !moving?.moved && (

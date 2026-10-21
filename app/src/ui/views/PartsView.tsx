@@ -230,10 +230,10 @@ function EmptyParts() {
       <p className="muted">
         Import DXF, SVG or sparrow JSON files, or take parts from another project.
       </p>
-      <div className="row-actions">
+      <Editable className="row-actions">
         <button onClick={() => openImport('parts', 'files')}>Import files…</button>
         <button onClick={() => openImport('parts', 'project')}>From another project…</button>
-      </div>
+      </Editable>
     </div>
   );
 }

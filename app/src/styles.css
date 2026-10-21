@@ -1732,17 +1732,12 @@ a.row {
 }
 
 /* Controls that change the project: disabled where it is only shown, such as a job's inputs. */
-fieldset.editable {
+/* No weight of its own: the classes it carries, such as properties, style it as before. */
+:where(fieldset.editable) {
   min-width: 0;
   margin: 0;
   border: 0;
   padding: 0;
-}
-fieldset.editable.properties {
-  padding: 12px 16px 16px 16px;
-}
-fieldset.editable.row-actions {
-  display: flex;
 }
 /* A preview of a job's inputs, shown above its tabs. */
 .preview-banner {

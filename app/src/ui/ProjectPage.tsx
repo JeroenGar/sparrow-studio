@@ -18,7 +18,7 @@ import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFro
 import { parseProject, serializeProject } from '../project/file';
 import { beyondProject, projectFromJob } from '../project/solution';
 import { explain } from './explain';
-import { formatWhen } from './format';
+import { formatSeconds, formatWhen } from './format';
 import { go, href, type JobView } from './route';
 import type { Runner } from './runs';
 import { JobsView } from './views/JobsView';
@@ -82,6 +82,11 @@ export function ProjectPage({
       workspace.results(id, () => ({ seenTabs: [...seenTabs, tab as InputTab] }));
   }, [workspace, id, tab, seenTabs]);
   const [dialog, setDialog] = useState<Dialogs>();
+  // An import dialog edits the project: it closes where the project is only shown, a job's inputs.
+  const inputs = 'job' in shown && shown.view === 'inputs';
+  useEffect(() => {
+    if (inputs) setDialog(undefined);
+  }, [inputs]);
   const edit = useCallback(
     (change: (project: ProjectDocument) => ProjectDocument, key?: string) =>
       workspace.edit(id, change, key),
@@ -127,7 +132,7 @@ export function ProjectPage({
 
   // A job's inputs are only shown: undo there would change the project unseen.
   const previewing = useRef(false);
-  previewing.current = 'job' in shown && shown.view === 'inputs';
+  previewing.current = inputs;
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
@@ -250,7 +255,7 @@ export function ProjectPage({
           </main>
         </>
       )}
-      {dialog?.type === 'import-files' && (
+      {!inputs && dialog?.type === 'import-files' && (
         <ImportFilesDialog
           kind={dialog.kind}
           onClose={() => setDialog(undefined)}
@@ -283,7 +288,7 @@ export function ProjectPage({
           }}
         />
       )}
-      {dialog?.type === 'import-project' && (
+      {!inputs && dialog?.type === 'import-project' && (
         <ImportFromProjectDialog
           workspace={workspace}
           kind={dialog.kind}
@@ -308,7 +313,11 @@ function JobPreview({ number }: { number: number }) {
   const { projectId, project, copyJob } = studio;
   const job = project.jobs.find((job) => job.number === number);
   const [tab, setTab] = useState<InputTab>('parts');
-  const preview = useMemo(() => job && projectFromJob(project, job), [project, job]);
+  // Built once for the job's record, from the project as it was then: its other jobs ending
+  // meanwhile change nothing shown, such as which machine is open.
+  const opened = useRef(project);
+  const preview = useMemo(() => job && projectFromJob(opened.current, job), [job]);
+  const asked = job && (job.stage === 'ended' ? job.document.settings : job.request.settings);
   const beyond = useMemo(() => job && beyondProject(jobInput(job)), [job]);
   const shown: Studio | undefined = useMemo(
     () =>
@@ -317,6 +326,7 @@ function JobPreview({ number }: { number: number }) {
         project: preview,
         readOnly: true,
         edit: () => {},
+        openImport: () => {},
         setTab: (tab: Tab) => tab !== 'jobs' && setTab(tab),
       },
     [studio, preview],
@@ -343,6 +353,10 @@ function JobPreview({ number }: { number: number }) {
             {formatWhen(job.submittedAt).toLowerCase()}.
           </strong>{' '}
           Nothing here can be changed or is saved.
+          {asked &&
+            preview &&
+            asked.time_limit_seconds !== preview.settings.timeLimitSeconds &&
+            ` It searched for up to ${formatSeconds(asked.time_limit_seconds)}; a project offers ${formatSeconds(preview.settings.timeLimitSeconds)} at the nearest, as shown here and saved.`}
           {beyond && ` It shows less than the job asked, as ${beyond}, so it cannot be saved.`}
         </span>
         <a
