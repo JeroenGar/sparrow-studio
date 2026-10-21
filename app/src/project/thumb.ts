@@ -114,13 +114,13 @@ const onGrid = (ring: Point[], width: number, height: number) =>
   );
 
 /**
- * A ring in grid steps with the points that lie within a step of the line through their
+ * A ring in grid steps with the points that lie within half a step of the line through their
  * neighbours left out, and at most 255 points.
  */
 function simplify(ring: Point[]): Point[] {
   const points = distinct(ring);
   if (points.length < 3) return points;
-  for (let tolerance = 1; ; tolerance *= 2) {
+  for (let tolerance = 0.5; ; tolerance *= 2) {
     // Split the ring at its first point and the point farthest from it, and simplify both halves.
     const far = points.reduce(
       (best, point, i) =>
