@@ -1653,6 +1653,13 @@ a.button.primary {
   align-items: center;
   gap: 8px;
 }
+/* The account's email and credits, over its jobs. */
+.account-head {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
 /* A dialog over most of the page, such as the account's. */
 .dialog.large {
   width: min(1120px, calc(100vw - 32px));

@@ -6,6 +6,7 @@ import { readEvents } from './sse';
 export type Schemas = components['schemas'];
 export type Input = Schemas['Input'];
 export type Job = Schemas['Job'];
+export type Account = Schemas['Account'];
 export type JobDocument = Schemas['JobDocument'];
 export type JobRequest = Schemas['JobRequest'];
 export type Project = Schemas['Project'];
@@ -138,6 +139,8 @@ export function createClient({ fetch, baseUrl }: { fetch: Fetch; baseUrl: string
     /** Submits a job. Retrying the same submission must reuse its key, so it never runs twice. */
     submitJob: (body: JobRequest, idempotencyKey: string) =>
       ok(api.POST('/jobs', { body, params: { header: { 'Idempotency-Key': idempotencyKey } } })),
+    /** The account, with its credits now. */
+    getAccount: () => ok(api.GET('/account')),
     /** A page of the account's jobs, newest first; `cursor` is the previous page's `next_cursor`. */
     listJobs: (cursor?: string) =>
       ok(api.GET('/jobs', { params: { query: { limit: 100, ...(cursor && { cursor }) } } })),

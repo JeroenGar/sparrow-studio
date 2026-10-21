@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Job } from '../../api/client';
+import type { Account, Job } from '../../api/client';
+import { credits } from '../account';
 import { client } from '../client';
 import { Dialog } from '../Dialog';
 import { explain } from '../explain';
@@ -22,11 +23,14 @@ type Loaded =
  * is opened.
  */
 export function AccountDialog({
+  account,
   projects,
   runner,
   onOpen,
   onClose,
 }: {
+  /** The account and its credits, once read. */
+  account?: Account;
   projects: ProjectEntry[];
   runner: Runner;
   onOpen: (id: string) => void;
@@ -107,6 +111,17 @@ export function AccountDialog({
 
   return (
     <Dialog title="Account" onClose={onClose} size="large">
+      {account && (
+        <p className="account-head">
+          <span className="muted">{account.email}</span>
+          <span>
+            <strong className="mono">{credits(account.credits.available)}</strong> available
+            {account.credits.held > 0 && (
+              <span className="muted"> · {credits(account.credits.held)} held by running jobs</span>
+            )}
+          </span>
+        </p>
+      )}
       {loaded.status === 'loading' && <p className="muted">Loading the jobs…</p>}
       {loaded.status === 'failed' && (
         <p className="field-error">Could not load the jobs: {loaded.error}</p>
@@ -169,9 +184,6 @@ export function AccountDialog({
     </Dialog>
   );
 }
-
-const credits = (count: number) =>
-  `${count.toLocaleString('en')} ${count === 1 ? 'credit' : 'credits'}`;
 
 function JobRow({
   job,

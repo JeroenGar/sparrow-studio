@@ -1,3 +1,4 @@
+import type { Account } from '../api/client';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
@@ -6,6 +7,7 @@ import { newProjectName } from '../project/names';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import { backend, client, usesSparrowPro } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
+import { credits, useAccount } from './account';
 import { AccountDialog } from './dialogs/AccountDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
 import { NameDialog } from './dialogs/NameDialog';
@@ -77,6 +79,12 @@ export default function App() {
   // The account is over the page it was opened on: going elsewhere, such as back, closes it.
   const shownHash = href(route);
   useEffect(() => setDialog((open) => (open?.type === 'account' ? undefined : open)), [shownHash]);
+  // The account's credits change as its jobs start and end; opening it reads them again too.
+  const running =
+    state.status === 'ready'
+      ? state.projects.flatMap((entry) => entrySummary(entry)?.running ?? []).sort()
+      : [];
+  const account = useAccount(usesSparrowPro, `${running.join()} ${dialog?.type === 'account'}`);
   const [error, setError] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
   const showError = useCallback((message: string) => setError(message), []);
@@ -303,7 +311,11 @@ export default function App() {
             <Gear />
           </button>
           {usesSparrowPro ? (
-            <AccountButton state={state} onClick={() => setDialog({ type: 'account' })} />
+            <AccountButton
+              account={account}
+              running={running.length > 0}
+              onClick={() => setDialog({ type: 'account' })}
+            />
           ) : (
             <button onClick={() => setDialog({ type: 'pro' })}>Sign in</button>
           )}
@@ -400,6 +412,7 @@ export default function App() {
       {dialog?.type === 'pro' && <ProDialog onClose={() => setDialog(undefined)} />}
       {dialog?.type === 'account' && state.status === 'ready' && (
         <AccountDialog
+          account={account}
           projects={state.projects}
           runner={runner}
           onOpen={(id) => workspace.open(id)}
@@ -582,13 +595,19 @@ function ProjectMenu({
 }
 
 /** The account's button, which opens it over the page, with a dot while any of its jobs runs. */
-function AccountButton({ state, onClick }: { state: WorkspaceState; onClick: () => void }) {
-  const running =
-    state.status === 'ready' && state.projects.some((entry) => entrySummary(entry)?.running.length);
+function AccountButton({
+  account,
+  running,
+  onClick,
+}: {
+  account?: Account;
+  running: boolean;
+  onClick: () => void;
+}) {
   return (
     <button className="account-button" onClick={onClick}>
-      Account
       {running && <i className="live-dot" role="img" aria-label="Jobs running" />}
+      {account ? credits(account.credits.available) : 'Account'}
     </button>
   );
 }
