@@ -1,6 +1,62 @@
 {
   "components": {
     "schemas": {
+      "Account": {
+        "description": "The authenticated account, as it stands now: the body of `GET /v1/account`. Its limits are at\n`GET /v1/limits`.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credits": {
+            "$ref": "#/components/schemas/AccountCredits"
+          },
+          "document_retention": {
+            "$ref": "#/components/schemas/DocumentRetention"
+          },
+          "email": {
+            "description": "The email address the account was created with.",
+            "type": "string"
+          },
+          "id": {
+            "$ref": "#/components/schemas/AccountId"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "created_at",
+          "credits",
+          "document_retention"
+        ],
+        "type": "object"
+      },
+      "AccountCredits": {
+        "description": "An account's credits now, in whole credits. Together, `available` and `held` are its balance.",
+        "properties": {
+          "available": {
+            "description": "What the account can still spend on new jobs: its balance minus `held`. A submission\nneeds at least its job's hold available.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "held": {
+            "description": "Held by the account's jobs that have not ended, each its maximum cost, released or charged\nwhen it ends.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "available",
+          "held"
+        ],
+        "type": "object"
+      },
+      "AccountId": {
+        "description": "An account's ID, such as `acct_…`.",
+        "type": "string"
+      },
       "ApiError": {
         "allOf": [
           {
@@ -559,6 +615,21 @@
           }
         ],
         "description": "A fallback the import took. With `OnInputError::Fail`, any of them fails the job instead."
+      },
+      "DocumentRetention": {
+        "anyOf": [
+          {
+            "enum": [
+              "days_30",
+              "hours_24"
+            ],
+            "type": "string"
+          },
+          {
+            "type": "string"
+          }
+        ],
+        "description": "How long a job's document, with its input and results, is kept after the job ends, for the\njobs that end from now on: `days_30` or `hours_24`."
       },
       "Engine": {
         "description": "The engine that ran a job.",
@@ -2035,6 +2106,90 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/account": {
+      "get": {
+        "operationId": "getAccount",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Account"
+                }
+              }
+            },
+            "description": "The account as it stands now."
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unauthenticated: missing, unknown, expired, or revoked credential."
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "account_suspended."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "rate_limited: too many requests or queued jobs.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "internal_error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            },
+            "description": "unavailable: temporarily unavailable.",
+            "headers": {
+              "Retry-After": {
+                "description": "Seconds to wait before retrying.",
+                "schema": {
+                  "type": "integer"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Get the account and its credits"
+      }
+    },
     "/jobs": {
       "get": {
         "operationId": "listJobs",
