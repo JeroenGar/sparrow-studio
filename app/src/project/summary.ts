@@ -112,7 +112,7 @@ export function usedBy(
 
 // Keys and summaries are worked out once per input and per document: neither ever changes.
 const keys = new WeakMap<Input, string>();
-const summaries = new WeakMap<ProjectDocument, Summary | null>();
+const summaries = new WeakMap<ProjectDocument, Summary>();
 
 /** A short key of what an input asks, however it was written. */
 export function inputKey(input: Input): string {
@@ -125,12 +125,12 @@ export function inputKey(input: Input): string {
 }
 
 /**
- * The project's summary, within `SUMMARY_BYTES` as sent: when it would not fit, the drawings of
- * the oldest jobs listed go first, then the card's. One that still would not fit is none: the
- * project is then shown from its document.
+ * What Home shows of the project, within `SUMMARY_BYTES` as sent as far as dropping drawings
+ * goes: the drawings of the oldest jobs listed go first, then the card's.
  */
-export function summarize(project: ProjectDocument): Summary | undefined {
-  if (summaries.has(project)) return summaries.get(project) ?? undefined;
+export function summarize(project: ProjectDocument): Summary {
+  const known = summaries.get(project);
+  if (known) return known;
   const order = new Map(project.parts.map((part, index) => [part.id, index]));
   const summary: Summary = {
     format: SUMMARY_FORMAT,
@@ -151,15 +151,26 @@ export function summarize(project: ProjectDocument): Summary | undefined {
         ...firstSheet(job, order),
       })),
   };
-  const fits = () => new TextEncoder().encode(JSON.stringify(summary)).length <= SUMMARY_BYTES;
+  const fits = () => bytes(summary) <= SUMMARY_BYTES;
   for (let i = summary.recent.length - 1; i >= 0 && !fits(); i--) {
     const { thumb: _, more: __, ...rest } = summary.recent[i];
     summary.recent[i] = rest;
   }
   if (!fits()) delete summary.thumb;
-  summaries.set(project, fits() ? summary : null);
-  return summaries.get(project) ?? undefined;
+  summaries.set(project, summary);
+  return summary;
 }
+
+/**
+ * The summary saved with the project, when it fits within `SUMMARY_BYTES`; otherwise none, and
+ * Home opens the project to show it.
+ */
+export function savedSummary(project: ProjectDocument): Summary | undefined {
+  const summary = summarize(project);
+  return bytes(summary) <= SUMMARY_BYTES ? summary : undefined;
+}
+
+const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)).length;
 
 /**
  * A job's facts as a summary keeps them: a failed job's error with no more than studio says of

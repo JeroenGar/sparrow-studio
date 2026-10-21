@@ -1,7 +1,7 @@
 import { ApiError, withCode, type Client, type Project, type ProjectParts } from '../api/client';
 import { parseProject } from '../project/file';
 import type { ProjectDocument } from '../project/model';
-import { summarize } from '../project/summary';
+import { savedSummary } from '../project/summary';
 import { patiently } from './patiently';
 
 /** A project as studio holds it: its document, the version a save must start from, and when it last changed. */
@@ -46,7 +46,7 @@ export async function openProject(client: Client, id: string): Promise<StoredPro
  * the document as gzipped JSON.
  */
 async function parts(document: ProjectDocument): Promise<ProjectParts> {
-  return { name: document.name, summary: summarize(document), document: await encode(document) };
+  return { name: document.name, summary: savedSummary(document), document: await encode(document) };
 }
 
 export async function createProject(

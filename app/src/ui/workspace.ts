@@ -163,6 +163,14 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
     );
   }
 
+  /** Lets go of a project the API no longer has, such as one deleted in another tab. */
+  function forget(id: string) {
+    clearTimeout(timers.get(id));
+    timers.delete(id);
+    replace(id, () => undefined);
+    saves.delete(id);
+  }
+
   /** Opens a project, or opens it again, such as after it changed in another tab. */
   async function reload(id: string) {
     const entry = find(id);
@@ -270,11 +278,9 @@ export function createWorkspace(client: Client, { saveDelay = 400 } = {}) {
           throw reason;
         }
       }
-      clearTimeout(timers.get(id));
-      timers.delete(id);
-      replace(id, () => undefined);
-      saves.delete(id);
+      forget(id);
     },
+    forget,
 
     /** Saves every project with changes now, such as when the page is hidden. */
     flushAll: () =>

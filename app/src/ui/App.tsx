@@ -18,7 +18,7 @@ import { ChevronDown, Gear } from './icons';
 import { Logo } from './Logo';
 import { ProjectPage } from './ProjectPage';
 import { patiently } from './patiently';
-import { isProjectLimit } from './projects';
+import { isMissing, isProjectLimit } from './projects';
 import { go, HOME, href, useRoute } from './route';
 import { createRunner, useSubmitting } from './runs';
 import {
@@ -421,11 +421,16 @@ function SaveState({ entry }: { entry: OpenEntry }) {
   );
 }
 
-/** Asks before deleting a project, with its jobs. */
+/** Reading the version a project is deleted at, when its document does not open. */
+type Pin =
+  | { state: 'reading' }
+  | { state: 'read'; version: string }
+  | { state: 'failed'; message: string };
+
 /**
  * Asks before deleting a project, with its jobs, as it is now: a listed project is opened first,
  * and one whose document does not open is deleted at the version read when asked, so changes made
- * elsewhere since are never deleted unseen.
+ * elsewhere since are never deleted unseen. One the API no longer has goes from the list.
  */
 function DeleteDialog({
   entry,
@@ -436,24 +441,36 @@ function DeleteDialog({
   onDelete: (version?: string) => void;
   onClose: () => void;
 }) {
-  const [pinned, setPinned] = useState<string>();
+  const [pin, setPin] = useState<Pin>({ state: 'reading' });
+  const [attempt, setAttempt] = useState(0);
   const status = entry?.status;
   const id = entry?.id;
   useEffect(() => {
     if (!id) return;
     if (status === 'listed') workspace.open(id);
-    if (status === 'failed')
-      void patiently(() => client.getProject(id)).then(
-        ({ version }) => setPinned(version),
-        () => {},
-      );
-  }, [id, status]);
+    if (status !== 'failed') return;
+    let current = true;
+    setPin({ state: 'reading' });
+    patiently(() => client.getProject(id)).then(
+      ({ version }) => current && setPin({ state: 'read', version }),
+      (reason) => {
+        if (!current) return;
+        if (isMissing(reason)) workspace.forget(id);
+        else setPin({ state: 'failed', message: explain(reason) });
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [id, status, attempt]);
   // Gone meanwhile, such as deleted in another tab: nothing is left to ask about.
   useEffect(() => {
     if (!entry) onClose();
   }, [entry, onClose]);
   if (!entry) return null;
-  const ready = entry.status === 'open' || (entry.status === 'failed' && !!pinned);
+  const version = entry.status === 'failed' && pin.state === 'read' ? pin.version : undefined;
+  const ready = entry.status === 'open' || !!version;
+  const failed = entry.status === 'failed' && pin.state === 'failed' ? pin.message : undefined;
   const summary = entrySummary(entry);
   const jobs = summary?.jobs ?? 0;
   const running = summary?.running.length ?? 0;
@@ -464,13 +481,13 @@ function DeleteDialog({
       actions={
         <>
           <button onClick={onClose}>Keep</button>
-          <button
-            className="danger"
-            disabled={!ready}
-            onClick={() => onDelete(entry.status === 'open' ? undefined : pinned)}
-          >
-            {ready ? 'Delete' : 'Opening…'}
-          </button>
+          {failed ? (
+            <button onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+          ) : (
+            <button className="danger" disabled={!ready} onClick={() => onDelete(version)}>
+              {ready ? 'Delete' : 'Opening…'}
+            </button>
+          )}
         </>
       }
     >
@@ -479,6 +496,7 @@ function DeleteDialog({
         {jobs > 0 && ` and its ${jobs === 1 ? 'job' : `${jobs} jobs`}`}? This cannot be undone.
         {running > 0 && ` Its running ${running === 1 ? 'job is' : 'jobs are'} stopped.`}
       </p>
+      {failed && <p className="field-error">Could not read the project: {failed}</p>}
     </Dialog>
   );
 }

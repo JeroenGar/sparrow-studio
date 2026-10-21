@@ -3,7 +3,13 @@ import { polygonShape } from '../src/engine/geometry/contour';
 import { newPart, type Part } from '../src/engine/model';
 import { addJob, addParts, endJob, newProject, type ProjectDocument } from '../src/project/model';
 import { projectRequest } from '../src/project/solution';
-import { readSummary, summarize, SUMMARY_BYTES, type JobListing } from '../src/project/summary';
+import {
+  readSummary,
+  savedSummary,
+  summarize,
+  SUMMARY_BYTES,
+  type JobListing,
+} from '../src/project/summary';
 import { MATERIAL, packThumb, unpackThumb } from '../src/project/thumb';
 import { colors } from '../src/engine/colors';
 
@@ -54,7 +60,7 @@ const bytes = (value: unknown) => new TextEncoder().encode(JSON.stringify(value)
 describe('project summaries', () => {
   it('say what Home shows, and read back', () => {
     const project = withJobs(addParts(newProject('Job'), [round(100, 40, 3), round(40, 12)]), 2);
-    const summary = summarize(project)!;
+    const summary = summarize(project);
     expect(summary).toMatchObject({ copies: 4, packing: 'strip', jobs: 2, running: [] });
     expect(summary.recent.map((job) => job.number)).toEqual([2, 1]);
     expect(summary.recent[0]).toMatchObject({
@@ -75,7 +81,7 @@ describe('project summaries', () => {
   it('stay within the limit for a large project, dropping the oldest drawings first', () => {
     const parts = Array.from({ length: 60 }, (_, i) => round(50 + i, 400, 5));
     const project = withJobs(addParts(newProject('Large'), parts), 6);
-    const summary = summarize(project)!;
+    const summary = summarize(project);
     expect(bytes(summary)).toBeLessThanOrEqual(SUMMARY_BYTES);
     expect(summary.recent).toHaveLength(4);
     const drawn = summary.recent.map((job: JobListing) => !!job.thumb);
@@ -106,23 +112,25 @@ describe('project summaries', () => {
         },
       } as never,
     });
-    const summary = summarize(project)!;
+    const summary = summarize(project);
     expect(bytes(summary)).toBeLessThan(4000);
     expect(summary.recent[0]).toMatchObject({
       stage: 'failed',
       error: { code: 'invalid_job_input', field_errors: [fields[0]] },
     });
-    // A project whose summary would not fit even without drawings has none.
+    // A project whose summary would not fit even without drawings saves none, and Home shows it
+    // from its document.
     const named = {
       ...project,
       jobs: project.jobs.map((job) => ({ ...job, submittedAt: 'x'.repeat(20_000) })),
     };
-    expect(summarize(named)).toBeUndefined();
+    expect(savedSummary(named)).toBeUndefined();
+    expect(summarize(named)).toMatchObject({ jobs: 1, recent: [{ stage: 'failed' }] });
   });
 
   it('color parts as the Parts tab does, past the palette', () => {
     const parts = Array.from({ length: 300 }, (_, i) => round(10 + (i === 290 ? 1000 : 0), 8));
-    const thumb = summarize(addParts(newProject('Many'), parts))!.thumb!;
+    const thumb = summarize(addParts(newProject('Many'), parts)).thumb!;
     // The largest part is the 291st: it comes first, in its palette color.
     expect(unpackThumb(thumb)![0].fill).toBe(290 % colors.length);
   });
