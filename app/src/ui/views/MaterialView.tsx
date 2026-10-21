@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { arrangeMaterial, type Box } from '../../project/layout';
+import { arrangeMaterial, MATERIAL_PEEK, type Box } from '../../project/layout';
 import { resolvedParts } from '../../project/model';
 import { Canvas } from '../Canvas';
 import { useStudio } from '../context';
@@ -40,11 +40,14 @@ export function MaterialView({ tab }: { tab: 'parts' | 'sheets' }) {
       setTab('sheets');
     },
   });
-  // The view frames the tab's own shapes; the others lie beyond its edge.
+  // The view frames the tab's own shapes in its middle, and reaches past the gap into the other
+  // tab's, above or below, so they show at its edge whatever the view's shape.
   const focused = onParts ? place.parts.extent : place.material;
   const [x0, y0, x1, y1] = focused;
   const pad = Math.max(x1 - x0, y1 - y0, 1) * PADDING;
-  const extent: Box = [x0 - pad, y0 - pad, x1 + pad, y1 + pad];
+  const gap = place.parts.extent[1] - place.material[3];
+  const reach = gap + (y1 - y0) * MATERIAL_PEEK;
+  const extent: Box = [x0 - pad, y0 - reach, x1 + pad, y1 + reach];
   const hint = onParts
     ? 'Parts and their material at one scale. Select either to change it.'
     : place.strip

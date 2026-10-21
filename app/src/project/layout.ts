@@ -105,6 +105,11 @@ export const rowGap = (own: Box[]) =>
  * its edge. Tuned by eye.
  */
 export const MATERIAL_DISTANCE = 0.12;
+/**
+ * How much of the other block a view of one shows at its edge at least, as a share of the block in
+ * view: the view reaches this far past the gap. Tuned by eye.
+ */
+export const MATERIAL_PEEK = 0.1;
 
 /** Where the sheets go: in rows as wide as `width`, as many to a row as fit, in their order. */
 export type SheetsPlace = ReturnType<typeof inRows> & { gap: number };
