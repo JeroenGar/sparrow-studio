@@ -47,6 +47,38 @@ const quick: Engine = {
   },
 };
 
+/** Runs jobs as `quick` does, but holds each running until `finish` lets every job so far end. */
+function held() {
+  const ends = new Set<() => void>();
+  const engine: Engine = {
+    check: quick.check,
+    run(input, settings, report) {
+      let released = false;
+      let finished: EngineMessage | undefined;
+      const end = () => {
+        released = true;
+        if (finished) report(finished);
+      };
+      ends.add(end);
+      const run = quick.run(input, settings, (message) => {
+        if (message.type === 'finished' && !released) finished = message;
+        else report(message);
+      });
+      return {
+        stop() {
+          ends.delete(end);
+          run.stop();
+        },
+      };
+    },
+  };
+  const finish = () => {
+    ends.forEach((end) => end());
+    ends.clear();
+  };
+  return { engine, finish };
+}
+
 const square = () =>
   newPart(
     polygonShape([
@@ -58,10 +90,10 @@ const square = () =>
   );
 
 /** A workspace and runner on the local backend, over records that outlive a page. */
-function page(records = memoryRecords()) {
+function page(records = memoryRecords(), engine = quick) {
   const client = createClient({
     baseUrl: 'https://studio.local/v1',
-    fetch: createLocalBackend(quick, records),
+    fetch: createLocalBackend(engine, records),
   });
   const workspace = createWorkspace(client, { saveDelay: 0 });
   const runner = createRunner(client, workspace);
@@ -93,12 +125,15 @@ describe('the runner', () => {
   });
 
   it('records a job in every project that has it, and lets go of one no project has', async () => {
-    const { workspace, runner, project } = page();
+    // Each job runs until the test lets it end, however long creating and deleting projects take.
+    const jobs = held();
+    const { workspace, runner, project } = page(memoryRecords(), jobs.engine);
     await workspace.load();
     const first = await workspace.create(addParts(onStrip(newProject('Job')), [square()]));
     await runner.start(first);
     // The same project opened from its file holds the same running job.
     const second = await workspace.create(project(first));
+    jobs.finish();
     await until(() => project(first).jobs[0].stage === 'ended');
     await until(() => project(second).jobs[0].stage === 'ended');
 
@@ -109,14 +144,19 @@ describe('the runner', () => {
     await workspace.remove(first);
     expect(runner.get(shared)?.projectId).toBe(third);
     await workspace.reload(third);
+    expect(runner.get(shared)).toMatchObject({ projectId: third, resumed: false });
+    jobs.finish();
     await until(() => project(third).jobs[1].stage === 'ended');
 
     // Deleted while the other holder reloads: the job is still held.
     await runner.start(third);
+    const kept = project(third).jobs[2].id!;
     const fourth = await workspace.create(project(third));
     const reloading = workspace.reload(fourth);
     await workspace.remove(third);
     await reloading;
+    expect(runner.get(kept)).toMatchObject({ projectId: fourth, resumed: false });
+    jobs.finish();
     await until(() => project(fourth).jobs[2].stage === 'ended');
     const id = await workspace.create(addParts(onStrip(newProject('Again')), [square()]));
 
