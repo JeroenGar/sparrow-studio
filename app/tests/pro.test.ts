@@ -89,33 +89,66 @@ describe('sparrow Pro job inputs', () => {
     expect(flat.document.parts[1].shape.outer.type).toBe('polygon');
   });
 
-  it('say what is wrong with one they cannot read', () => {
+  it('refuse a file they cannot read as a whole', () => {
     const strip = input({ type: 'minimize_strip_length', height: 50 });
-    expect(() =>
-      importPro(
-        { ...strip, parts: [{ ...strip.parts[0], geometry_id: 'gone' }] },
-        'job.json',
-        keep,
-      ),
-    ).toThrow('no geometry gone');
     expect(() => importPro(input({ type: 'pack_bins' }), 'job.json', keep)).toThrow('unsupported');
-    const sheets = (sheet: object) =>
-      input({
-        type: 'minimize_sheets_in_order',
-        sheets: [{ id: '1', geometry_id: 'hide', ...sheet }],
-      });
-    expect(() => importPro(sheets({ quantity: 1.5 }), 'job.json', keep)).toThrow('Sheet 1:');
-    expect(() =>
-      importPro(sheets({ defects: [{ type: 'circle', radius: 5 }] }), 'job.json', keep),
-    ).toThrow('Sheet 1: defect 1:');
     expect(() =>
       importPro(input({ type: 'minimize_sheets_in_order', sheets: [] }), 'job.json', keep),
     ).toThrow('a list of sheets');
-    expect(() =>
-      importPro({ ...strip, parts: [{ ...strip.parts[0], quantity: -1 }] }, 'job.json', keep),
-    ).toThrow('Part a:');
     const twice = { ...strip, geometries: [...strip.geometries, { id: 'plate', shape: round }] };
     expect(() => importPro(twice, 'job.json', keep)).toThrow('Geometry plate is there twice');
+  });
+
+  it('leave out a part or sheet they cannot use, say why, and import the rest', () => {
+    const strip = input({ type: 'minimize_strip_length', height: 50 });
+    const parts = importPro(
+      {
+        ...strip,
+        parts: [...strip.parts, { ...strip.parts[0], id: 'c', geometry_id: 'gone' }],
+        geometries: [...strip.geometries],
+      },
+      'job.json',
+      keep,
+    );
+    expect(parts.document.parts.map((part) => part.name)).toEqual(['Part a', 'Part b']);
+    expect(parts.issues).toEqual(['Part c: no geometry gone.']);
+    const negative = importPro(
+      { ...strip, parts: [{ ...strip.parts[0], quantity: -1 }] },
+      'job.json',
+      keep,
+    );
+    expect(negative.issues![0]).toMatch(/^Part a: /);
+
+    const holed = (holes: object[]) => ({ outer: square(100).outer, holes });
+    const job = input({
+      type: 'minimize_sheets_in_order',
+      sheets: [
+        { id: '1', geometry_id: 'hide', quantity: 1.5 },
+        { id: '2', geometry_id: 'hide', defects: [{ type: 'circle', radius: 5 }] },
+        { id: '3', geometry_id: 'overlapping' },
+        { id: '4', geometry_id: 'outside' },
+        { id: '5', geometry_id: 'hide' },
+      ],
+    });
+    const review = importPro(
+      {
+        ...job,
+        geometries: [
+          ...job.geometries,
+          { id: 'overlapping', shape: holed([square(20, 10).outer, square(20, 20).outer]) },
+          { id: 'outside', shape: holed([square(20, 90).outer]) },
+        ],
+      },
+      'job.json',
+      keep,
+    );
+    expect(review.sheets!.map((sheet) => sheet.name)).toEqual(['Sheet 5']);
+    expect(review.issues!.map((issue) => issue.split(':').slice(0, 2).join(':'))).toEqual([
+      'Sheet 1: its quantity must be a whole number, 0 or more.',
+      'Sheet 2: defect 1',
+      'Sheet 3: Holes overlap or contain each other.',
+      'Sheet 4: Hole must be strictly inside its outer contour.',
+    ]);
   });
 
   it('give a sheets job no strip width, and polygons as the project stores them', () => {

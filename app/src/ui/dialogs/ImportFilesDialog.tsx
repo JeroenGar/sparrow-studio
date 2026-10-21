@@ -351,7 +351,7 @@ export function ImportFilesDialog({
           )}
           {!!review.issues?.length && (
             <>
-              <p className="field-error">These contours cannot be imported:</p>
+              <p className="field-error">These cannot be imported:</p>
               <ul className="warnings">
                 {review.issues.map((issue, index) => (
                   <li key={index}>{issue}</li>
@@ -363,7 +363,7 @@ export function ImportFilesDialog({
                   checked={exclude}
                   onChange={(event) => setExclude(event.target.checked)}
                 />
-                Leave out the contours listed above
+                Leave them out and import the rest
               </label>
             </>
           )}

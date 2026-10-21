@@ -73,6 +73,13 @@ export function normalizeRing(value: unknown): Ring {
   }
   return area(ring) < 0 ? ring.reverse() : ring;
 }
+/** What is wrong with holes that do not each lie inside the outer ring, apart from the others. */
+export function holeProblem(outer: Ring, holes: Ring[]): string | undefined {
+  for (let i=0;i<holes.length;i++) {
+    if (!inside(holes[i][0],outer) || ringCrosses(outer,holes[i])) return 'Hole must be strictly inside its outer contour.';
+    for(let j=0;j<i;j++) if (ringCrosses(holes[i],holes[j]) || inside(holes[i][0],holes[j]) || inside(holes[j][0],holes[i])) return 'Holes overlap or contain each other.';
+  }
+}
 export function normalizePart(part: Part): Part {
   if (typeof part.id !== 'string' || !part.id || typeof part.name !== 'string' || !part.source || !['svg','dxf','sparrow'].includes(part.source.format)) throw Error('Invalid part identity or provenance.');
   if (!Number.isInteger(part.quantity) || part.quantity < 0 || part.quantity > LIMITS.copies) throw Error(`Quantity must be a whole number from 0 to ${LIMITS.copies.toLocaleString('en')}.`);
@@ -83,10 +90,8 @@ export function normalizePart(part: Part): Part {
   const outer = normalizeRing(drawn.outer);
   const holes = drawn.holes.map(normalizeRing);
   if (outer.length + holes.reduce((n,h) => n+h.length,0) > LIMITS.verticesPerPart) throw Error('Part exceeds 5,000 vertices including holes.');
-  for (let i=0;i<holes.length;i++) {
-    if (!inside(holes[i][0],outer) || ringCrosses(outer,holes[i])) throw Error('Hole must be strictly inside its outer contour.');
-    for(let j=0;j<i;j++) if (ringCrosses(holes[i],holes[j]) || inside(holes[i][0],holes[j]) || inside(holes[j][0],holes[i])) throw Error('Holes overlap or contain each other.');
-  }
+  const problem = holeProblem(outer, holes);
+  if (problem) throw Error(problem);
   // Polygons are kept as checked: counterclockwise outside, clockwise holes. Curves stay as given.
   const kept = (contour: Contour, ring: Ring) => contour.type === 'polygon' ? polygon(ring) : contour;
   const shapeHoles = part.shape.holes ?? [];
