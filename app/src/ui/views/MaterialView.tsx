@@ -41,13 +41,13 @@ export function MaterialView({ tab }: { tab: 'parts' | 'sheets' }) {
     },
   });
   // The view frames the tab's own shapes in its middle, and reaches past the gap into the other
-  // tab's, above or below, so they show at its edge whatever the view's shape.
+  // tab's, beside them, so they show at its edge whatever the view's shape.
   const focused = onParts ? place.parts.extent : place.material;
   const [x0, y0, x1, y1] = focused;
   const pad = Math.max(x1 - x0, y1 - y0, 1) * PADDING;
-  const gap = place.parts.extent[1] - place.material[3];
-  const reach = gap + (y1 - y0) * MATERIAL_PEEK;
-  const extent: Box = [x0 - pad, y0 - reach, x1 + pad, y1 + reach];
+  const gap = place.material[0] - place.parts.extent[2];
+  const reach = gap + (x1 - x0) * MATERIAL_PEEK;
+  const extent: Box = [x0 - reach, y0 - pad, x1 + reach, y1 + pad];
   const hint = onParts
     ? 'Parts and their material at one scale. Select either to change it.'
     : place.strip

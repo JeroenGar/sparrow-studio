@@ -604,7 +604,7 @@ describe('the shared canvas of parts and their material', () => {
   const parts = [square(30), square(10), square(20), square(5), square(25)];
   const sheet = (length: number) => newSheet('Sheet', length, 40);
 
-  it('puts the sheets below the parts, centred, in rows as wide as the parts', () => {
+  it('puts the sheets right of the parts, centred beside them, in rows as wide as the parts', () => {
     const project = addParts(newProject('Job'), parts);
     const stock = {
       ...project.stock,
@@ -612,13 +612,13 @@ describe('the shared canvas of parts and their material', () => {
       sheets: [1, 2, 3, 4, 5].map(() => sheet(30)),
     };
     const place = arrangeMaterial(parts, stock);
-    const [px0, bottom, px1, top] = place.parts.extent;
+    const [px0, py0, px1, py1] = place.parts.extent;
     const { boxes, rows, extent } = place.sheets!;
-    // Below the parts, the set distance apart, and centred under them.
-    expect(extent[3]).toBeCloseTo(
-      bottom - MATERIAL_DISTANCE * Math.max(top - bottom, extent[3] - extent[1]),
+    // Beside the parts, the set distance apart, and centred beside them.
+    expect(extent[0]).toBeCloseTo(
+      px1 + MATERIAL_DISTANCE * Math.max(px1 - px0, extent[2] - extent[0]),
     );
-    expect((extent[0] + extent[2]) / 2).toBeCloseTo((px0 + px1) / 2);
+    expect((extent[1] + extent[3]) / 2).toBeCloseTo((py0 + py1) / 2);
     // No row wider than the parts, unless one sheet alone is; read like text.
     expect(extent[2] - extent[0]).toBeLessThanOrEqual(px1 - px0);
     expect(rows).toEqual([...rows].sort((a, b) => a - b));
@@ -631,16 +631,16 @@ describe('the shared canvas of parts and their material', () => {
     ).toEqual([0, 1]);
   });
 
-  it('puts the strip below the parts, as wide as set', () => {
+  it('puts the strip right of the parts, as wide as set', () => {
     const project = addParts(newProject('Job'), parts);
     const place = arrangeMaterial(parts, {
       ...project.stock,
       strip: { ...project.stock.strip, widthMm: 50 },
     });
     expect(place.sheets).toBeUndefined();
-    const [, y0, , y1] = place.strip!.box;
+    const [x0, y0, , y1] = place.strip!.box;
     expect(y1 - y0).toBe(50);
-    expect(y1).toBeLessThan(place.parts.extent[1]);
+    expect(x0).toBeGreaterThan(place.parts.extent[2]);
   });
 });
 

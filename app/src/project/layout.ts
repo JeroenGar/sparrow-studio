@@ -100,9 +100,9 @@ export const rowGap = (own: Box[]) =>
   Math.max(...own.map((box) => Math.max(box[2] - box[0], box[3] - box[1])), 1) * 0.12;
 
 /**
- * How far below the parts their material lies on the shared canvas, as a share of the taller of
- * the two: far enough that the one in focus fills the view, near enough that the other shows at
- * its edge. Tuned by eye.
+ * How far to the right of the parts their material lies on the shared canvas, as a share of the
+ * wider of the two: far enough that the one in focus fills the view, near enough that the other
+ * shows at its edge. Tuned by eye.
  */
 export const MATERIAL_DISTANCE = 0.12;
 /**
@@ -117,8 +117,9 @@ export type SheetsPlace = ReturnType<typeof inRows> & { gap: number };
 export type StripPlace = { box: Box; width: number; length: number };
 
 /**
- * The shared canvas of the Parts and Sheets tabs: the parts above, laid out as `arrangeParts` does,
- * and below them, `MATERIAL_DISTANCE` away and centred under them, the sheets in rows or the strip.
+ * The shared canvas of the Parts and Sheets tabs, in the order of the tabs: the parts on the left,
+ * laid out as `arrangeParts` does, and to their right, `MATERIAL_DISTANCE` away and centred beside
+ * them, the sheets in rows as wide as the parts, or the strip.
  */
 export function arrangeMaterial(parts: Part[], stock: Stock) {
   const arrangement = arrangeParts(parts);
@@ -129,15 +130,15 @@ export function arrangeMaterial(parts: Part[], stock: Stock) {
     const area = parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
     // An impression of the length, not a promise: the solver finds the real one.
     const length = Math.max(width * 1.6, (area / width) * 1.3);
-    const top = -MATERIAL_DISTANCE * Math.max(partsHeight, width);
-    const left = (partsWidth - length) / 2;
-    const strip: StripPlace = { box: [left, top - width, left + length, top], width, length };
+    const left = partsWidth + MATERIAL_DISTANCE * Math.max(partsWidth, length);
+    const bottom = (partsHeight - width) / 2;
+    const strip: StripPlace = { box: [left, bottom, left + length, bottom + width], width, length };
     return { parts: arrangement, strip, material: strip.box };
   }
   const sheets = placeSheets(stock.sheets, partsWidth);
   const [x0, y0, x1, y1] = sheets.extent;
-  const top = -MATERIAL_DISTANCE * Math.max(partsHeight, y1 - y0);
-  const [dx, dy] = [(partsWidth - (x1 - x0)) / 2 - x0, top - y1];
+  const left = partsWidth + MATERIAL_DISTANCE * Math.max(partsWidth, x1 - x0);
+  const [dx, dy] = [left - x0, (partsHeight - (y1 - y0)) / 2 - y0];
   const moved = (box: Box): Box => [box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy];
   const placed: SheetsPlace = {
     ...sheets,
