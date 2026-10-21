@@ -14,7 +14,8 @@ import { explainDiagnostic } from '../explain';
 import { formatArea, formatLength, formatPercent, formatSeconds } from '../format';
 import { serializeProject } from '../../project/file';
 import { arrangeLayouts, LayoutDrawing, placementKey } from './LayoutDrawing';
-import { PartThumb } from './PartsView';
+import { colors } from '../../engine/colors';
+import { JobAside } from './JobView';
 
 type Format = 'svg' | 'dxf' | 'pdf';
 type Hover = { part: WorldPart; x: number; y: number };
@@ -147,159 +148,13 @@ export function SolutionView({
       .find((p) => placementKey(p) === placementKey(hovered));
   const choose = (i: number) => setChosen(({ serial }) => ({ index: i, serial: serial + 1 }));
 
+  const status = `${
+    state.status === 'completed' && state.termination === 'stopped' ? 'Stopped' : 'Finished'
+  } after ${formatSeconds(state.status === 'completed' ? state.solver_seconds : 0)}${
+    credits !== undefined ? ` · ${credits} ${credits === 1 ? 'credit' : 'credits'}` : ''
+  }`;
   return (
-    <div className="view">
-      <section className="list-panel" aria-label="Solution">
-        <div className="list-head">
-          <span className="label">
-            {state.status === 'completed' && state.termination === 'stopped'
-              ? 'Stopped'
-              : 'Finished'}{' '}
-            after {formatSeconds(state.status === 'completed' ? state.solver_seconds : 0)}
-            {credits !== undefined && ` · ${credits} ${credits === 1 ? 'credit' : 'credits'}`}
-          </span>
-        </div>
-        <div className="list-scroll">
-          <div className="summary">
-            <div className="metrics">
-              <div className="metric">
-                <span className="metric-value">{formatPercent(stats.density * 100)}</span>
-                <span className="muted">utilization</span>
-              </div>
-              {onSheets ? (
-                <div className="metric">
-                  <span className="metric-value">{layouts.length}</span>
-                  <span className="muted">{layouts.length === 1 ? 'sheet' : 'sheets'} used</span>
-                </div>
-              ) : (
-                <div className="metric">
-                  <span className="metric-value">
-                    {formatLength(layout?.result.usedLengthMm ?? 0, unit)} <small>{unit}</small>
-                  </span>
-                  <span className="muted">length used</span>
-                </div>
-              )}
-            </div>
-            <dl className="facts">
-              {!onSheets && (
-                <>
-                  <dt>Strip</dt>
-                  <dd>
-                    {formatLength(job.settings.materialWidthMm, unit)} ×{' '}
-                    {formatLength(layout?.result.usedLengthMm ?? 0, unit)} {unit}
-                  </dd>
-                </>
-              )}
-              <dt>Waste</dt>
-              <dd>{formatArea(waste, unit)}</dd>
-              <dt>Placed</dt>
-              <dd>
-                {placedCopies} parts
-                {unplacedCopies ? `, ${unplacedCopies} not placed` : ', all of them'}
-              </dd>
-            </dl>
-            {unplacedCopies > 0 && (
-              <div className="notice warning">
-                <p>
-                  {unplacedCopies} {unplacedCopies === 1 ? 'copy' : 'copies'} could not be placed:
-                </p>
-                <ul>
-                  {outcome.unplaced.map((u) => (
-                    <li key={u.part_id}>
-                      {names.get(u.part_id) ?? 'A part'}: {u.quantity} not placed
-                      {unfound.has(u.part_id) && ', as no place was found, even on empty material'}
-                    </li>
-                  ))}
-                </ul>
-                <p>
-                  {unfound.size
-                    ? 'Check that each part fits the material with the gap and the distance to the edge.'
-                    : 'Add material, or lower the quantities, and start nesting again.'}
-                </p>
-              </div>
-            )}
-            {notes.length > 0 && (
-              <div className="notice">
-                <ul>
-                  {notes.map((note, i) => (
-                    <li key={i}>{note}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-            <span className="label">Export solution</span>
-            <div className="downloads">
-              {(['svg', 'dxf', 'pdf'] as Format[]).map((format) => (
-                <button
-                  key={format}
-                  aria-label={`Download ${format.toUpperCase()}`}
-                  disabled={!!busy || !layouts.length}
-                  onClick={() => void exportLayout(format)}
-                >
-                  {busy === format ? 'Preparing…' : format.toUpperCase()}
-                </button>
-              ))}
-            </div>
-          </div>
-          {onSheets && (
-            <>
-              <div className="list-head">
-                <span className="label">Sheets in this solution</span>
-              </div>
-              {layouts.map((l, i) => (
-                <button
-                  key={i}
-                  className={i === index ? 'row selected' : 'row'}
-                  aria-pressed={i === index}
-                  onClick={() => choose(i)}
-                >
-                  <span className="order">{i + 1}</span>
-                  <span className="row-text">
-                    <span>{l.name}</span>
-                    <span className="muted">
-                      {l.result.placements.length} parts
-                      {l.stats && ` · ${formatPercent(l.stats.density * 100)}`}
-                      {l.sheet?.cutX != null &&
-                        ` · cut at ${formatLength(l.sheet.cutX, unit)} ${unit}`}
-                    </span>
-                  </span>
-                </button>
-              ))}
-            </>
-          )}
-          <div className="list-head">
-            <span className="label">Parts in this solution</span>
-            {highlight && (
-              <button className="small" onClick={() => setHighlight(undefined)}>
-                Show all
-              </button>
-            )}
-          </div>
-          {job.parts.map((part, i) => (
-            <button
-              key={part.id}
-              className={part.id === highlight ? 'row selected' : 'row'}
-              aria-pressed={part.id === highlight}
-              onClick={() => setHighlight(part.id === highlight ? undefined : part.id)}
-            >
-              <PartThumb part={part} index={i} />
-              <span className="row-text">
-                <span>{part.name}</span>
-                <span className={placedOf(part.id) < part.quantity ? 'warning-text' : 'muted'}>
-                  {placedOf(part.id)} of {part.quantity} placed
-                </span>
-              </span>
-            </button>
-          ))}
-          <div className="pad stack">
-            <ProRow>Lock placements and nest the rest again</ProRow>
-            <ProRow>Compare several solutions</ProRow>
-            <button className="small" onClick={diagnostics}>
-              Download diagnostics
-            </button>
-          </div>
-        </div>
-      </section>
+    <>
       <Canvas
         label="Solution layout"
         onAspect={setAspect}
@@ -312,7 +167,7 @@ export function SolutionView({
         onBackgroundClick={() => setHighlight(undefined)}
         toolbar={
           <span className="chip">
-            Select a part type in the list to find its copies. Hover a part for details.
+            Select a part in the details to find its copies. Hover a part for details.
           </span>
         }
         overlay={
@@ -355,6 +210,146 @@ export function SolutionView({
           ))
         }
       </Canvas>
-    </div>
+      <JobAside job={solution} status={status}>
+        <div className="summary">
+          <div className="metrics">
+            <div className="metric">
+              <span className="metric-value">{formatPercent(stats.density * 100)}</span>
+              <span className="muted">utilization</span>
+            </div>
+            {onSheets ? (
+              <div className="metric">
+                <span className="metric-value">{layouts.length}</span>
+                <span className="muted">{layouts.length === 1 ? 'sheet' : 'sheets'} used</span>
+              </div>
+            ) : (
+              <div className="metric">
+                <span className="metric-value">
+                  {formatLength(layout?.result.usedLengthMm ?? 0, unit)} <small>{unit}</small>
+                </span>
+                <span className="muted">length used</span>
+              </div>
+            )}
+          </div>
+          <dl className="facts">
+            {!onSheets && (
+              <>
+                <dt>Strip</dt>
+                <dd>
+                  {formatLength(job.settings.materialWidthMm, unit)} ×{' '}
+                  {formatLength(layout?.result.usedLengthMm ?? 0, unit)} {unit}
+                </dd>
+              </>
+            )}
+            <dt>Waste</dt>
+            <dd>{formatArea(waste, unit)}</dd>
+            <dt>Placed</dt>
+            <dd>
+              {placedCopies} parts
+              {unplacedCopies ? `, ${unplacedCopies} not placed` : ', all of them'}
+            </dd>
+          </dl>
+          {unplacedCopies > 0 && (
+            <div className="notice warning">
+              <p>
+                {unplacedCopies} {unplacedCopies === 1 ? 'copy' : 'copies'} could not be placed:
+              </p>
+              <ul>
+                {outcome.unplaced.map((u) => (
+                  <li key={u.part_id}>
+                    {names.get(u.part_id) ?? 'A part'}: {u.quantity} not placed
+                    {unfound.has(u.part_id) && ', as no place was found, even on empty material'}
+                  </li>
+                ))}
+              </ul>
+              <p>
+                {unfound.size
+                  ? 'Check that each part fits the material with the gap and the distance to the edge.'
+                  : 'Add material, or lower the quantities, and start nesting again.'}
+              </p>
+            </div>
+          )}
+          {notes.length > 0 && (
+            <div className="notice">
+              <ul>
+                {notes.map((note, i) => (
+                  <li key={i}>{note}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <span className="label">Export solution</span>
+          <div className="downloads">
+            {(['svg', 'dxf', 'pdf'] as Format[]).map((format) => (
+              <button
+                key={format}
+                aria-label={`Download ${format.toUpperCase()}`}
+                disabled={!!busy || !layouts.length}
+                onClick={() => void exportLayout(format)}
+              >
+                {busy === format ? 'Preparing…' : format.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+        {onSheets && (
+          <>
+            <div className="list-head">
+              <span className="label">Sheets in this solution</span>
+            </div>
+            {layouts.map((l, i) => (
+              <button
+                key={i}
+                className={i === index ? 'row selected' : 'row'}
+                aria-pressed={i === index}
+                onClick={() => choose(i)}
+              >
+                <span className="order">{i + 1}</span>
+                <span className="row-text">
+                  <span>{l.name}</span>
+                  <span className="muted">
+                    {l.result.placements.length} parts
+                    {l.stats && ` · ${formatPercent(l.stats.density * 100)}`}
+                    {l.sheet?.cutX != null &&
+                      ` · cut at ${formatLength(l.sheet.cutX, unit)} ${unit}`}
+                  </span>
+                </span>
+              </button>
+            ))}
+          </>
+        )}
+        <div className="part-chips">
+          <span className="label">
+            Parts · {placedCopies} of {placedCopies + unplacedCopies} placed
+          </span>
+          <div className="chips">
+            {job.parts.map((part, i) => (
+              <button
+                key={part.id}
+                className="part-chip"
+                aria-pressed={part.id === highlight}
+                title="Find its copies in the layout"
+                onClick={() => setHighlight(part.id === highlight ? undefined : part.id)}
+              >
+                <i style={{ background: colors[i % colors.length] }} aria-hidden="true" />
+                {part.name}
+                <span className={placedOf(part.id) < part.quantity ? 'warning-text' : 'muted'}>
+                  {placedOf(part.id) < part.quantity
+                    ? `${placedOf(part.id)} of ${part.quantity}`
+                    : part.quantity}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="pad stack">
+          <ProRow>Lock placements and nest the rest again</ProRow>
+          <ProRow>Compare several solutions</ProRow>
+          <button className="small" onClick={diagnostics}>
+            Download diagnostics
+          </button>
+        </div>
+      </JobAside>
+    </>
   );
 }

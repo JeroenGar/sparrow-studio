@@ -12,13 +12,13 @@ import {
   type ProjectDocument,
 } from '../project/model';
 import type { Preferences } from '../project/preferences';
-import { StudioContext, type Studio, type Tab } from './context';
+import { StudioContext, useStudio, type Studio, type Tab } from './context';
 import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
 import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
 import { parseProject, serializeProject } from '../project/file';
 import { beyondProject, projectFromJob } from '../project/solution';
 import { explain } from './explain';
-import { JobPage } from './JobPage';
+import { JobInputs } from './views/JobView';
 import { go, href, type JobView } from './route';
 import type { Runner } from './runs';
 import { JobsView } from './views/JobsView';
@@ -28,11 +28,12 @@ import { SettingsView } from './views/SettingsView';
 import { SheetsView } from './views/SheetsView';
 import type { OpenEntry, Workspace } from './workspace';
 
-const TABS: { id: InputTab; label: string }[] = [
+const TABS: { id: Tab; label: string }[] = [
   { id: 'parts', label: 'Parts' },
   { id: 'sheets', label: 'Sheets' },
   { id: 'machine', label: 'Machine' },
   { id: 'settings', label: 'Settings' },
+  { id: 'jobs', label: 'Jobs' },
 ];
 
 type Dialogs =
@@ -40,8 +41,8 @@ type Dialogs =
   | { type: 'import-project'; kind: 'parts' | 'sheets' | 'machines' };
 
 /**
- * One project: its input tabs and its jobs, or one job of it. Its document, edits and saving
- * belong to the workspace; its jobs are followed by the runner.
+ * One project: its input tabs and its jobs, with one job open in Jobs. Its document, edits and
+ * saving belong to the workspace; its jobs are followed by the runner.
  */
 export function ProjectPage({
   workspace,
@@ -66,7 +67,9 @@ export function ProjectPage({
   const { id } = entry;
   const project = entry.history.present;
   const setTab = useCallback((tab: Tab) => go({ page: 'project', id, tab }), [id]);
-  const tab = 'tab' in shown ? shown.tab : undefined;
+  // A job is open in the Jobs tab; its inputs are shown on their own.
+  const tab: Tab | undefined =
+    'tab' in shown ? shown.tab : shown.view === 'layout' ? 'jobs' : undefined;
   // Opening an input tab counts for the new project's first run; it is no edit to undo.
   const seenTabs = project.seenTabs;
   useEffect(() => {
@@ -206,8 +209,8 @@ export function ProjectPage({
 
   return (
     <StudioContext.Provider value={studio}>
-      {'job' in shown ? (
-        <JobPage number={shown.job} view={shown.view} />
+      {'job' in shown && shown.view === 'inputs' ? (
+        <JobInputsPage number={shown.job} />
       ) : (
         <>
           <nav className="tabs" aria-label="Project">
@@ -218,33 +221,27 @@ export function ProjectPage({
                 aria-current={item.id === tab ? 'page' : undefined}
                 href={href({ page: 'project', id, tab: item.id })}
               >
+                {item.id === 'jobs' && running > 0 && (
+                  <i
+                    className="live-dot"
+                    role="img"
+                    aria-label={`${running} ${running === 1 ? 'job' : 'jobs'} running`}
+                  />
+                )}
                 {item.label}
                 {item.id === 'parts' && <span className="count">{copyCount(project.parts)}</span>}
+                {item.id === 'jobs' && project.jobs.length > 0 && (
+                  <span className="count">{project.jobs.length}</span>
+                )}
               </a>
             ))}
-            <span className="spacer" />
-            <a
-              className={tab === 'jobs' ? 'tab active' : 'tab'}
-              aria-current={tab === 'jobs' ? 'page' : undefined}
-              href={href({ page: 'project', id, tab: 'jobs' })}
-            >
-              Jobs
-              <span className="count">{project.jobs.length}</span>
-              {running > 0 && (
-                <i
-                  className="live-dot"
-                  role="img"
-                  aria-label={`${running} ${running === 1 ? 'job' : 'jobs'} running`}
-                />
-              )}
-            </a>
           </nav>
           <main className="main">
             {tab === 'parts' && <PartsView />}
             {tab === 'sheets' && <SheetsView />}
             {tab === 'machine' && <MachineView />}
             {tab === 'settings' && <SettingsView />}
-            {tab === 'jobs' && <JobsView />}
+            {tab === 'jobs' && <JobsView number={'job' in shown ? shown.job : undefined} />}
           </main>
         </>
       )}
@@ -291,5 +288,29 @@ export function ProjectPage({
         />
       )}
     </StudioContext.Provider>
+  );
+}
+
+/** What a job ran with, on its own. */
+function JobInputsPage({ number }: { number: number }) {
+  const { projectId, project } = useStudio();
+  const job = project.jobs.find((job) => job.number === number);
+  if (!job)
+    return (
+      <div className="boot stack">
+        <p>
+          {project.name} has no job #{number}. It may have been removed.
+        </p>
+        <span>
+          <a href={href({ page: 'project', id: projectId, tab: 'jobs' })}>
+            Show the jobs of {project.name}
+          </a>
+        </span>
+      </div>
+    );
+  return (
+    <main className="main">
+      <JobInputs job={job} />
+    </main>
   );
 }

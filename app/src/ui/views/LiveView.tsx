@@ -14,6 +14,7 @@ import { formatLength, formatPercent, formatSeconds } from '../format';
 import { rulerStep } from '../rulers';
 import { elapsed, useNow, type Run } from '../runs';
 import { arrangeLayouts, LayoutDrawing } from './LayoutDrawing';
+import { JobAside } from './JobView';
 import { explain, explainJobError } from '../explain';
 
 /**
@@ -188,73 +189,7 @@ export function LiveView({
   const bestLength = best?.layouts[0]?.result.usedLengthMm;
 
   return (
-    <div className="view">
-      <section className="list-panel" aria-label="Progress">
-        <div className="list-head">
-          <span className="label">{run ? status(run) : 'Following the job…'}</span>
-          {running && <span className="muted">{backend.solves}</span>}
-        </div>
-        <div className="list-scroll">
-          {run && (
-            <div className="summary">
-              <div className="metrics">
-                <div className="metric">
-                  <span className="metric-value">
-                    {run.best ? formatPercent(run.best.stats.density * 100) : '—'}
-                  </span>
-                  <span className="muted">utilization</span>
-                </div>
-                {onSheets ? (
-                  <div className="metric">
-                    <span className="metric-value">{best ? best.layouts.length : '—'}</span>
-                    <span className="muted">sheets used</span>
-                  </div>
-                ) : (
-                  <div className="metric">
-                    <span className="metric-value">
-                      {bestLength !== undefined ? formatLength(bestLength, unit) : '—'}{' '}
-                      <small>{unit}</small>
-                    </span>
-                    <span className="muted">length used</span>
-                  </div>
-                )}
-              </div>
-              <span className="muted">Of the best valid layout so far.</span>
-              <RunClock run={run} running={running} />
-              {run.history.length > 1 && <LiveChart run={run} running={running} />}
-              {failure && <p className="field-error">{failure}</p>}
-              <p className="muted">
-                Solved {backend.solves}
-                {reduced
-                  ? ` · ${reduced.used} solver thread${reduced.used === 1 ? '' : 's'}: ${reduced.reason}`
-                  : ''}
-                {running && !usesSparrowPro ? ' · keep this tab visible for the best speed.' : ''}
-              </p>
-            </div>
-          )}
-        </div>
-        <div className="run-bar">
-          {run?.error ? (
-            <>
-              <button className="primary" onClick={() => runner.reconnect(job.id)}>
-                Reconnect
-              </button>
-              <span className="muted">The job may still be running. Reconnect to follow it.</span>
-            </>
-          ) : (
-            <>
-              <button
-                className="primary"
-                disabled={!running || run.stopping}
-                onClick={() => runner.stop(job.id).catch((reason) => showError(explain(reason)))}
-              >
-                {run?.stopping ? 'Stopping…' : 'Stop'}
-              </button>
-              <span className="muted">Stopping keeps the best valid layout so far.</span>
-            </>
-          )}
-        </div>
-      </section>
+    <>
       <Canvas
         label="Live layout"
         onAspect={setAspect}
@@ -302,7 +237,72 @@ export function LiveView({
           ))
         }
       </Canvas>
-    </div>
+      <JobAside
+        job={job}
+        status={`${run ? status(run) : 'Following the job…'}${running ? ` · ${backend.solves}` : ''}`}
+        footer={
+          <div className="run-bar">
+            {run?.error ? (
+              <>
+                <button className="primary" onClick={() => runner.reconnect(job.id)}>
+                  Reconnect
+                </button>
+                <span className="muted">The job may still be running. Reconnect to follow it.</span>
+              </>
+            ) : (
+              <>
+                <button
+                  className="primary"
+                  disabled={!running || run.stopping}
+                  onClick={() => runner.stop(job.id).catch((reason) => showError(explain(reason)))}
+                >
+                  {run?.stopping ? 'Stopping…' : 'Stop'}
+                </button>
+                <span className="muted">Stopping keeps the best valid layout so far.</span>
+              </>
+            )}
+          </div>
+        }
+      >
+        {run && (
+          <div className="summary">
+            <div className="metrics">
+              <div className="metric">
+                <span className="metric-value">
+                  {run.best ? formatPercent(run.best.stats.density * 100) : '—'}
+                </span>
+                <span className="muted">utilization</span>
+              </div>
+              {onSheets ? (
+                <div className="metric">
+                  <span className="metric-value">{best ? best.layouts.length : '—'}</span>
+                  <span className="muted">sheets used</span>
+                </div>
+              ) : (
+                <div className="metric">
+                  <span className="metric-value">
+                    {bestLength !== undefined ? formatLength(bestLength, unit) : '—'}{' '}
+                    <small>{unit}</small>
+                  </span>
+                  <span className="muted">length used</span>
+                </div>
+              )}
+            </div>
+            <span className="muted">Of the best valid layout so far.</span>
+            <RunClock run={run} running={running} />
+            {run.history.length > 1 && <LiveChart run={run} running={running} />}
+            {failure && <p className="field-error">{failure}</p>}
+            <p className="muted">
+              Solved {backend.solves}
+              {reduced
+                ? ` · ${reduced.used} solver thread${reduced.used === 1 ? '' : 's'}: ${reduced.reason}`
+                : ''}
+              {running && !usesSparrowPro ? ' · keep this tab visible for the best speed.' : ''}
+            </p>
+          </div>
+        )}
+      </JobAside>
+    </>
   );
 }
 
