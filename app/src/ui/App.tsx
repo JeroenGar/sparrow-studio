@@ -6,6 +6,7 @@ import { newProjectName } from '../project/names';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
 import { backend, client, usesSparrowPro } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
+import { AccountDialog } from './dialogs/AccountDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
 import { NameDialog } from './dialogs/NameDialog';
 import { PreferencesDialog } from './dialogs/PreferencesDialog';
@@ -13,7 +14,6 @@ import { ProDialog } from './dialogs/ProDialog';
 import { Dialog } from './Dialog';
 import { download } from './download';
 import { explain } from './explain';
-import { JobsPage } from './JobsPage';
 import { ProjectsPage } from './ProjectsPage';
 import { ChevronDown, Gear } from './icons';
 import { Logo } from './Logo';
@@ -42,6 +42,7 @@ type Dialogs =
   | { type: 'new'; name: string }
   | { type: 'examples' }
   | { type: 'pro' }
+  | { type: 'account' }
   | { type: 'preferences' }
   | { type: 'about' }
   | { type: 'rename'; id: string; name: string }
@@ -171,10 +172,6 @@ export default function App() {
         unit={preferences.unit}
       />
     );
-  else if (route.page === 'jobs')
-    page = (
-      <JobsPage projects={state.projects} runner={runner} onOpen={(id) => workspace.open(id)} />
-    );
   else if (!entry)
     page = (
       <div className="boot stack">
@@ -229,16 +226,6 @@ export default function App() {
               <span className="crumb" aria-current="page">
                 Projects
               </span>
-            ) : route.page === 'jobs' ? (
-              <>
-                <a className="crumb" href="#/">
-                  Projects
-                </a>
-                <span aria-hidden="true">›</span>
-                <span className="crumb" aria-current="page">
-                  All jobs
-                </span>
-              </>
             ) : (
               <>
                 <a className="crumb" href="#/">
@@ -280,7 +267,6 @@ export default function App() {
             )}
           </nav>
           <span className="spacer" />
-          <AllJobsLink current={route.page === 'jobs'} state={state} />
           {/* A job's inputs are only shown: the project's menu would act on the project unseen. */}
           {open && !(route.page === 'job' && route.view === 'inputs') && (
             <ProjectMenu
@@ -313,7 +299,11 @@ export default function App() {
           >
             <Gear />
           </button>
-          <button onClick={() => setDialog({ type: 'pro' })}>Sign in</button>
+          {usesSparrowPro ? (
+            <AccountButton state={state} onClick={() => setDialog({ type: 'account' })} />
+          ) : (
+            <button onClick={() => setDialog({ type: 'pro' })}>Sign in</button>
+          )}
           <input
             ref={fileInput}
             hidden
@@ -405,6 +395,14 @@ export default function App() {
         />
       )}
       {dialog?.type === 'pro' && <ProDialog onClose={() => setDialog(undefined)} />}
+      {dialog?.type === 'account' && state.status === 'ready' && (
+        <AccountDialog
+          projects={state.projects}
+          runner={runner}
+          onOpen={(id) => workspace.open(id)}
+          onClose={() => setDialog(undefined)}
+        />
+      )}
       {dialog?.type === 'about' && <AboutDialog onClose={() => setDialog(undefined)} />}
       {dialog?.type === 'preferences' && (
         <PreferencesDialog
@@ -580,14 +578,14 @@ function ProjectMenu({
   );
 }
 
-/** The way to every job of the account, with a dot while any of them runs. */
-function AllJobsLink({ current, state }: { current: boolean; state: WorkspaceState }) {
+/** The account's button, which opens it over the page, with a dot while any of its jobs runs. */
+function AccountButton({ state, onClick }: { state: WorkspaceState; onClick: () => void }) {
   const running =
     state.status === 'ready' && state.projects.some((entry) => entrySummary(entry)?.running.length);
   return (
-    <a className="button bar-link" href="#/jobs" aria-current={current ? 'page' : undefined}>
-      All jobs
+    <button className="account-button" onClick={onClick}>
+      Account
       {running && <i className="live-dot" role="img" aria-label="Jobs running" />}
-    </a>
+    </button>
   );
 }

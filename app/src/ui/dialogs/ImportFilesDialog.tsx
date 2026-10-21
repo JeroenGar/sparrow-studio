@@ -149,7 +149,7 @@ export function ImportFilesDialog({
     <Dialog
       title="Import from files"
       onClose={onClose}
-      wide
+      size="wide"
       actions={
         <>
           <button onClick={onClose}>Cancel</button>

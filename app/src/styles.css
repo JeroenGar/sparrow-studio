@@ -1415,7 +1415,7 @@ input[aria-invalid='true'] {
   gap: 4px;
 }
 
-/* The projects as cards, and every job by project. */
+/* The projects as cards. */
 .home {
   flex: 1;
   display: flex;
@@ -1647,18 +1647,16 @@ a.button.primary {
   border-color: var(--ink);
 }
 
-/* The way to every job, on the top bar, as its other controls. */
-.top-bar > .bar-link {
+/* The account's button on the top bar, with a dot while a job runs. */
+.account-button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  color: var(--bar-ink);
-  background: var(--bar-control);
-  border-color: var(--bar-line);
 }
-.top-bar > .bar-link:hover,
-.top-bar > .bar-link[aria-current='page'] {
-  background: var(--bar-line);
+/* A dialog over most of the page, such as the account's. */
+.dialog.large {
+  width: min(1120px, calc(100vw - 32px));
+  height: calc(100vh - 64px);
 }
 
 /* Every job of the account: a table per month, newest first. */

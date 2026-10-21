@@ -122,7 +122,7 @@ export function ImportFromProjectDialog({
     <Dialog
       title={title}
       onClose={onClose}
-      wide
+      size="wide"
       actions={
         <>
           {source && <button onClick={() => setSource(undefined)}>Other project</button>}

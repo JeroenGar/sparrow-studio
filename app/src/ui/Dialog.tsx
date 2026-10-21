@@ -7,13 +7,14 @@ export function Dialog({
   onClose,
   children,
   actions,
-  wide = false,
+  size,
 }: {
   title: string;
   onClose: () => void;
   children: ReactNode;
   actions?: ReactNode;
-  wide?: boolean;
+  /** Wider than a form, or large, over most of the page. */
+  size?: 'wide' | 'large';
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -26,7 +27,7 @@ export function Dialog({
   return (
     <dialog
       ref={ref}
-      className={wide ? 'dialog wide' : 'dialog'}
+      className={size ? `dialog ${size}` : 'dialog'}
       onCancel={(event) => {
         event.preventDefault();
         onClose();

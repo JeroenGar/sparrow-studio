@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import type { Job } from '../api/client';
-import { client, usesSparrowPro } from './client';
-import { explain } from './explain';
-import { formatSeconds, formatWhen } from './format';
-import { patiently } from './patiently';
-import { href } from './route';
-import { useNow, useRun, elapsed, type Runner } from './runs';
-import { entryName, entrySummary, type ProjectEntry } from './workspace';
+import type { Job } from '../../api/client';
+import { client } from '../client';
+import { Dialog } from '../Dialog';
+import { explain } from '../explain';
+import { formatSeconds, formatWhen } from '../format';
+import { patiently } from '../patiently';
+import { href } from '../route';
+import { elapsed, useNow, useRun, type Runner } from '../runs';
+import { entryName, entrySummary, type ProjectEntry } from '../workspace';
 
 /** The account's jobs as far as they are loaded, and where the next page starts. */
 type Loaded =
@@ -15,18 +16,21 @@ type Loaded =
   | { status: 'ready'; jobs: Job[]; next: string | null; more: boolean };
 
 /**
- * Every job of the account, newest first, by month with the credits each month's jobs were
- * charged, each with its project. The account's list of jobs is the API's; which project each
- * belongs to, its summary says, so a project whose summary does not say yet is opened.
+ * The account, over the page: every job of it, newest first, by month with the credits each
+ * month's jobs were charged, each with its project. The account's list of jobs is the API's;
+ * which project each belongs to, its summary says, so a project whose summary does not say yet
+ * is opened.
  */
-export function JobsPage({
+export function AccountDialog({
   projects,
   runner,
   onOpen,
+  onClose,
 }: {
   projects: ProjectEntry[];
   runner: Runner;
   onOpen: (id: string) => void;
+  onClose: () => void;
 }) {
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
   // A job starting or ending anywhere shows on the first page.
@@ -102,10 +106,7 @@ export function JobsPage({
   }, [loaded]);
 
   return (
-    <main className="home">
-      <div className="home-head">
-        <h1>All jobs</h1>
-      </div>
+    <Dialog title="Account" onClose={onClose} size="large">
       {loaded.status === 'loading' && <p className="muted">Loading the jobs…</p>}
       {loaded.status === 'failed' && (
         <p className="field-error">Could not load the jobs: {loaded.error}</p>
@@ -119,7 +120,7 @@ export function JobsPage({
       {months.map((month, index) => (
         <section key={month.name} className="job-section">
           <div className="job-section-head">
-            <h2 id={`month-${index}`}>{month.name}</h2>
+            <h3 id={`month-${index}`}>{month.name}</h3>
             <span className="muted">
               {month.jobs.length} {month.jobs.length === 1 ? 'job' : 'jobs'} ·{' '}
               {credits(month.credits)}
@@ -146,7 +147,13 @@ export function JobsPage({
             </thead>
             <tbody>
               {month.jobs.map((job) => (
-                <JobRow key={job.id} job={job} owner={owners.get(job.id)} runner={runner} />
+                <JobRow
+                  key={job.id}
+                  job={job}
+                  owner={owners.get(job.id)}
+                  runner={runner}
+                  onOpen={onClose}
+                />
               ))}
             </tbody>
           </table>
@@ -159,10 +166,7 @@ export function JobsPage({
           </button>
         </span>
       )}
-      {!usesSparrowPro && (
-        <p className="muted">Jobs in this browser show here while studio is open.</p>
-      )}
-    </main>
+    </Dialog>
   );
 }
 
@@ -173,10 +177,13 @@ function JobRow({
   job,
   owner,
   runner,
+  onOpen,
 }: {
   job: Job;
   owner?: { entry: ProjectEntry; number: number };
   runner: Runner;
+  /** Opening the job leaves the account for it. */
+  onOpen: () => void;
 }) {
   // The job as studio follows it, while it does: a queued job starts, a running one ends.
   const current = useRun(runner, job.id)?.job ?? job;
@@ -187,7 +194,10 @@ function JobRow({
       <td className="muted">{formatWhen(job.created_at)}</td>
       <td>
         {owner ? (
-          <a href={href({ page: 'job', id: owner.entry.id, number: owner.number, view: 'layout' })}>
+          <a
+            href={href({ page: 'job', id: owner.entry.id, number: owner.number, view: 'layout' })}
+            onClick={onOpen}
+          >
             {entryName(owner.entry)} <span className="mono">#{owner.number}</span>
           </a>
         ) : (
@@ -229,22 +239,4 @@ function Running({ runner, jobId }: { runner: Runner; jobId: string }) {
   const run = useRun(runner, jobId);
   const seconds = elapsed(run, useNow(!!run && !run.error));
   return <>Running{run?.clock && ` for ${formatSeconds(seconds)}`}</>;
-}
-
-/** A running job's time against its limit, as a bar and in figures. */
-export function Progress({ runner, jobId }: { runner: Runner; jobId: string }) {
-  const run = useRun(runner, jobId);
-  const seconds = elapsed(run, useNow(!!run && !run.error));
-  if (!run) return null;
-  const limit = run.request.settings.time_limit_seconds;
-  return (
-    <>
-      <span className="progress small" aria-hidden="true">
-        <span style={{ width: `${Math.min(100, (seconds / limit) * 100)}%` }} />
-      </span>
-      <span className="muted mono">
-        {formatSeconds(seconds)} of {formatSeconds(limit)}
-      </span>
-    </>
-  );
 }

@@ -165,7 +165,7 @@ export function summarize(project: ProjectDocument): Summary {
     summary.recent[i] = rest;
   }
   if (!fits()) delete summary.thumb;
-  // A project of very many jobs lists them no more: All jobs opens it to know them.
+  // A project of very many jobs lists them no more: the account opens it to know them.
   if (!fits()) delete summary.jobNumbers;
   summaries.set(project, summary);
   return summary;

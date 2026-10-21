@@ -5,9 +5,8 @@ import { backend, usesSparrowPro } from './client';
 import { formatAgo, formatSeconds, formatWhen } from './format';
 import { Trash } from './icons';
 import { JobThumb, LiveJobThumb, ThumbDrawing } from './JobThumb';
-import { Progress } from './JobsPage';
 import { href } from './route';
-import { useBest, type Runner } from './runs';
+import { elapsed, useBest, useNow, useRun, type Runner } from './runs';
 import { Search } from './Search';
 import { JobDot, jobFigures, jobNote, jobStatus } from './views/JobsView';
 import {
@@ -276,4 +275,22 @@ function LastJob({
 function useOrder(entry: OpenEntry | undefined) {
   const parts = entry?.history.present.parts;
   return useMemo(() => new Map(parts?.map((part, index) => [part.id, index])), [parts]);
+}
+
+/** A running job's time against its limit, as a bar and in figures. */
+function Progress({ runner, jobId }: { runner: Runner; jobId: string }) {
+  const run = useRun(runner, jobId);
+  const seconds = elapsed(run, useNow(!!run && !run.error));
+  if (!run) return null;
+  const limit = run.request.settings.time_limit_seconds;
+  return (
+    <>
+      <span className="progress small" aria-hidden="true">
+        <span style={{ width: `${Math.min(100, (seconds / limit) * 100)}%` }} />
+      </span>
+      <span className="muted mono">
+        {formatSeconds(seconds)} of {formatSeconds(limit)}
+      </span>
+    </>
+  );
 }

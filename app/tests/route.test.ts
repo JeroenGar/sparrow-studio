@@ -5,7 +5,6 @@ describe('routes', () => {
   it('round-trips through the location hash, and anything unknown is the projects', () => {
     const routes: Route[] = [
       PROJECTS,
-      { page: 'jobs' },
       { page: 'project', id: 'prj_1', tab: 'parts' },
       { page: 'project', id: 'a/b', tab: 'jobs' },
       { page: 'job', id: 'prj_1', number: 12, view: 'layout' },
@@ -13,6 +12,7 @@ describe('routes', () => {
     ];
     for (const route of routes) expect(parseRoute(href(route))).toEqual(route);
     expect(parseRoute('')).toEqual(PROJECTS);
+    expect(parseRoute('#/jobs')).toEqual(PROJECTS);
     expect(parseRoute('#/projects/prj_1')).toEqual({ page: 'project', id: 'prj_1', tab: 'parts' });
     expect(parseRoute('#/projects/prj_1/elsewhere')).toEqual(PROJECTS);
     expect(parseRoute('#/projects/prj_1/parts/more')).toEqual(PROJECTS);
