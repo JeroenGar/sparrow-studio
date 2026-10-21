@@ -236,10 +236,12 @@ function LastJob({
         <JobThumb thumb={job.thumb} more={job.more} />
       )}
       <span className="last-job-text">
+        <span className="label">
+          <span className="visually-hidden">{entryName(entry)}, </span>Last job
+        </span>
         <span className="job-progress">
-          <span className="visually-hidden">{entryName(entry)}, job </span>
           <JobDot job={job} />
-          <strong className="mono">#{job.number}</strong>
+          <strong>Job #{job.number}</strong>
           {id
             ? 'Running'
             : job.stage === 'completed'
