@@ -78,6 +78,31 @@ export function Canvas({
   const [view, setView] = useState<ViewBox>(() => fitBox(extent, size, 0.08));
   const drag = useRef<{ x: number; y: number; view: ViewBox; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
+  const current = useRef(view);
+  current.current = view;
+  // A view change the drawing asked for slides there, unless the person moves it meanwhile.
+  const sliding = useRef(0);
+  const target = useRef<ViewBox | undefined>(undefined);
+  const stop = () => {
+    cancelAnimationFrame(sliding.current);
+    target.current = undefined;
+  };
+  const slideTo = useCallback((to: ViewBox) => {
+    stop();
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return setView(to);
+    const from = current.current;
+    const start = performance.now();
+    target.current = to;
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 320);
+      const eased = 1 - (1 - t) ** 3;
+      setView(from.map((value, i) => value + (to[i] - value) * eased) as ViewBox);
+      if (t < 1) sliding.current = requestAnimationFrame(step);
+      else target.current = undefined;
+    };
+    sliding.current = requestAnimationFrame(step);
+  }, []);
+  useEffect(() => stop, []);
 
   useLayoutEffect(() => {
     const element = container.current;
@@ -94,15 +119,25 @@ export function Canvas({
 
   const fit = useCallback(() => setView(fitBox(extent, size, 0.08)), [extent, size]);
   const extentKey = extent.join(',');
-  // Refit when the drawing or the element changes size.
-  useEffect(fit, [extentKey, size.width, size.height]);
+  // Refit when the element changes size, and slide to the drawing when it changes. An element
+  // resized while sliding, such as when a panel beside it goes, slides on to the new fit.
+  useEffect(() => {
+    if (target.current) slideTo(fitBox(extent, size, 0.08));
+    else fit();
+  }, [size.width, size.height]);
+  const fitted = useRef(extentKey);
+  useEffect(() => {
+    if (fitted.current === extentKey) return;
+    fitted.current = extentKey;
+    slideTo(fitBox(extent, size, 0.08));
+  }, [extentKey]);
 
   useEffect(() => {
     if (!focus) return;
     const [x0, y0, x1, y1] = focus.box;
     // Frame the focused item with room around it, so its neighbours stay in view.
     const grow = Math.max(x1 - x0, y1 - y0) * (focus.margin ?? 1.2);
-    setView(fitBox([x0 - grow, y0 - grow, x1 + grow, y1 + grow], size, 0));
+    slideTo(fitBox([x0 - grow, y0 - grow, x1 + grow, y1 + grow], size, 0));
   }, [focus?.key]);
 
   const upp = view[2] / Math.max(size.width, 1);
@@ -111,6 +146,7 @@ export function Canvas({
     const rect = container.current!.getBoundingClientRect();
     const fx = clientX === undefined ? 0.5 : (clientX - rect.left) / rect.width;
     const fy = clientY === undefined ? 0.5 : (clientY - rect.top) / rect.height;
+    stop();
     setView(([x, y, w, h]) => {
       const nw = w * factor;
       const nh = h * factor;
@@ -148,6 +184,7 @@ export function Canvas({
       return;
     }
     if (event.button !== 0 && event.button !== 1) return;
+    stop();
     drag.current = { x: event.clientX, y: event.clientY, view, moved: false };
   }
   function move(event: ReactPointerEvent) {

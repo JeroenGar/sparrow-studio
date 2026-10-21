@@ -23,9 +23,8 @@ import { go, href, type JobView } from './route';
 import type { Runner } from './runs';
 import { JobsView } from './views/JobsView';
 import { MachineView } from './views/MachineView';
-import { PartsView } from './views/PartsView';
+import { MaterialView } from './views/MaterialView';
 import { SettingsView } from './views/SettingsView';
-import { SheetsView } from './views/SheetsView';
 import type { OpenEntry, Workspace } from './workspace';
 
 const TABS: { id: Tab; label: string }[] = [
@@ -247,8 +246,7 @@ export function ProjectPage({
             ))}
           </nav>
           <main className="main">
-            {tab === 'parts' && <PartsView />}
-            {tab === 'sheets' && <SheetsView />}
+            {(tab === 'parts' || tab === 'sheets') && <MaterialView tab={tab} />}
             {tab === 'machine' && <MachineView />}
             {tab === 'settings' && <SettingsView />}
             {tab === 'jobs' && <JobsView number={'job' in shown ? shown.job : undefined} />}
@@ -383,8 +381,7 @@ function JobPreview({ number }: { number: number }) {
         ))}
       </nav>
       <main className="main">
-        {tab === 'parts' && <PartsView />}
-        {tab === 'sheets' && <SheetsView />}
+        {(tab === 'parts' || tab === 'sheets') && <MaterialView tab={tab} />}
         {tab === 'machine' && <MachineView />}
         {tab === 'settings' && <SettingsView />}
       </main>

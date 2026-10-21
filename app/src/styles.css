@@ -847,8 +847,40 @@ input[aria-invalid='true'] {
 .drop-after {
   box-shadow: inset 0 -3px 0 var(--ink);
 }
-.order-arrow {
-  stroke: var(--muted);
+/* The shared canvas of Parts and Sheets: the other tab's shapes, faded at the edge of the view. */
+.out-of-focus {
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.out-of-focus:hover {
+  opacity: 0.55;
+}
+/* A sheet's place in the nesting order, and the sheets of it in stock. */
+.order-badge {
+  fill: var(--ink);
+}
+.order-badge.selected {
+  fill: var(--accent);
+}
+.order-badge-text {
+  fill: var(--panel);
+  font-family: var(--mono);
+  font-weight: 650;
+}
+.stock-badge {
+  fill: var(--panel);
+  stroke: var(--ink);
+}
+.stock-badge-text {
+  fill: var(--ink);
+  font-family: var(--mono);
+}
+.sheet-edge.behind {
+  stroke: var(--control);
+}
+.sheet-label.selected {
+  fill: var(--accent);
+  font-weight: 600;
 }
 .layer-roles {
   grid-column: 1 / -1;
@@ -883,9 +915,8 @@ input[aria-invalid='true'] {
   font-family: var(--mono);
 }
 .defect {
-  fill: var(--line);
-  fill-opacity: 0.8;
-  stroke: var(--muted);
+  fill: color-mix(in srgb, var(--danger) 22%, transparent);
+  stroke: var(--danger);
 }
 .order {
   min-width: 18px;

@@ -1,10 +1,9 @@
-import { useEffect, useId, useMemo, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { flattenContour, outline, type Contour } from '../../engine/geometry/contour';
 import { bounds, isSimpleRing } from '../../engine/geometry/normalize';
-import { netArea } from '../../engine/geometry/world';
 import { LIMITS, newId, type Point } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
-import type { Box } from '../../project/layout';
+import type { SheetsPlace, StripPlace } from '../../project/layout';
 import {
   copyCount,
   newSheet,
@@ -13,7 +12,7 @@ import {
   type SheetEntry,
   type Stock,
 } from '../../project/model';
-import { Canvas, ringsPath, type CanvasTool } from '../Canvas';
+import { ringsPath, type CanvasTool } from '../Canvas';
 import { usesSparrowPro } from '../client';
 import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
@@ -58,14 +57,30 @@ const updateSheet = (
     sheets: project.stock.sheets.map((sheet) => (sheet.id === id ? change(sheet) : sheet)),
   });
 
-export function SheetsView() {
-  const { project, edit } = useStudio();
-  const packing = project.stock.packing;
+/** The selected sheet entry and the tool drawing on it, kept for the shared canvas of Parts and Sheets. */
+export function useSheetSelection(): Selection {
+  const { project } = useStudio();
   const [chosen, setSelected] = useState<string>();
   const [held, setTool] = useState<Tool>();
   // A sheet that is gone, such as after undo, is no longer selected, nor drawn on.
   const selected = project.stock.sheets.some((sheet) => sheet.id === chosen) ? chosen : undefined;
-  const tool = selected ? held : undefined;
+  // Choosing another sheet puts the tool down.
+  return {
+    selected,
+    select: (id) => {
+      setSelected(id);
+      setTool(undefined);
+    },
+    tool: selected ? held : undefined,
+    setTool,
+  };
+}
+
+/** The Sheets tab's list: what parts nest into, the strip or the sheets in their order. */
+export function SheetsList(selection: Selection) {
+  const { project, edit } = useStudio();
+  const packing = project.stock.packing;
+  const { selected } = selection;
   // + and − change the selected sheet's stock, as they change a part's quantity.
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -92,40 +107,27 @@ export function SheetsView() {
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
   });
-  // Choosing another sheet puts the tool down.
-  const selection: Selection = {
-    selected,
-    select: (id) => {
-      setSelected(id);
-      setTool(undefined);
-    },
-    tool,
-    setTool,
-  };
   return (
-    <div className="view">
-      <section className="list-panel" aria-label="Sheets">
-        <Editable>
-          <div className="segmented" role="group" aria-label="Packing">
-            <button
-              aria-pressed={packing === 'strip'}
-              onClick={() => edit((current) => withStock(current, { packing: 'strip' }))}
-            >
-              Strip
-            </button>
-            <button
-              aria-pressed={packing === 'sheets'}
-              onClick={() => edit((current) => withStock(current, { packing: 'sheets' }))}
-            >
-              Sheets
-            </button>
-          </div>
-        </Editable>
-        {packing === 'strip' ? <StripList /> : <SheetList {...selection} />}
-        <RunBar />
-      </section>
-      {packing === 'strip' ? <StripCanvas /> : <SheetsCanvas {...selection} />}
-    </div>
+    <section className="list-panel" aria-label="Sheets">
+      <Editable>
+        <div className="segmented" role="group" aria-label="Packing">
+          <button
+            aria-pressed={packing === 'strip'}
+            onClick={() => edit((current) => withStock(current, { packing: 'strip' }))}
+          >
+            Strip
+          </button>
+          <button
+            aria-pressed={packing === 'sheets'}
+            onClick={() => edit((current) => withStock(current, { packing: 'sheets' }))}
+          >
+            Sheets
+          </button>
+        </div>
+      </Editable>
+      {packing === 'strip' ? <StripList /> : <SheetList {...selection} />}
+      <RunBar />
+    </section>
   );
 }
 
@@ -184,20 +186,6 @@ function StripList() {
         )}
       </div>
     </>
-  );
-}
-
-function StripCanvas() {
-  const { project, unit } = useStudio();
-  const strip = project.stock.strip;
-  const width = Number.isFinite(strip.widthMm) && strip.widthMm > 0 ? strip.widthMm : 1000;
-  const area = project.parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
-  // An impression of the length, not a promise: the solver finds the real one.
-  const shown = Math.max(width * 1.6, (area / width) * 1.3);
-  return (
-    <Canvas label="The strip" extent={[-width * 0.15, -width * 0.25, shown, width * 1.15]}>
-      {({ upp }) => <StripDrawing width={width} length={shown} upp={upp} unit={unit} />}
-    </Canvas>
   );
 }
 
@@ -510,33 +498,6 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
   );
 }
 
-/** Where each sheet entry is drawn: side by side in nesting order, bottoms aligned. */
-function arrangeSheets(sheets: SheetEntry[]) {
-  const boxes = sheets.map((sheet) => bounds(outline(sheet.shape).outer) as Box);
-  const gap = Math.max(...boxes.map((b) => Math.max(b[2] - b[0], b[3] - b[1])), 1) * 0.12;
-  let x = 0;
-  const offsets = boxes.map((b) => {
-    const offset: [number, number] = [x - b[0], -b[1]];
-    x += b[2] - b[0] + gap;
-    return offset;
-  });
-  const height = Math.max(...boxes.map((b) => b[3] - b[1]), 1);
-  const extent: Box = [0, 0, Math.max(x - gap, 1), height];
-  // Each sheet where it is drawn.
-  const placed = boxes.map((b, i): Box => {
-    const [dx, dy] = offsets[i];
-    return [b[0] + dx, b[1] + dy, b[2] + dx, b[3] + dy];
-  });
-  return { offsets, boxes, placed, gap, extent };
-}
-
-/** An arrow across the gap from one sheet to the next, at height `y`. */
-function orderArrow(from: number, to: number, y: number, upp: number) {
-  const [a, b] = [from + (to - from) * 0.25, from + (to - from) * 0.75];
-  const head = Math.min(8 * upp, (b - a) / 2);
-  return `M${a} ${-y}H${b}M${b - head} ${-y - head}L${b} ${-y}L${b - head} ${-y + head}`;
-}
-
 /** A defect in a few words: a rectangle by its size and corner, or freeform by its corners. */
 function describeDefect(defect: Contour, unit: DisplayUnit): string {
   const at = (mm: number) => formatLength(mm, unit);
@@ -552,14 +513,27 @@ function describeDefect(defect: Contour, unit: DisplayUnit): string {
  */
 type Draft = { from?: Point; corners: Point[]; at?: Point };
 
-function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
+/**
+ * The sheets on the shared canvas of Parts and Sheets, in their rows. While the Sheets tab is open
+ * (`active`), a sheet is chosen by a click, moved in the order by dragging, and drawn on with the
+ * defect tools; otherwise a click on one picks it for the Sheets tab (`onPick`).
+ */
+export function useSheetsLayer({
+  selection,
+  place,
+  active,
+  onPick,
+}: {
+  selection: Selection;
+  place?: SheetsPlace;
+  active: boolean;
+  onPick: (id: string) => void;
+}) {
   const { project, edit, showError, readOnly } = useStudio();
+  const { selected, select, tool, setTool } = selection;
   const sheets = project.stock.sheets;
-  const arrangement = useMemo(() => arrangeSheets(sheets), [sheets]);
   const [draft, setDraft] = useState<Draft>({ corners: [] });
   const index = sheets.findIndex((sheet) => sheet.id === selected);
-  const [x0, y0, x1, y1] = arrangement.extent;
-  const pad = Math.max(x1 - x0, y1 - y0) * 0.08;
 
   // Putting the tool down, or choosing another one, drops the draft; Escape puts it down.
   useEffect(() => {
@@ -579,7 +553,7 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
     );
     setTool(undefined);
   };
-  const [dx, dy] = index >= 0 ? arrangement.offsets[index] : [0, 0];
+  const [dx, dy] = place && index >= 0 ? place.offsets[index] : [0, 0];
   // The selected sheet's own coordinates of a canvas point, to the millimetre.
   const local = ([x, y]: [number, number]): Point => [Math.round(x - dx), Math.round(y - dy)];
   const canvasTool: CanvasTool | undefined =
@@ -625,19 +599,39 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
 
   // Without a defect tool, dragging a sheet moves it in the nesting order; a click selects it.
   const [moving, setMoving] = useState<{ id: string; from: Point; at: Point; moved: boolean }>();
-  const others = moving ? arrangement.placed.filter((_, i) => sheets[i].id !== moving.id) : [];
   const movingIndex = moving ? sheets.findIndex((sheet) => sheet.id === moving.id) : -1;
-  // Where the moved sheet would go: after every other sheet whose middle lies left of its own.
-  const target =
-    moving && movingIndex >= 0
-      ? (() => {
-          const b = arrangement.placed[movingIndex];
-          const middle = (b[0] + b[2]) / 2 + moving.at[0] - moving.from[0];
-          return others.filter((o) => (o[0] + o[2]) / 2 < middle).length;
-        })()
-      : -1;
+  // Where the moved sheet would go, read like text: in the row under its middle, after every
+  // other sheet of an earlier row and every one of that row whose middle lies left of its own.
+  const landing = (() => {
+    if (!place || !moving?.moved || movingIndex < 0) return undefined;
+    const b = place.boxes[movingIndex];
+    const mx = (b[0] + b[2]) / 2 + moving.at[0] - moving.from[0];
+    const my = (b[1] + b[3]) / 2 + moving.at[1] - moving.from[1];
+    const spans = new Map<number, [number, number]>();
+    place.boxes.forEach((box, i) => {
+      const [low, high] = spans.get(place.rows[i]) ?? [box[1], box[3]];
+      spans.set(place.rows[i], [Math.min(low, box[1]), Math.max(high, box[3])]);
+    });
+    const off = ([low, high]: [number, number]) =>
+      my < low ? low - my : my > high ? my - high : 0;
+    const row = [...spans].reduce((best, entry) =>
+      off(entry[1]) < off(best[1]) ? entry : best,
+    )[0];
+    const others = place.boxes
+      .map((box, i) => ({ box, row: place.rows[i] }))
+      .filter((_, i) => i !== movingIndex);
+    const before = others.filter(
+      (o) => o.row < row || (o.row === row && (o.box[0] + o.box[2]) / 2 < mx),
+    );
+    const at = before.length;
+    // The marker stands in the gap the sheet would land in, in that row.
+    const left = before.at(-1)?.row === row ? before.at(-1)!.box[2] + place.gap / 2 : undefined;
+    const right = others[at]?.row === row ? others[at].box[0] - place.gap / 2 : undefined;
+    const [low, high] = spans.get(row)!;
+    return { at, x: left ?? right ?? b[0], low, high };
+  })();
   const reorder: CanvasTool = {
-    // The sheet drawn under the pointer, its outline, copies or label; elsewhere the canvas pans.
+    // The sheet drawn under the pointer, its outline, copies or name; elsewhere the canvas pans.
     down: (point, event) => {
       const id = (event.target as Element).closest<SVGElement>('[data-sheet]')?.dataset.sheet;
       if (!id) return false;
@@ -651,26 +645,18 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
             ...m,
             at: point,
             moved:
-              m.moved || Math.hypot(point[0] - m.from[0], point[1] - m.from[1]) > (x1 - x0) * 0.005,
+              m.moved ||
+              Math.hypot(point[0] - m.from[0], point[1] - m.from[1]) >
+                (place ? place.extent[2] - place.extent[0] : 1000) * 0.005,
           },
       ),
     up: () => {
       if (!moving) return;
-      if (moving.moved) edit((current) => moveSheet(current, moving.id, target));
-      else select(moving.id === selected ? undefined : moving.id);
+      if (moving.moved && landing) edit((current) => moveSheet(current, moving.id, landing.at));
+      else if (!moving.moved) select(moving.id === selected ? undefined : moving.id);
       setMoving(undefined);
     },
   };
-  // Where the moved sheet would land, between the sheets it would stand between.
-  const marker =
-    moving?.moved && target >= 0
-      ? target === 0
-        ? (others[0]?.[0] ?? 0) - arrangement.gap / 2
-        : others[target - 1][2] + arrangement.gap / 2
-      : undefined;
-
-  // The names stand on one line above the row, clear of every stack of copies, like headers.
-  const labelLift = Math.max(0, ...sheets.map((sheet) => Math.min(sheet.quantity, 3) - 1));
 
   const draftRing: Point[] | undefined =
     draft.from && draft.at
@@ -679,140 +665,209 @@ function SheetsCanvas({ selected, select, tool, setTool }: Selection) {
         ? [...draft.corners, ...(draft.at ? [draft.at] : [])]
         : undefined;
 
-  return (
-    <Canvas
-      label="The sheets"
-      extent={[x0 - pad, y0 - pad * 2, x1 + pad, y1 + pad * 2]}
-      // Sheets only shown keep their order.
-      tool={canvasTool ?? (tool || readOnly ? undefined : reorder)}
-      onBackgroundClick={() => !tool && select(undefined)}
-      toolbar={
-        sheets.length > 1 && (
-          <span className="chip">
-            Nested in this order: sheet 1 first.
-            {!readOnly && ' Drag a sheet to move it in the order.'}
-          </span>
-        )
-      }
-    >
-      {({ upp }) => (
-        <>
-          {sheets.map((sheet, i) => {
-            const [ox, oy] = arrangement.offsets[i];
-            const box = arrangement.boxes[i];
-            const { outer, holes } = outline(sheet.shape);
-            const d = ringsPath([outer, ...holes], ox, oy);
-            // Sheets in stock beyond the first show as outlines stacked behind it.
-            const behind = Math.min(sheet.quantity, 3) - 1;
-            const step = 8 * upp;
-            const chosen = sheet.id === selected;
-            const lifted = moving?.moved && moving.id === sheet.id;
-            const next = arrangement.placed[i + 1];
-            return (
-              <g
-                key={sheet.id}
-                data-sheet={sheet.id}
-                opacity={sheet.quantity ? (lifted ? 0.7 : 1) : 0.4}
-                transform={
-                  lifted
-                    ? `translate(${moving.at[0] - moving.from[0]} ${-(moving.at[1] - moving.from[1])})`
-                    : undefined
-                }
-                style={tool || readOnly ? undefined : { cursor: lifted ? 'grabbing' : 'grab' }}
-              >
-                {/* An arrow to the next sheet in the order. */}
-                {next && !moving?.moved && (
-                  <path
-                    d={orderArrow(
-                      arrangement.placed[i][2] + Math.max(0, behind) * step,
-                      next[0],
-                      Math.min(arrangement.placed[i][3], next[3]) / 2,
-                      upp,
-                    )}
-                    className="order-arrow"
-                    strokeWidth={1.5 * upp}
-                    fill="none"
-                    pointerEvents="none"
-                  />
-                )}
-                {Array.from({ length: Math.max(0, behind) }, (_, k) => (
-                  <path
-                    key={k}
-                    d={d}
-                    transform={`translate(${(behind - k) * step} ${-(behind - k) * step})`}
-                    fill="var(--sheet)"
-                    className="sheet-edge"
-                    strokeWidth={upp}
-                  />
-                ))}
-                <path
-                  d={d}
-                  fillRule="evenodd"
-                  fill="var(--sheet)"
-                  className={chosen ? 'sheet-edge selected' : 'sheet-edge'}
-                  strokeWidth={(chosen ? 3 : 2) * upp}
-                />
-                {(sheet.defects ?? []).map((defect, k) => (
-                  <path
-                    key={k}
-                    d={ringsPath([flattenContour(defect, upp / 4)], ox, oy)}
-                    className="defect"
-                    strokeWidth={upp}
-                  />
-                ))}
-                <text
-                  className="sheet-label"
-                  x={box[0] + ox}
-                  y={-y1 - (labelLift * 8 + 8) * upp}
-                  fontSize={12 * upp}
-                >
-                  {i + 1} · {sheet.name}
-                </text>
-                {/* The sheets in stock, on the corner of the frontmost copy's stack. */}
-                <g
-                  transform={`translate(${box[2] + ox + Math.max(0, behind) * step + 4.4 * upp} ${-(box[3] + oy) - Math.max(0, behind) * step - 4.4 * upp})`}
-                >
-                  <circle r={11 * upp} className="badge" />
-                  <text
-                    className="badge-text"
-                    fontSize={10 * upp}
-                    textAnchor="middle"
-                    dy={3.5 * upp}
-                  >
-                    ×{sheet.quantity}
-                  </text>
-                </g>
-              </g>
-            );
-          })}
-          {marker !== undefined && (
-            <path
-              d={`M${marker} ${-y1 - pad}V${pad}`}
-              className="accent-line"
-              strokeWidth={3 * upp}
-              pointerEvents="none"
-            />
-          )}
-          {draftRing && (
-            <path
-              d={
-                draft.from
-                  ? ringsPath([draftRing], dx, dy)
-                  : `M${draftRing.map(([x, y]) => `${x + dx},${-(y + dy)}`).join('L')}`
+  // Each entry in stock is numbered in the order it is nested in; one without stock is skipped.
+  const order = sheets.map((sheet, i) =>
+    sheet.quantity ? sheets.slice(0, i + 1).filter((other) => other.quantity).length : undefined,
+  );
+  const draw = (upp: number) =>
+    place && (
+      <>
+        {sheets.map((sheet, i) => {
+          const [ox, oy] = place.offsets[i];
+          const box = place.boxes[i];
+          const { outer, holes } = outline(sheet.shape);
+          const d = ringsPath([outer, ...holes], ox, oy);
+          // Sheets in stock beyond the first show as outlines stacked behind it.
+          const behind = Math.max(0, Math.min(sheet.quantity, 3) - 1);
+          const step = 8 * upp;
+          const chosen = active && sheet.id === selected;
+          const lifted = moving?.moved && moving.id === sheet.id;
+          const number = order[i];
+          const label = number === undefined ? `${sheet.name} · none in stock` : sheet.name;
+          return (
+            <g
+              key={sheet.id}
+              data-sheet={sheet.id}
+              opacity={lifted ? 0.7 : 1}
+              transform={
+                lifted
+                  ? `translate(${moving.at[0] - moving.from[0]} ${-(moving.at[1] - moving.from[1])})`
+                  : undefined
               }
-              className="defect draft"
-              strokeWidth={upp}
-              pointerEvents="none"
-            />
-          )}
-          {!sheets.length && (
-            <text x={50} y={-50} fontSize={14 * upp} textAnchor="middle" className="muted-text">
-              Sheets appear here in nesting order.
-            </text>
-          )}
-        </>
-      )}
-    </Canvas>
+              style={
+                !active
+                  ? { cursor: 'pointer' }
+                  : tool || readOnly
+                    ? undefined
+                    : { cursor: lifted ? 'grabbing' : 'grab' }
+              }
+              onClick={active ? undefined : () => onPick(sheet.id)}
+            >
+              {Array.from({ length: behind }, (_, k) => (
+                <path
+                  key={k}
+                  d={d}
+                  transform={`translate(${(behind - k) * step} ${-(behind - k) * step})`}
+                  fill="var(--sheet)"
+                  className="sheet-edge behind"
+                  strokeWidth={upp}
+                />
+              ))}
+              <path
+                d={d}
+                fillRule="evenodd"
+                fill={number === undefined ? 'none' : 'var(--sheet)'}
+                className={chosen ? 'sheet-edge selected' : 'sheet-edge'}
+                strokeWidth={(chosen ? 3 : number === undefined ? 1 : 2) * upp}
+                strokeDasharray={number === undefined ? `${6 * upp} ${5 * upp}` : undefined}
+              />
+              {(sheet.defects ?? []).map((defect, k) => (
+                <path
+                  key={k}
+                  d={ringsPath([flattenContour(defect, upp / 4)], ox, oy)}
+                  className="defect"
+                  strokeWidth={upp}
+                />
+              ))}
+              {number !== undefined && (
+                <SheetBadge
+                  x={box[0]}
+                  y={-box[3]}
+                  text={`#${number}`}
+                  upp={upp}
+                  className={chosen ? 'order-badge selected' : 'order-badge'}
+                />
+              )}
+              {sheet.quantity > 1 && (
+                <SheetBadge
+                  x={box[2] + behind * step}
+                  y={-box[3] - behind * step}
+                  text={`×${sheet.quantity}`}
+                  upp={upp}
+                  className="stock-badge"
+                />
+              )}
+              {/* Its name below it, where it fits at this zoom, clear of its neighbours. */}
+              {(box[2] - box[0]) / upp > label.length * 7 && (
+                <text
+                  className={chosen ? 'sheet-label selected' : 'sheet-label'}
+                  x={(box[0] + box[2]) / 2}
+                  y={-box[1] + 18 * upp}
+                  fontSize={12 * upp}
+                  textAnchor="middle"
+                >
+                  {label}
+                </text>
+              )}
+            </g>
+          );
+        })}
+        {landing && (
+          <path
+            d={`M${landing.x} ${-landing.high}V${-landing.low}`}
+            className="accent-line"
+            strokeWidth={3 * upp}
+            pointerEvents="none"
+          />
+        )}
+        {draftRing && (
+          <path
+            d={
+              draft.from
+                ? ringsPath([draftRing], dx, dy)
+                : `M${draftRing.map(([x, y]) => `${x + dx},${-(y + dy)}`).join('L')}`
+            }
+            className="defect draft"
+            strokeWidth={upp}
+            pointerEvents="none"
+          />
+        )}
+        {!sheets.length && (
+          <text
+            x={(place.extent[0] + place.extent[2]) / 2}
+            y={-place.extent[3]}
+            fontSize={14 * upp}
+            textAnchor="middle"
+            className="muted-text"
+          >
+            Sheets appear here in nesting order.
+          </text>
+        )}
+      </>
+    );
+  return {
+    // Sheets only shown keep their order.
+    tool: active ? (canvasTool ?? (tool || readOnly ? undefined : reorder)) : undefined,
+    hint:
+      sheets.length > 1
+        ? `Nested in this order, #1 first.${readOnly ? '' : ' Drag a sheet to move it.'}`
+        : undefined,
+    draw,
+  };
+}
+
+/** A small label in a pill, centred on a corner of a sheet: its place in the order, or its stock. */
+function SheetBadge({
+  x,
+  y,
+  text,
+  upp,
+  className,
+}: {
+  x: number;
+  y: number;
+  text: string;
+  upp: number;
+  className: string;
+}) {
+  const width = (text.length * 6.5 + 12) * upp;
+  const height = 18 * upp;
+  return (
+    <g transform={`translate(${x} ${y})`} pointerEvents="none">
+      <rect
+        x={-width / 2}
+        y={-height / 2}
+        width={width}
+        height={height}
+        rx={height / 2}
+        className={className}
+        strokeWidth={upp}
+      />
+      <text
+        className={`${className.split(' ')[0]}-text`}
+        fontSize={10.5 * upp}
+        textAnchor="middle"
+        dy={3.8 * upp}
+      >
+        {text}
+      </text>
+    </g>
+  );
+}
+
+/** The strip on the shared canvas: as wide as set, fading out where its length is open. */
+export function StripLayer({
+  place,
+  upp,
+  unit,
+  active,
+  onPick,
+}: {
+  place: StripPlace;
+  upp: number;
+  unit: DisplayUnit;
+  active: boolean;
+  onPick: () => void;
+}) {
+  const [left, bottom] = place.box;
+  return (
+    <g
+      transform={`translate(${left} ${-bottom})`}
+      style={active ? undefined : { cursor: 'pointer' }}
+      onClick={active ? undefined : onPick}
+    >
+      <StripDrawing width={place.width} length={place.length} upp={upp} unit={unit} />
+    </g>
   );
 }
 

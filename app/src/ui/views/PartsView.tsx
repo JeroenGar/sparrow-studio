@@ -4,7 +4,7 @@ import { netArea } from '../../engine/geometry/world';
 import { colors, shades } from '../../engine/colors';
 import { LIMITS, type Part, type RotationRule } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
-import { arrangeParts } from '../../project/layout';
+import type { Arrangement } from '../../project/layout';
 import {
   copyCount,
   differsFromDefaults,
@@ -18,7 +18,7 @@ import {
   type ProjectPart,
   type ResolvedPart,
 } from '../../project/model';
-import { Canvas, ringsPath } from '../Canvas';
+import { ringsPath } from '../Canvas';
 import { usesSparrowPro } from '../client';
 import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
@@ -41,12 +41,20 @@ import { pole } from '../../engine/geometry/pole';
 
 type Menu = { partId: string; x: number; y: number };
 
-export function PartsView() {
-  const { project, edit, unit, readOnly } = useStudio();
+/** The selected part, the part the canvas zooms to, and the open part menu. */
+export type PartSelection = ReturnType<typeof usePartSelection>;
+
+/** The part selection, kept for the shared canvas of Parts and Sheets. */
+export function usePartSelection() {
   const [selected, setSelected] = useState<string>();
   const [focus, setFocus] = useState<{ id: string; serial: number }>();
   const [menu, setMenu] = useState<Menu>();
-  const rows = useRef(new Map<string, HTMLElement>());
+  return { selected, setSelected, focus, setFocus, menu, setMenu };
+}
+
+/** The project's parts with their effective settings, and what changes them. */
+function usePartActions({ setSelected, setMenu }: PartSelection) {
+  const { project, edit } = useStudio();
   // Draw and list parts with their effective settings; ask the stored part whether a setting is its own.
   const parts = useMemo(() => resolvedParts(project), [project]);
   const stored = (id: string) => project.parts.find((part) => part.id === id);
@@ -55,9 +63,6 @@ export function PartsView() {
     return !!part && differsFromDefaults(part);
   };
   const ownRotations = (id: string) => stored(id)?.rotations !== undefined;
-  const arrangement = useMemo(() => arrangeParts(parts), [parts]);
-  const chosen = parts.find((part) => part.id === selected);
-
   const updatePart = (id: string, change: { name?: string; quantity?: number }, key?: string) =>
     edit(
       (current) => ({
@@ -85,15 +90,22 @@ export function PartsView() {
       `quantity:${part.id}`,
     );
   };
+  return { parts, stored, differs, ownRotations, updatePart, setSetting, removePart, setQuantity };
+}
+
+/** The Parts tab's list: each part type, its properties when selected, and starting a job. */
+export function PartsList({ selection }: { selection: PartSelection }) {
+  const { project, edit } = useStudio();
+  const { selected, setSelected, setFocus, setMenu } = selection;
+  const { parts, stored, differs, updatePart, setSetting, removePart, setQuantity } =
+    usePartActions(selection);
+  const rows = useRef(new Map<string, HTMLElement>());
+  const chosen = parts.find((part) => part.id === selected);
 
   // Selecting in the list zooms the canvas; selecting on the canvas scrolls the list.
   const selectFromList = (id: string) => {
     setSelected(id === selected ? undefined : id);
     setFocus((previous) => ({ id, serial: (previous?.serial ?? 0) + 1 }));
-    setMenu(undefined);
-  };
-  const selectFromCanvas = (id: string) => {
-    setSelected(id);
     setMenu(undefined);
   };
   useEffect(() => {
@@ -121,105 +133,126 @@ export function PartsView() {
   });
 
   const copies = copyCount(project.parts);
-  const focusBox = focus && arrangement.boxes.get(focus.id);
   return (
-    <div className="view">
-      <section className="list-panel" aria-label="Parts">
-        <div className="list-head">
-          <span className="label">
-            {project.parts.length} part {project.parts.length === 1 ? 'type' : 'types'} · {copies}{' '}
-            {copies === 1 ? 'copy' : 'copies'}
-          </span>
-          <ImportMenu kind="parts" />
-        </div>
-        <div className="list-scroll">
-          {!project.parts.length && <EmptyParts />}
-          {parts.map((part, index) => (
-            <div
-              key={part.id}
-              ref={(element) => {
-                if (element) rows.current.set(part.id, element);
-                else rows.current.delete(part.id);
-              }}
-            >
-              <PartRow
+    <section className="list-panel" aria-label="Parts">
+      <div className="list-head">
+        <span className="label">
+          {project.parts.length} part {project.parts.length === 1 ? 'type' : 'types'} · {copies}{' '}
+          {copies === 1 ? 'copy' : 'copies'}
+        </span>
+        <ImportMenu kind="parts" />
+      </div>
+      <div className="list-scroll">
+        {!project.parts.length && <EmptyParts />}
+        {parts.map((part, index) => (
+          <div
+            key={part.id}
+            ref={(element) => {
+              if (element) rows.current.set(part.id, element);
+              else rows.current.delete(part.id);
+            }}
+          >
+            <PartRow
+              part={part}
+              index={index}
+              differs={differs(part.id)}
+              selected={part.id === selected}
+              onSelect={() => selectFromList(part.id)}
+            />
+            {part.id === selected && (
+              <PartProperties
                 part={part}
-                index={index}
-                differs={differs(part.id)}
-                selected={part.id === selected}
-                onSelect={() => selectFromList(part.id)}
-              />
-              {part.id === selected && (
-                <PartProperties
-                  part={part}
-                  own={project.parts.find((stored) => stored.id === part.id)!}
-                  defaults={project.partDefaults}
-                  onSetting={(setting, value, key) => setSetting(part.id, setting, value, key)}
-                  onFollowDefaults={() => edit((current) => followDefaults(current, [part.id]))}
-                  onChange={(change, key) => updatePart(part.id, change, key)}
-                  onQuantity={(quantity) => setQuantity(part, quantity)}
-                  onRemove={() => removePart(part.id)}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-        <RunBar />
-      </section>
-      <Canvas
-        label="Parts at true scale"
-        extent={arrangement.extent}
-        focus={focusBox && { box: focusBox, key: `${focus.id}:${focus.serial}` }}
-        onBackgroundClick={() => {
-          setSelected(undefined);
-          setMenu(undefined);
-        }}
-        overlay={
-          <>
-            <Legend />
-            {menu && !readOnly && (
-              <PartMenu
-                menu={menu}
-                part={parts.find((part) => part.id === menu.partId)}
-                onClose={() => setMenu(undefined)}
-                onQuantity={setQuantity}
-                ownRotations={ownRotations(menu.partId)}
-                defaultRule={project.partDefaults.rotations}
-                onRotation={(part, rule) => setSetting(part.id, 'rotations', rule)}
-                onProperties={(part) => {
-                  setSelected(part.id);
-                  setMenu(undefined);
-                }}
-                onRemove={removePart}
+                own={project.parts.find((stored) => stored.id === part.id)!}
+                defaults={project.partDefaults}
+                onSetting={(setting, value, key) => setSetting(part.id, setting, value, key)}
+                onFollowDefaults={() => edit((current) => followDefaults(current, [part.id]))}
+                onChange={(change, key) => updatePart(part.id, change, key)}
+                onQuantity={(quantity) => setQuantity(part, quantity)}
+                onRemove={() => removePart(part.id)}
               />
             )}
-          </>
-        }
-      >
-        {({ upp }) => (
-          <PartsDrawing
-            parts={parts}
-            differs={differs}
-            ownRotations={ownRotations}
-            arrangement={arrangement}
-            upp={upp}
-            selected={selected}
-            unit={unit}
-            onSelect={selectFromCanvas}
-            onMenu={(partId, event) => {
-              event.preventDefault();
-              const rect = (
-                event.currentTarget.ownerSVGElement!.parentElement as HTMLElement
-              ).getBoundingClientRect();
-              setSelected(partId);
-              setMenu({ partId, x: event.clientX - rect.left, y: event.clientY - rect.top });
+          </div>
+        ))}
+      </div>
+      <RunBar />
+    </section>
+  );
+}
+
+/**
+ * The parts on the shared canvas of Parts and Sheets. While the Parts tab is open (`active`), a
+ * click selects a part, a right click opens its menu, and the list's choice is zoomed to;
+ * otherwise a click on one picks it for the Parts tab (`onPick`).
+ */
+export function usePartsLayer({
+  selection,
+  arrangement,
+  active,
+  onPick,
+}: {
+  selection: PartSelection;
+  arrangement: Arrangement;
+  active: boolean;
+  onPick: (id: string) => void;
+}) {
+  const { project, unit, readOnly } = useStudio();
+  const { selected, setSelected, focus, menu, setMenu } = selection;
+  const { parts, differs, ownRotations, setSetting, removePart, setQuantity } =
+    usePartActions(selection);
+  const focusBox = focus && arrangement.boxes.get(focus.id);
+  return {
+    focus: focusBox && { box: focusBox, key: `${focus.id}:${focus.serial}` },
+    clear: () => {
+      setSelected(undefined);
+      setMenu(undefined);
+    },
+    overlay: active && (
+      <>
+        <Legend />
+        {menu && !readOnly && (
+          <PartMenu
+            menu={menu}
+            part={parts.find((part) => part.id === menu.partId)}
+            onClose={() => setMenu(undefined)}
+            onQuantity={setQuantity}
+            ownRotations={ownRotations(menu.partId)}
+            defaultRule={project.partDefaults.rotations}
+            onRotation={(part, rule) => setSetting(part.id, 'rotations', rule)}
+            onProperties={(part) => {
+              setSelected(part.id);
+              setMenu(undefined);
             }}
+            onRemove={removePart}
           />
         )}
-      </Canvas>
-      <DefaultsPanel />
-    </div>
-  );
+      </>
+    ),
+    draw: (upp: number) => (
+      <PartsDrawing
+        parts={parts}
+        differs={differs}
+        ownRotations={ownRotations}
+        arrangement={arrangement}
+        upp={upp}
+        selected={active ? selected : undefined}
+        unit={unit}
+        onSelect={(id) => {
+          if (!active) return onPick(id);
+          setSelected(id);
+          setMenu(undefined);
+        }}
+        onMenu={(partId, event) => {
+          event.preventDefault();
+          if (!active) return onPick(partId);
+          const rect = (
+            event.currentTarget.ownerSVGElement!.parentElement as HTMLElement
+          ).getBoundingClientRect();
+          setSelected(partId);
+          setMenu({ partId, x: event.clientX - rect.left, y: event.clientY - rect.top });
+        }}
+      />
+    ),
+  };
 }
 
 function EmptyParts() {
@@ -568,7 +601,7 @@ function FlagField({
 }
 
 /** The project's part defaults, which every part follows unless it has its own setting. */
-function DefaultsPanel() {
+export function DefaultsPanel() {
   const { project, edit } = useStudio();
   const differing = project.parts.filter(differsFromDefaults);
   return (
@@ -658,7 +691,7 @@ function PartsDrawing({
   parts: ResolvedPart[];
   differs: (id: string) => boolean;
   ownRotations: (id: string) => boolean;
-  arrangement: ReturnType<typeof arrangeParts>;
+  arrangement: Arrangement;
   upp: number;
   selected?: string;
   unit: DisplayUnit;

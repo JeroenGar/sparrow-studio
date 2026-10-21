@@ -4,7 +4,7 @@ import { flattenContour, outline } from '../../engine/geometry/contour';
 import { bounds } from '../../engine/geometry/normalize';
 import type { WorldPart } from '../../engine/geometry/world';
 import type { Job, Ring, Sheet } from '../../engine/model';
-import type { Box } from '../../project/layout';
+import { inRows, rowGap, type Box } from '../../project/layout';
 import type { DrawnLayout } from '../../project/solution';
 import { ringsPath } from '../Canvas';
 
@@ -31,36 +31,10 @@ export function arrangeLayouts(
 ) {
   const own = layouts.map((layout, i) => materialBox(job, layout, lengths[i]));
   if (!own.length) return { offsets: [], boxes: [], extent: [0, 0, 100, 100] as Box };
-  const gap = Math.max(...own.map((box) => Math.max(box[2] - box[0], box[3] - box[1])), 1) * 0.12;
+  const gap = rowGap(own);
   let best: { offsets: [number, number][]; boxes: Box[]; extent: Box; size: number } | undefined;
   for (let columns = 1; columns <= own.length; columns++) {
-    const offsets: [number, number][] = [];
-    const boxes: Box[] = [];
-    let top = 0;
-    for (let start = 0; start < own.length; start += columns) {
-      const row = own.slice(start, start + columns);
-      const height = Math.max(...row.map((box) => box[3] - box[1]));
-      let x = 0;
-      for (const box of row) {
-        // Rows hang from their top, and grow downward.
-        const offset: [number, number] = [x - box[0], top - box[3]];
-        offsets.push(offset);
-        boxes.push([
-          box[0] + offset[0],
-          box[1] + offset[1],
-          box[2] + offset[0],
-          box[3] + offset[1],
-        ]);
-        x += box[2] - box[0] + gap;
-      }
-      top -= height + gap;
-    }
-    const extent: Box = [
-      Math.min(...boxes.map((box) => box[0])),
-      Math.min(...boxes.map((box) => box[1])),
-      Math.max(...boxes.map((box) => box[2])),
-      Math.max(...boxes.map((box) => box[3])),
-    ];
+    const { offsets, boxes, extent } = inRows(own, columns, gap);
     // The height the view must show: the larger of the two, the width taken at the view's aspect.
     const size = Math.max((extent[2] - extent[0]) / aspect, extent[3] - extent[1]);
     if (!best || size < best.size) best = { offsets, boxes, extent, size };

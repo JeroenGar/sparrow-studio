@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { newPart, type Part } from '../src/engine/model';
 import { parseProject, projectFileName, serializeProject } from '../src/project/file';
-import { arrangeParts } from '../src/project/layout';
+import { arrangeMaterial, arrangeParts, MATERIAL_DISTANCE } from '../src/project/layout';
 import {
   addJob,
   addParts,
@@ -597,6 +597,50 @@ describe('parts canvas arrangement', () => {
     expect(bottoms.size).toBe(1);
     const [bottom] = bottoms;
     for (const box of boxes.values()) expect(box[1]).toBeGreaterThanOrEqual(bottom!);
+  });
+});
+
+describe('the shared canvas of parts and their material', () => {
+  const parts = [square(30), square(10), square(20), square(5), square(25)];
+  const sheet = (length: number) => newSheet('Sheet', length, 40);
+
+  it('puts the sheets below the parts, centred, in rows as wide as the parts', () => {
+    const project = addParts(newProject('Job'), parts);
+    const stock = {
+      ...project.stock,
+      packing: 'sheets' as const,
+      sheets: [1, 2, 3, 4, 5].map(() => sheet(30)),
+    };
+    const place = arrangeMaterial(parts, stock);
+    const [px0, bottom, px1, top] = place.parts.extent;
+    const { boxes, rows, extent } = place.sheets!;
+    // Below the parts, the set distance apart, and centred under them.
+    expect(extent[3]).toBeCloseTo(
+      bottom - MATERIAL_DISTANCE * Math.max(top - bottom, extent[3] - extent[1]),
+    );
+    expect((extent[0] + extent[2]) / 2).toBeCloseTo((px0 + px1) / 2);
+    // No row wider than the parts, unless one sheet alone is; read like text.
+    expect(extent[2] - extent[0]).toBeLessThanOrEqual(px1 - px0);
+    expect(rows).toEqual([...rows].sort((a, b) => a - b));
+    for (let i = 1; i < boxes.length; i++)
+      if (rows[i] === rows[i - 1]) expect(boxes[i][0]).toBeGreaterThan(boxes[i - 1][2]);
+      else expect(boxes[i][3]).toBeLessThan(boxes[i - 1][1]);
+    // A sheet wider than the parts still has a row of its own.
+    expect(
+      arrangeMaterial(parts, { ...stock, sheets: [sheet(5000), sheet(10)] }).sheets!.rows,
+    ).toEqual([0, 1]);
+  });
+
+  it('puts the strip below the parts, as wide as set', () => {
+    const project = addParts(newProject('Job'), parts);
+    const place = arrangeMaterial(parts, {
+      ...project.stock,
+      strip: { ...project.stock.strip, widthMm: 50 },
+    });
+    expect(place.sheets).toBeUndefined();
+    const [, y0, , y1] = place.strip!.box;
+    expect(y1 - y0).toBe(50);
+    expect(y1).toBeLessThan(place.parts.extent[1]);
   });
 });
 
