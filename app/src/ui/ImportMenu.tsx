@@ -10,7 +10,7 @@ export function ImportMenu({
   kind: 'parts' | 'sheets' | 'machines';
   files?: boolean;
 }) {
-  const { openImport } = useStudio();
+  const { openImport, readOnly } = useStudio();
   const menu = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const close = (event: MouseEvent) => {
@@ -24,6 +24,7 @@ export function ImportMenu({
     menu.current!.open = false;
     openImport(kind, source);
   };
+  if (readOnly) return null;
   return (
     <details className="menu" ref={menu}>
       <summary className="button small">

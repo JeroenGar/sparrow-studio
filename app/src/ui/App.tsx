@@ -239,9 +239,21 @@ export default function App() {
                       {entry ? entryName(entry) : 'Project'}
                     </a>
                     <span aria-hidden="true">›</span>
-                    <span className="crumb" aria-current="page">
-                      #{route.number}
-                    </span>
+                    {route.view === 'inputs' ? (
+                      <>
+                        <a className="crumb" href={href({ ...route, view: 'layout' })}>
+                          #{route.number}
+                        </a>
+                        <span aria-hidden="true">›</span>
+                        <span className="crumb" aria-current="page">
+                          Inputs
+                        </span>
+                      </>
+                    ) : (
+                      <span className="crumb" aria-current="page">
+                        #{route.number}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="crumb" aria-current="page">
@@ -253,7 +265,8 @@ export default function App() {
             )}
           </nav>
           <span className="spacer" />
-          {open && (
+          {/* A job's inputs are only shown: the project's menu would act on the project unseen. */}
+          {open && !(route.page === 'job' && route.view === 'inputs') && (
             <ProjectMenu
               canUndo={open.history.past.length > 0}
               canRedo={open.history.future.length > 0}

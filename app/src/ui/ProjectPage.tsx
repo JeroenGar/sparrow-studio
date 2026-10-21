@@ -18,7 +18,7 @@ import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFro
 import { parseProject, serializeProject } from '../project/file';
 import { beyondProject, projectFromJob } from '../project/solution';
 import { explain } from './explain';
-import { JobInputs } from './views/JobView';
+import { formatWhen } from './format';
 import { go, href, type JobView } from './route';
 import type { Runner } from './runs';
 import { JobsView } from './views/JobsView';
@@ -125,9 +125,13 @@ export function ProjectPage({
     [workspace, id],
   );
 
+  // A job's inputs are only shown: undo there would change the project unseen.
+  const previewing = useRef(false);
+  previewing.current = 'job' in shown && shown.view === 'inputs';
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
+      if (previewing.current) return;
       if (
         (event.target as HTMLElement).closest('input, textarea, select') ||
         document.querySelector('dialog[open]')
@@ -172,6 +176,7 @@ export function ProjectPage({
     () => ({
       projectId: id,
       project,
+      readOnly: false,
       edit,
       unit: preferences.unit,
       preferences,
@@ -210,7 +215,7 @@ export function ProjectPage({
   return (
     <StudioContext.Provider value={studio}>
       {'job' in shown && shown.view === 'inputs' ? (
-        <JobInputsPage number={shown.job} />
+        <JobPreview number={shown.job} />
       ) : (
         <>
           <nav className="tabs" aria-label="Project">
@@ -291,11 +296,32 @@ export function ProjectPage({
   );
 }
 
-/** What a job ran with, on its own. */
-function JobInputsPage({ number }: { number: number }) {
-  const { projectId, project } = useStudio();
+/** The input tabs, with the one shown. */
+const INPUT_TAB_LINKS = TABS.filter((item) => item.id !== 'jobs');
+
+/**
+ * The project as a job ran it, shown and not saved: its input tabs, read-only, under a banner that
+ * goes back to the job or saves these inputs as a new project.
+ */
+function JobPreview({ number }: { number: number }) {
+  const studio = useStudio();
+  const { projectId, project, copyJob } = studio;
   const job = project.jobs.find((job) => job.number === number);
-  if (!job)
+  const [tab, setTab] = useState<InputTab>('parts');
+  const preview = useMemo(() => job && projectFromJob(project, job), [project, job]);
+  const beyond = useMemo(() => job && beyondProject(jobInput(job)), [job]);
+  const shown: Studio | undefined = useMemo(
+    () =>
+      preview && {
+        ...studio,
+        project: preview,
+        readOnly: true,
+        edit: () => {},
+        setTab: (tab: Tab) => tab !== 'jobs' && setTab(tab),
+      },
+    [studio, preview],
+  );
+  if (!job || !shown)
     return (
       <div className="boot stack">
         <p>
@@ -309,8 +335,45 @@ function JobInputsPage({ number }: { number: number }) {
       </div>
     );
   return (
-    <main className="main">
-      <JobInputs job={job} />
-    </main>
+    <StudioContext.Provider value={shown}>
+      <div className="preview-banner" role="status">
+        <span className="grow">
+          <strong>
+            A preview of {project.name} as job #{number} ran it,{' '}
+            {formatWhen(job.submittedAt).toLowerCase()}.
+          </strong>{' '}
+          Nothing here can be changed or is saved.
+          {beyond && ` It shows less than the job asked, as ${beyond}, so it cannot be saved.`}
+        </span>
+        <a
+          className="button small"
+          href={href({ page: 'job', id: projectId, number, view: 'layout' })}
+        >
+          Back to #{number}
+        </a>
+        <button className="small primary" disabled={!!beyond} onClick={() => copyJob(number)}>
+          Save as a new project
+        </button>
+      </div>
+      <nav className="tabs" aria-label={`Inputs of job #${number}`}>
+        {INPUT_TAB_LINKS.map((item) => (
+          <button
+            key={item.id}
+            className={item.id === tab ? 'tab active' : 'tab'}
+            aria-current={item.id === tab ? 'page' : undefined}
+            onClick={() => setTab(item.id as InputTab)}
+          >
+            {item.label}
+            {item.id === 'parts' && <span className="count">{copyCount(preview!.parts)}</span>}
+          </button>
+        ))}
+      </nav>
+      <main className="main">
+        {tab === 'parts' && <PartsView />}
+        {tab === 'sheets' && <SheetsView />}
+        {tab === 'machine' && <MachineView />}
+        {tab === 'settings' && <SettingsView />}
+      </main>
+    </StudioContext.Provider>
   );
 }

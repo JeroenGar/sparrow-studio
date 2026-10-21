@@ -11,6 +11,8 @@ export type Tab = InputTab | 'jobs';
 export type Studio = {
   projectId: string;
   project: ProjectDocument;
+  /** Shown, not edited, such as the inputs a job ran with: edits are ignored, controls disabled. */
+  readOnly: boolean;
   /** Apply an edit. Edits with the same key in quick succession form one undo step. */
   edit: (change: (project: ProjectDocument) => ProjectDocument, key?: string) => void;
   unit: DisplayUnit;

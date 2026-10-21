@@ -22,6 +22,7 @@ import { Canvas, ringsPath } from '../Canvas';
 import { usesSparrowPro } from '../client';
 import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
+import { Editable } from '../Editable';
 import { formatArea, formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
 import { GrainIcon, grainPaths } from '../grain';
@@ -41,7 +42,7 @@ import { pole } from '../../engine/geometry/pole';
 type Menu = { partId: string; x: number; y: number };
 
 export function PartsView() {
-  const { project, edit, unit } = useStudio();
+  const { project, edit, unit, readOnly } = useStudio();
   const [selected, setSelected] = useState<string>();
   const [focus, setFocus] = useState<{ id: string; serial: number }>();
   const [menu, setMenu] = useState<Menu>();
@@ -176,7 +177,7 @@ export function PartsView() {
         overlay={
           <>
             <Legend />
-            {menu && (
+            {menu && !readOnly && (
               <PartMenu
                 menu={menu}
                 part={parts.find((part) => part.id === menu.partId)}
@@ -321,7 +322,7 @@ function PartProperties({
   const { unit } = useStudio();
   const b = bounds(outline(part.shape).outer);
   return (
-    <div className="properties">
+    <Editable className="properties">
       <label className="field">
         Name
         <input
@@ -399,7 +400,7 @@ function PartProperties({
       <button className="small danger" onClick={onRemove}>
         Remove part
       </button>
-    </div>
+    </Editable>
   );
 }
 
@@ -575,7 +576,7 @@ function DefaultsPanel() {
       <div className="list-head">
         <span className="label">Part defaults</span>
       </div>
-      <div className="properties plain">
+      <Editable className="properties plain">
         <p className="muted">Every part follows these unless you set it differently.</p>
         <RotationField
           rule={project.partDefaults.rotations}
@@ -638,7 +639,7 @@ function DefaultsPanel() {
             </>
           )}
         </div>
-      </div>
+      </Editable>
     </aside>
   );
 }

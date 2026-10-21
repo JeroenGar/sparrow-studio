@@ -51,8 +51,24 @@ function useRefusal() {
   return checked?.key === key ? { checking: false, refusal: checked.refusal } : { checking: true };
 }
 
-/** Start nesting, at the bottom of every tab's list: it starts the project's next job. */
+/**
+ * Start nesting, at the bottom of every tab's list: it starts the project's next job. Inputs that
+ * are only shown, such as a job's, are nested once saved as a project.
+ */
 export function RunBar() {
+  const { readOnly } = useStudio();
+  if (readOnly)
+    return (
+      <div className="run-bar">
+        <span className="muted">
+          To nest these inputs, or change them, save them as a new project.
+        </span>
+      </div>
+    );
+  return <StartBar />;
+}
+
+function StartBar() {
   const { projectId, project, unit, startRun, setTab, runner } = useStudio();
   const submitting = useSubmitting(runner, projectId);
   // The browser runs one job at a time.

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { TIME_LIMITS, type SolverSettings } from '../../project/model';
 import { useStudio } from '../context';
+import { Editable } from '../Editable';
 import { useLimits } from '../limits';
 import { RunBar } from '../RunBar';
 import { Explanation } from './Explanation';
@@ -36,7 +37,7 @@ export function SettingsView() {
             </span>
           </button>
           {selected === 'time' && (
-            <div className="properties">
+            <Editable className="properties">
               <label className="field">
                 Time limit
                 <select
@@ -59,7 +60,7 @@ export function SettingsView() {
                 />
                 Stop early once the search stops improving
               </label>
-            </div>
+            </Editable>
           )}
           <p className="muted pad">The gap and other machine settings are in the Machine tab.</p>
         </div>

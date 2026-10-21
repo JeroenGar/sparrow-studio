@@ -17,6 +17,7 @@ import { Canvas, ringsPath, type CanvasTool } from '../Canvas';
 import { usesSparrowPro } from '../client';
 import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
+import { Editable } from '../Editable';
 import { formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
 import { LengthInput } from '../LengthInput';
@@ -104,20 +105,22 @@ export function SheetsView() {
   return (
     <div className="view">
       <section className="list-panel" aria-label="Sheets">
-        <div className="segmented" role="group" aria-label="Packing">
-          <button
-            aria-pressed={packing === 'strip'}
-            onClick={() => edit((current) => withStock(current, { packing: 'strip' }))}
-          >
-            Strip
-          </button>
-          <button
-            aria-pressed={packing === 'sheets'}
-            onClick={() => edit((current) => withStock(current, { packing: 'sheets' }))}
-          >
-            Sheets
-          </button>
-        </div>
+        <Editable>
+          <div className="segmented" role="group" aria-label="Packing">
+            <button
+              aria-pressed={packing === 'strip'}
+              onClick={() => edit((current) => withStock(current, { packing: 'strip' }))}
+            >
+              Strip
+            </button>
+            <button
+              aria-pressed={packing === 'sheets'}
+              onClick={() => edit((current) => withStock(current, { packing: 'sheets' }))}
+            >
+              Sheets
+            </button>
+          </div>
+        </Editable>
         {packing === 'strip' ? <StripList /> : <SheetList {...selection} />}
         <RunBar />
       </section>
@@ -158,7 +161,7 @@ function StripList() {
           </span>
         </button>
         {open && (
-          <div className="properties">
+          <Editable className="properties">
             <label className="field">
               Name
               <input
@@ -177,7 +180,7 @@ function StripList() {
               Length
               <span className="muted">Open: the solver minimizes it.</span>
             </div>
-          </div>
+          </Editable>
         )}
       </div>
     </>
@@ -269,9 +272,11 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
         </span>
         <span className="row-actions">
           <ImportMenu kind="sheets" />
-          <button className="small" onClick={add}>
-            + New
-          </button>
+          <Editable>
+            <button className="small" onClick={add}>
+              + New
+            </button>
+          </Editable>
         </span>
       </div>
       <div className="list-scroll">
@@ -282,11 +287,11 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
               Add the sheets you have in stock, in the order to use them: rectangles, or outlines of
               remnants from DXF or SVG files.
             </p>
-            <div className="row-actions wrap">
+            <Editable className="row-actions wrap">
               <button onClick={add}>Add a sheet</button>
               <button onClick={() => openImport('sheets', 'files')}>Import files…</button>
               <button onClick={() => openImport('sheets', 'project')}>From another project…</button>
-            </div>
+            </Editable>
           </div>
         )}
         {sheets.map((sheet, index) => {
@@ -336,7 +341,7 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
                 </span>
               </button>
               {sheet.id === selected && (
-                <div className="properties">
+                <Editable className="properties">
                   <label className="field">
                     Name
                     <input
@@ -495,7 +500,7 @@ function SheetList({ selected, select: setSelected, tool, setTool }: Selection) 
                       Remove
                     </button>
                   </div>
-                </div>
+                </Editable>
               )}
             </div>
           );

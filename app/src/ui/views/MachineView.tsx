@@ -3,6 +3,7 @@ import { newId } from '../../engine/model';
 import { activeMachine, boundaryOf, newMachine, type MachinePreset } from '../../project/model';
 import { ProRow } from '../ProTag';
 import { useStudio } from '../context';
+import { Editable } from '../Editable';
 import { formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
 import { LengthInput } from '../LengthInput';
@@ -50,12 +51,14 @@ export function MachineView() {
           <span className="label">Machine presets</span>
           <span className="row-actions">
             <ImportMenu kind="machines" files={false} />
-            <button
-              className="small"
-              onClick={() => add(newMachine(`Machine ${project.machines.length + 1}`))}
-            >
-              + New
-            </button>
+            <Editable>
+              <button
+                className="small"
+                onClick={() => add(newMachine(`Machine ${project.machines.length + 1}`))}
+              >
+                + New
+              </button>
+            </Editable>
           </span>
         </div>
         <div className="list-scroll">
@@ -77,7 +80,7 @@ export function MachineView() {
                 {machine.id === project.machineId && <span className="pill good">In use</span>}
               </button>
               {machine.id === selected && chosen && (
-                <div className="properties">
+                <Editable className="properties">
                   <label className="field">
                     Name
                     <input
@@ -166,7 +169,7 @@ export function MachineView() {
                       Delete
                     </button>
                   </div>
-                </div>
+                </Editable>
               )}
             </div>
           ))}
