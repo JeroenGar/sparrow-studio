@@ -244,9 +244,9 @@ export function firstLayouts(
 }
 
 /** The width over height of a job's thumb, which holds as many of its first layouts as fit. */
-export const JOB_THUMB_ASPECT = 3;
+export const JOB_THUMB_ASPECT = 5;
 /** The most layouts a job's thumb holds, however narrow they are. */
-const THUMB_LAYOUTS = 6;
+const THUMB_LAYOUTS = 10;
 
 /**
  * A solution's first layouts on their material, in a row, as many as about fit

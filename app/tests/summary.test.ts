@@ -195,9 +195,9 @@ describe('thumbs', () => {
 });
 
 describe('job thumbs', () => {
-  it('hold the first layouts side by side, as many as about fit three to one', () => {
+  it('hold the first layouts side by side, as many as about fit five to one', () => {
     const project = addParts(newProject('Sheets'), [round(20, 12)]);
-    const sheets = Array.from({ length: 5 }, (_, i) => newSheet(`Sheet ${i + 1}`, 100, 100));
+    const sheets = Array.from({ length: 7 }, (_, i) => newSheet(`Sheet ${i + 1}`, 100, 100));
     const { input } = projectRequest({ ...project, stock: { ...project.stock, sheets } });
     const part = input.parts[0].id;
     const placed = { rotation: 0, translation: [50, 50], reflection: 'none' as const };
@@ -213,9 +213,9 @@ describe('job thumbs', () => {
     };
     const { thumb, more } = layoutThumb(input, best as never, new Map());
     const shapes = unpackThumb(thumb)!;
-    // Three squares and their gaps are a little over three to one; a fourth would not fit.
-    expect(shapes.filter((shape) => shape.fill === MATERIAL)).toHaveLength(3);
+    // Five squares and their gaps are a little over five to one; a sixth would not fit.
+    expect(shapes.filter((shape) => shape.fill === MATERIAL)).toHaveLength(5);
     expect(more).toBe(2);
-    expect(thumb.width / thumb.height).toBeGreaterThan(3);
+    expect(thumb.width / thumb.height).toBeGreaterThan(5);
   });
 });
