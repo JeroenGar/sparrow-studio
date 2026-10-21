@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Job } from '../../api/client';
-import { credits, useAccount } from '../account';
+import { useAccount } from '../account';
 import { client } from '../client';
 import { Dialog } from '../Dialog';
 import { explain } from '../explain';
@@ -108,18 +108,28 @@ export function AccountDialog({
     return months;
   }, [loaded]);
 
+  const partial = loaded.status === 'ready' && !!loaded.next;
   return (
     <Dialog title="Account" onClose={onClose} size="large">
       {account && (
-        <p className="account-head">
-          <span className="muted">{account.email}</span>
-          <span>
-            <strong className="mono">{credits(account.credits.available)}</strong> available
-            {account.credits.held > 0 && (
-              <span className="muted"> · {credits(account.credits.held)} held by jobs</span>
-            )}
+        <div className="account-summary">
+          <span className="account-figure">
+            <span className="label">Credits available</span>
+            <span className="account-amount mono">
+              {account.credits.available.toLocaleString('en')}
+            </span>
           </span>
-        </p>
+          {account.credits.held > 0 && (
+            <span className="account-figure">
+              <span className="label">Held by jobs</span>
+              <span className="account-amount mono muted">
+                {account.credits.held.toLocaleString('en')}
+              </span>
+            </span>
+          )}
+          <span className="spacer" />
+          <span className="muted">{account.email}</span>
+        </div>
       )}
       {loaded.status === 'loading' && <p className="muted">Loading the jobs…</p>}
       {loaded.status === 'failed' && (
@@ -131,35 +141,37 @@ export function AccountDialog({
           <p className="muted">Start nesting in a project: its jobs show here.</p>
         </div>
       )}
-      {months.map((month, index) => (
-        <section key={month.name} className="job-section">
-          <div className="job-section-head">
-            <h3 id={`month-${index}`}>{month.name}</h3>
-            <span className="muted">
-              {month.jobs.length} {month.jobs.length === 1 ? 'job' : 'jobs'} ·{' '}
-              {credits(month.credits)}
-              {loaded.status === 'ready' &&
-                loaded.next &&
-                index === months.length - 1 &&
-                ' so far: older jobs are not loaded'}
-            </span>
-          </div>
-          <table className="job-table account-jobs" aria-labelledby={`month-${index}`}>
-            <colgroup>
-              <col className="started" />
-              <col />
-              <col />
-              <col className="credits" />
-            </colgroup>
-            <thead className="visually-hidden">
-              <tr>
-                <th scope="col">Started</th>
-                <th scope="col">Project and job</th>
-                <th scope="col">Status</th>
-                <th scope="col">Credits</th>
+      {months.length > 0 && (
+        <table className="account-jobs">
+          <colgroup>
+            <col className="started" />
+            <col />
+            <col />
+            <col className="credits" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th scope="col">Started</th>
+              <th scope="col">Project</th>
+              <th scope="col">Status</th>
+              <th scope="col" className="numeric">
+                Credits
+              </th>
+            </tr>
+          </thead>
+          {months.map((month, index) => (
+            <tbody key={month.name}>
+              <tr className="month">
+                <th scope="rowgroup" colSpan={3}>
+                  {month.name}
+                  <span className="muted">
+                    {' '}
+                    · {month.jobs.length} {month.jobs.length === 1 ? 'job' : 'jobs'}
+                    {partial && index === months.length - 1 && ' so far'}
+                  </span>
+                </th>
+                <td className="numeric">{month.credits.toLocaleString('en')}</td>
               </tr>
-            </thead>
-            <tbody>
               {month.jobs.map((job) => (
                 <JobRow
                   key={job.id}
@@ -170,11 +182,11 @@ export function AccountDialog({
                 />
               ))}
             </tbody>
-          </table>
-        </section>
-      ))}
-      {loaded.status === 'ready' && loaded.next && (
-        <span>
+          ))}
+        </table>
+      )}
+      {partial && (
+        <span className="account-more">
           <button disabled={loaded.more} onClick={() => older(loaded.next!)}>
             {loaded.more ? 'Loading…' : 'Show older jobs'}
           </button>
@@ -209,11 +221,12 @@ function JobRow({
             href={href({ page: 'job', id: owner.entry.id, number: owner.number, view: 'layout' })}
             onClick={onOpen}
           >
-            {entryName(owner.entry)} <span className="mono">#{owner.number}</span>
+            {entryName(owner.entry)}
           </a>
         ) : (
           <span className="muted">Project not known</span>
         )}
+        {owner && <span className="mono muted"> #{owner.number}</span>}
       </td>
       <td>
         <span className="job-progress">
@@ -238,8 +251,10 @@ function JobRow({
           )}
         </span>
       </td>
-      <td className="mono">
-        {active ? `${credits(current.credits.held)} held` : credits(current.credits.charged)}
+      <td className="numeric">
+        {active
+          ? `${current.credits.held.toLocaleString('en')} held`
+          : current.credits.charged.toLocaleString('en')}
       </td>
     </tr>
   );

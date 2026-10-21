@@ -1405,7 +1405,8 @@ input[aria-invalid='true'] {
 }
 
 .about-logo {
-  height: 80px;
+  height: 48px;
+  max-width: 100%;
   width: auto;
   align-self: center;
   margin-block: 8px;
@@ -1656,12 +1657,25 @@ a.button.primary {
   align-items: center;
   gap: 8px;
 }
-/* The account's email and credits, over its jobs. */
-.account-head {
+/* The account's credits and email, over its jobs. */
+.account-summary {
   display: flex;
   flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 8px 16px;
+  align-items: flex-end;
+  gap: 12px 40px;
+  padding: 16px 18px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.account-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.account-amount {
+  font-size: 26px;
+  line-height: 1.1;
 }
 /* A dialog over most of the page, such as the account's. */
 .dialog.large {
@@ -1669,57 +1683,67 @@ a.button.primary {
   height: calc(100vh - 64px);
 }
 
-/* Every job of the account: a table per month, newest first. */
-.job-section {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.job-section-head {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-}
-.job-table {
+/* Every job of the account, newest first, in one table with a row for each month. */
+.account-jobs {
   width: 100%;
-  border-collapse: collapse;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
   background: var(--panel);
   border: 1px solid var(--line);
   border-radius: 10px;
-  overflow: hidden;
+  font-size: 13px;
 }
-.job-table td {
-  padding: 8px 16px;
+.account-jobs col.started {
+  width: 150px;
+}
+.account-jobs col.credits {
+  width: 140px;
+}
+.account-jobs th,
+.account-jobs td {
+  padding: 9px 16px;
+  text-align: left;
+  font-weight: 400;
   border-top: 1px solid var(--line-soft);
   vertical-align: middle;
 }
-.job-table tr:first-child td {
+.account-jobs thead th {
   border-top: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
-.job-table tr.running {
-  background: var(--accent-soft);
-}
-.job-table a {
-  color: var(--ink);
-  font-weight: 600;
-}
-/* The same columns in every month's table, so they line up down the page. */
-.job-table {
-  table-layout: fixed;
-}
-.job-table col.started {
-  width: 160px;
-}
-.job-table col.credits {
-  width: 180px;
-}
-.job-section-head h3 {
-  margin: 0;
-  font-size: 15px;
+.account-jobs tr.month > * {
+  padding-top: 12px;
+  background: var(--panel-soft);
+  border-top-color: var(--line);
   font-weight: 650;
 }
-.job-table td:first-child {
-  padding-right: 0;
+.account-jobs tr.month .muted {
+  font-weight: 400;
+}
+.account-jobs tr.running > td {
+  background: var(--accent-soft);
+}
+.account-jobs a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.account-jobs a:hover {
+  color: var(--accent);
+}
+.account-jobs .numeric {
+  text-align: right;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.account-more {
+  display: flex;
+  justify-content: center;
 }
 .job-progress {
   display: inline-flex;

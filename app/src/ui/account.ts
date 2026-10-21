@@ -18,7 +18,3 @@ export function useAccount(): Account | undefined {
   }, []);
   return account;
 }
-
-/** A number of credits, in words. */
-export const credits = (count: number) =>
-  `${count.toLocaleString('en')} ${count === 1 ? 'credit' : 'credits'}`;
