@@ -1,11 +1,11 @@
-/* Paper and brick: white paper and the logo's dark brown ink, with the brick red of the studio label as the
+/* Paper and brick: white paper and bark ink, the logo's, with the brick red of the studio label as the
    one accent. The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
   --bg: #f6f6f4;
   --panel: #ffffff;
   --panel-soft: #fafaf9;
-  /* The logo's bird and letters, for text and the dark controls. */
+  /* Bark, the logo's bird and letters: for text and the dark controls. */
   --ink: #4a3020;
   --muted: #5f5f5f;
   --line: #e2e2df;
