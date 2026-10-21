@@ -2,13 +2,13 @@ import { useMemo, useState } from 'react';
 import type { DisplayUnit } from '../engine/units';
 import type { Summary } from '../project/summary';
 import { backend, usesSparrowPro } from './client';
-import { formatAgo, formatSeconds, formatWhen } from './format';
-import { Trash } from './icons';
+import { formatAgo, formatWhen } from './format';
+import { ChevronRight, Trash } from './icons';
 import { JobThumb, LiveJobThumb, ThumbDrawing } from './JobThumb';
 import { href } from './route';
-import { elapsed, useBest, useNow, useRun, type Runner } from './runs';
+import { useBest, type Runner } from './runs';
 import { Search } from './Search';
-import { JobDot, jobFigures, jobNote, jobStatus } from './views/JobsView';
+import { JobDot, jobFigures, jobStatus } from './views/JobsView';
 import {
   entryName,
   entrySummary,
@@ -190,8 +190,9 @@ function ProjectCard({
 }
 
 /**
- * A project's newest job, under its card: its layout, live while it runs, how it stands, and
- * what it used; a click opens it. A project without jobs says so in the same place.
+ * A project's newest job at the foot of its card, as a row that opens it: its layout, live while
+ * it runs, then the job and its result, with what it used and when below, and a chevron for
+ * where it goes. A project without jobs says so in the same place.
  */
 function LastJob({
   entry,
@@ -214,17 +215,13 @@ function LastJob({
     return (
       <a className="last-job" href={href({ page: 'project', id: entry.id, tab: 'parts' })}>
         <JobThumb />
-        <span className="last-job-text">
-          <span>
-            <span className="visually-hidden">{entryName(entry)}: </span>No jobs yet
-          </span>
-          <span className="muted">Start nesting from the project</span>
+        <span className="last-job-text muted">
+          <span className="visually-hidden">{entryName(entry)}: </span>No jobs yet
         </span>
       </a>
     );
   const figures = jobFigures(job, best, unit);
-  const failed = job.stage !== 'completed' && job.stage !== 'running';
-  const stale = job.input !== summary.input;
+  const result = job.stage === 'completed' ? figures?.utilization : jobStatus(job);
   return (
     <a
       className={id ? 'last-job running' : 'last-job'}
@@ -236,39 +233,19 @@ function LastJob({
         <JobThumb thumb={job.thumb} more={job.more} />
       )}
       <span className="last-job-text">
-        <span className="label">
-          <span className="visually-hidden">{entryName(entry)}, </span>Last job
-        </span>
         <span className="job-progress">
-          <JobDot job={job} />
+          <span className="visually-hidden">{entryName(entry)}, </span>
+          {job.stage !== 'completed' && <JobDot job={job} />}
           <strong>Job #{job.number}</strong>
-          {id
-            ? 'Running'
-            : job.stage === 'completed'
-              ? `${job.stopped ? 'Stopped' : 'Finished'} after ${formatSeconds(job.solverSeconds)}`
-              : jobStatus(job).replace(/^./, (c) => c.toUpperCase())}
+          {result && <span>· {result}</span>}
         </span>
-        {id && (
-          <span className="job-progress muted">
-            <Progress runner={runner} jobId={id} />
-          </span>
-        )}
-        {failed && (
-          <span className="muted" title={jobNote(job)}>
-            {jobNote(job)}
-          </span>
-        )}
         <span className="muted">
-          {formatWhen(job.submittedAt)}
-          {stale && ' · project changed since'}
+          {id
+            ? (figures?.utilization ?? 'starting')
+            : [figures?.used, formatWhen(job.submittedAt)].filter(Boolean).join(' · ')}
         </span>
       </span>
-      {figures && !failed && (
-        <span className="last-job-figures mono">
-          <span>{figures.utilization}</span>
-          {figures.used && <span className="muted">{figures.used}</span>}
-        </span>
-      )}
+      <ChevronRight />
     </a>
   );
 }
@@ -277,22 +254,4 @@ function LastJob({
 function useOrder(entry: OpenEntry | undefined) {
   const parts = entry?.history.present.parts;
   return useMemo(() => new Map(parts?.map((part, index) => [part.id, index])), [parts]);
-}
-
-/** A running job's time against its limit, as a bar and in figures. */
-function Progress({ runner, jobId }: { runner: Runner; jobId: string }) {
-  const run = useRun(runner, jobId);
-  const seconds = elapsed(run, useNow(!!run && !run.error));
-  if (!run) return null;
-  const limit = run.request.settings.time_limit_seconds;
-  return (
-    <>
-      <span className="progress small" aria-hidden="true">
-        <span style={{ width: `${Math.min(100, (seconds / limit) * 100)}%` }} />
-      </span>
-      <span className="muted mono">
-        {formatSeconds(seconds)} of {formatSeconds(limit)}
-      </span>
-    </>
-  );
 }

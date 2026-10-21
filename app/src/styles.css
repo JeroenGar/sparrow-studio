@@ -1523,9 +1523,8 @@ input[aria-invalid='true'] {
   height: 44px;
   background: var(--panel);
 }
-/* Its text keeps room to be read: on a narrow card the figures go under it. */
 .last-job-text {
-  flex: 1 1 140px;
+  flex: 1 1 100px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -1536,22 +1535,16 @@ input[aria-invalid='true'] {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.last-job-figures {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  white-space: nowrap;
+/* The chevron says the row goes somewhere: the job. */
+.last-job > svg {
+  flex: none;
+  color: var(--muted);
 }
-@container (max-width: 400px) {
-  .last-job-figures {
-    flex-direction: row;
-    gap: 8px;
-    width: 100%;
-  }
+.last-job:hover > svg {
+  color: var(--ink);
 }
 .project-card {
   position: relative;
-  container-type: inline-size;
   display: flex;
   flex-direction: column;
   background: var(--panel);

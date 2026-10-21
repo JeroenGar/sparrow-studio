@@ -11,6 +11,11 @@ export const ChevronDown = () => (
     <path d="m6 9 6 6 6-6" />
   </svg>
 );
+export const ChevronRight = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
+    <path d="m9 6 6 6-6 6" />
+  </svg>
+);
 export const Cloud = () => (
   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" {...stroke}>
     <path d="M7 18h10a4 4 0 0 0 .5-7.97A6 6 0 0 0 6 9.5 4.25 4.25 0 0 0 7 18Z" />
