@@ -75,10 +75,7 @@ export function JobAside({
 }) {
   const { projectId, project, unit } = useStudio();
   const input = jobInput(job);
-  const stale = useMemo(
-    () => job.stage !== 'running' && isStale(project, input),
-    [project, input, job.stage],
-  );
+  const stale = useMemo(() => isStale(project, input), [project, input]);
   // What changed since, named as the job named it, or as the project names what it added.
   const changes = useMemo(() => {
     if (!stale) return [];

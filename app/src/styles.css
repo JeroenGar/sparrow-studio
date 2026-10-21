@@ -1711,11 +1711,16 @@ a.row {
 }
 .part-chip {
   min-height: 28px;
-  padding: 0 10px;
+  max-width: 100%;
+  padding: 2px 10px;
   border-radius: 14px;
   font-size: 12px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 .part-chip i {
+  flex: none;
   width: 10px;
   height: 10px;
   border-radius: 2px;

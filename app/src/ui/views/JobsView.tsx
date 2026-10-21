@@ -96,7 +96,7 @@ export function JobsView({ number }: { number?: number }) {
       ) : (
         <section className="explanation">
           <span className="chip">
-            {jobs.length
+            {number !== undefined
               ? `There is no job #${number}: it may have been removed.`
               : 'The first job’s layout shows here'}
           </span>
