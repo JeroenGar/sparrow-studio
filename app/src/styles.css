@@ -1,11 +1,12 @@
-/* Paper and brick: white paper and near-black ink, with the brick red of the studio label as the
+/* Paper and brick: white paper and the logo's dark brown ink, with the brick red of the studio label as the
    one accent. The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
   --bg: #f6f6f4;
   --panel: #ffffff;
   --panel-soft: #fafaf9;
-  --ink: #111111;
+  /* The logo's bird and letters, for text and the dark controls. */
+  --ink: #4a3020;
   --muted: #5f5f5f;
   --line: #e2e2df;
   --line-soft: #ededeb;
@@ -19,7 +20,7 @@
   --grid: #ededeb;
   --grid-major: #e0e0dc;
   --bar: #ffffff;
-  --bar-ink: #111111;
+  --bar-ink: #4a3020;
   --bar-muted: #5f5f5f;
   --bar-line: #e2e2df;
   --bar-control: rgba(0, 0, 0, 0.04);
@@ -50,7 +51,7 @@
   --bg: #121212;
   --panel: #1a1a1a;
   --panel-soft: #202020;
-  --ink: #f2f2f2;
+  --ink: #f3e3c3;
   --muted: #a3a3a3;
   --line: #2c2c2c;
   --line-soft: #232323;
@@ -62,7 +63,7 @@
   --grid: #212121;
   --grid-major: #2b2b2b;
   --bar: #1a1a1a;
-  --bar-ink: #f2f2f2;
+  --bar-ink: #f3e3c3;
   --bar-muted: #a3a3a3;
   --bar-line: #2c2c2c;
   --bar-control: rgba(255, 255, 255, 0.06);
@@ -392,7 +393,7 @@ input[aria-invalid='true'] {
   color: var(--bar-ink);
   background: var(--bar);
   /* A line under the bar in the brick of the studio label. */
-  border-bottom: 2px solid var(--brand);
+  border-bottom: 3px solid var(--brand);
 }
 /* Controls on the bar take its tones. */
 .top-bar > button,
