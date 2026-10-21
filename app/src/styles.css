@@ -7,7 +7,8 @@
   --panel-soft: #fafaf9;
   /* Bark, the logo's bird and letters: for text and the dark controls. */
   --ink: #4a3020;
-  --muted: #5f5f5f;
+  /* Secondary text: the ink, a fifth of the way to the paper, as readable as a mid grey. */
+  --muted: color-mix(in srgb, var(--ink) 80%, var(--panel));
   --line: #e2e2df;
   --line-soft: #ededeb;
   --control: #cfcfcb;
@@ -21,7 +22,7 @@
   --grid-major: #e0e0dc;
   --bar: #ffffff;
   --bar-ink: #4a3020;
-  --bar-muted: #5f5f5f;
+  --bar-muted: color-mix(in srgb, var(--bar-ink) 80%, var(--bar));
   --bar-line: #e2e2df;
   --bar-control: rgba(0, 0, 0, 0.04);
   /* Off-white, a shade under the canvas, so a sheet's holes show as the canvas through it. */
@@ -52,7 +53,8 @@
   --panel: #1a1a1a;
   --panel-soft: #202020;
   --ink: #f3e3c3;
-  --muted: #a3a3a3;
+  /* On the dark paper the ink goes further towards it, as far as the grey it replaces. */
+  --muted: color-mix(in srgb, var(--ink) 65%, var(--panel));
   --line: #2c2c2c;
   --line-soft: #232323;
   --control: #3d3d3d;
@@ -64,7 +66,7 @@
   --grid-major: #2b2b2b;
   --bar: #1a1a1a;
   --bar-ink: #f3e3c3;
-  --bar-muted: #a3a3a3;
+  --bar-muted: color-mix(in srgb, var(--bar-ink) 65%, var(--bar));
   --bar-line: #2c2c2c;
   --bar-control: rgba(255, 255, 255, 0.06);
   --sheet: #242424;
