@@ -1411,6 +1411,13 @@ input[aria-invalid='true'] {
   align-self: center;
   margin-block: 8px;
 }
+.about-links {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+  font-size: 13px;
+}
 
 /* The projects as cards. */
 .home {
