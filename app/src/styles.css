@@ -1516,10 +1516,11 @@ input[aria-invalid='true'] {
   outline-offset: -2px;
 }
 .last-job .job-thumb {
-  /* As wide as the job's thumb, five to one, and narrower where the text needs the room. */
-  flex: 0 1 220px;
-  min-width: 96px;
-  height: auto;
+  /* As wide as its sheets at this height, up to five to one, narrower where the text needs room. */
+  flex: 0 1 auto;
+  min-width: 44px;
+  width: auto;
+  height: 44px;
   aspect-ratio: 5;
   background: var(--panel);
 }
