@@ -23,7 +23,8 @@
   --bar-muted: #5f5f5f;
   --bar-line: #e2e2df;
   --bar-control: rgba(0, 0, 0, 0.04);
-  --sheet: #ffffff;
+  /* Off-white, a shade under the canvas, so a sheet's holes show as the canvas through it. */
+  --sheet: #f0eee8;
   --pro: #9a3412;
   --pro-soft: #fbe8d6;
   --pro-line: #c2410c;
