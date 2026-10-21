@@ -1575,13 +1575,12 @@ input[aria-invalid='true'] {
   color: inherit;
   text-decoration: none;
 }
-/* The project's part of its card shades alone under the pointer, apart from its last job. */
-.card-link:hover::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--hover);
-  pointer-events: none;
+/* The project shades under the pointer, the whole card around its last job, which stays as it is. */
+.project-card:has(> .card-link:hover) {
+  background: color-mix(in srgb, var(--ink) 8%, var(--panel));
+}
+.card-link:hover .card-thumb {
+  background: color-mix(in srgb, var(--ink) 8%, var(--panel-soft));
 }
 .card-link:focus-visible {
   outline: 2px solid var(--accent);
