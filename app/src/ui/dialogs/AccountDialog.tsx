@@ -117,7 +117,7 @@ export function AccountDialog({
           <span>
             <strong className="mono">{credits(account.credits.available)}</strong> available
             {account.credits.held > 0 && (
-              <span className="muted"> · {credits(account.credits.held)} held by running jobs</span>
+              <span className="muted"> · {credits(account.credits.held)} held by jobs</span>
             )}
           </span>
         </p>

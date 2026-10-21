@@ -14,7 +14,8 @@ export function useAccount(enabled: boolean, key: string): Account | undefined {
     let current = true;
     patiently(() => client.getAccount()).then(
       (read) => current && setAccount(read),
-      () => {},
+      // A balance that could not be read again is no longer shown as if it were current.
+      () => current && setAccount(undefined),
     );
     return () => {
       current = false;

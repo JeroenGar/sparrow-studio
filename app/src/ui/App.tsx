@@ -605,8 +605,18 @@ function AccountButton({
   onClick: () => void;
 }) {
   return (
-    <button className="account-button" onClick={onClick}>
-      {running && <i className="live-dot" role="img" aria-label="Jobs running" />}
+    <button
+      className="account-button"
+      aria-label={[
+        'Account',
+        account && `${credits(account.credits.available)} available`,
+        running && 'jobs running',
+      ]
+        .filter(Boolean)
+        .join(', ')}
+      onClick={onClick}
+    >
+      {running && <i className="live-dot" aria-hidden="true" />}
       {account ? credits(account.credits.available) : 'Account'}
     </button>
   );
