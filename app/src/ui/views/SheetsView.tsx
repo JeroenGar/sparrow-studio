@@ -715,6 +715,7 @@ export function useSheetsLayer({
                   key={k}
                   d={d}
                   transform={`translate(${(behind - k) * step} ${-(behind - k) * step})`}
+                  fillRule="evenodd"
                   fill="var(--sheet)"
                   className="sheet-edge behind"
                   strokeWidth={upp}

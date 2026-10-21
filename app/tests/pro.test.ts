@@ -124,6 +124,7 @@ describe('sparrow Pro job inputs', () => {
       type: 'minimize_sheets_in_order',
       sheets: [
         { id: '1', geometry_id: 'hide', quantity: 1.5 },
+        { id: '6', geometry_id: 'hide', quantity: null },
         { id: '2', geometry_id: 'hide', defects: [{ type: 'circle', radius: 5 }] },
         { id: '3', geometry_id: 'overlapping' },
         { id: '4', geometry_id: 'outside' },
@@ -145,6 +146,7 @@ describe('sparrow Pro job inputs', () => {
     expect(review.sheets!.map((sheet) => sheet.name)).toEqual(['Sheet 5']);
     expect(review.issues!.map((issue) => issue.split(':').slice(0, 2).join(':'))).toEqual([
       'Sheet 1: its quantity must be a whole number, 0 or more.',
+      'Sheet 6: its quantity must be a whole number, 0 or more.',
       'Sheet 2: defect 1',
       'Sheet 3: Holes overlap or contain each other.',
       'Sheet 4: Hole must be strictly inside its outer contour.',

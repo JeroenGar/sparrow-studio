@@ -74,7 +74,7 @@ export function importPro(value: unknown, fileName: string, options: Options): I
         const sheet = record(raw);
         const name = `Sheet ${String(sheet.id)}`;
         return usable(name, (): ImportedSheet => {
-          const quantity = sheet.quantity ?? 1;
+          const quantity = sheet.quantity === undefined ? 1 : sheet.quantity;
           if (!Number.isInteger(quantity) || (quantity as number) < 0)
             throw Error('its quantity must be a whole number, 0 or more.');
           const defects = sheet.defects ?? [];
