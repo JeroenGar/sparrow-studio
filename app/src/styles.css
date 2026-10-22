@@ -2,28 +2,29 @@
    one accent. The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
-  --bg: #f6f6f4;
-  --panel: #ffffff;
-  --panel-soft: #fafaf9;
+  /* Warm paper, barely tinted towards the bark: the page, what lies on it, and softer insets. */
+  --bg: #f5f3ef;
+  --panel: #fffefc;
+  --panel-soft: #f9f7f3;
   /* Bark, the logo's bird and letters: for text and the dark controls. */
   --ink: #4a3020;
   /* Secondary text: the ink, a fifth of the way to the paper, as readable as a mid grey. */
   --muted: color-mix(in srgb, var(--ink) 80%, var(--panel));
-  --line: #e2e2df;
-  --line-soft: #ededeb;
-  --control: #cfcfcb;
+  --line: #e5e1da;
+  --line-soft: #eeebe5;
+  --control: #d2ccc2;
   --accent: #b3261e;
   /* The brick of the studio label, the same in both themes. */
   --brand: #b3261e;
   --accent-soft: #fbeceb;
   --accent-line: #e9b4b0;
-  --canvas: #fafaf9;
-  --grid: #ededeb;
-  --grid-major: #e0e0dc;
-  --bar: #ffffff;
+  --canvas: #faf9f6;
+  --grid: #eeebe5;
+  --grid-major: #e2ded6;
+  --bar: #fffefc;
   --bar-ink: #4a3020;
   --bar-muted: color-mix(in srgb, var(--bar-ink) 80%, var(--bar));
-  --bar-line: #e2e2df;
+  --bar-line: #e5e1da;
   --bar-control: rgba(0, 0, 0, 0.04);
   /* Off-white, a shade under the canvas, so a sheet's holes show as the canvas through it. */
   --sheet: #f0eee8;
@@ -37,6 +38,8 @@
   --overlap: rgba(220, 38, 38, 0.72);
   --differs: #e5372c;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* A card's lift off the page, in place of a border. */
+  --card-shadow: 0 1px 2px rgba(74, 48, 32, 0.06), 0 6px 18px rgba(74, 48, 32, 0.05);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     system-ui,
@@ -78,6 +81,7 @@
   --good-soft: #1f2a21;
   --good-line: #2f6b43;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 /* Logos come in a light and a dark version; show the one for the theme. */
 :root[data-theme='dark'] .logo-light,
@@ -1469,18 +1473,9 @@ input[aria-invalid='true'] {
 }
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* As many as fit, each 340 px at least: three on a laptop, more on a wide screen. */
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
   gap: 20px;
-}
-@media (max-width: 1240px) {
-  .project-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 700px) {
-  .project-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 .home-count {
   display: flex;
@@ -1490,26 +1485,23 @@ input[aria-invalid='true'] {
 }
 /* A project's newest job, set in at the foot of its card, apart from the project above it. */
 .last-job {
-  margin: auto 10px 10px;
+  margin: auto 12px 12px;
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 8px 12px 8px 8px;
+  padding: 7px 10px 7px 7px;
   background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 9px;
   color: inherit;
   text-decoration: none;
   font-size: 13px;
 }
 /* What a click opens is outlined under the pointer: the card's project, or its last job alone. */
 .last-job:hover {
-  border-color: var(--ink);
-  box-shadow: 0 0 0 1px var(--ink);
+  box-shadow: 0 0 0 2px var(--ink);
 }
 .last-job.running {
   background: var(--accent-soft);
-  border-color: var(--accent-line);
 }
 .last-job:focus-visible {
   outline: 2px solid var(--accent);
@@ -1523,6 +1515,8 @@ input[aria-invalid='true'] {
   height: 44px;
   aspect-ratio: 5;
   background: var(--panel);
+  border: 0;
+  border-radius: 6px;
 }
 /* The text keeps room to be read; the picture gives way first. */
 .last-job-text {
@@ -1550,8 +1544,8 @@ input[aria-invalid='true'] {
   display: flex;
   flex-direction: column;
   background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
   overflow: hidden;
 }
 .card-link {
@@ -1562,8 +1556,7 @@ input[aria-invalid='true'] {
   text-decoration: none;
 }
 .project-card:has(> .card-link:hover) {
-  border-color: var(--ink);
-  box-shadow: 0 0 0 1px var(--ink);
+  box-shadow: 0 0 0 2px var(--ink);
 }
 .card-link:focus-visible {
   outline: 2px solid var(--accent);
@@ -1573,9 +1566,8 @@ input[aria-invalid='true'] {
   display: block;
   width: 100%;
   height: 150px;
-  padding: 10px 14px;
+  padding: 16px 20px;
   background: var(--panel-soft);
-  border-bottom: 1px solid var(--line-soft);
 }
 .card-body {
   display: flex;
