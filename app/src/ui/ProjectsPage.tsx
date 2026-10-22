@@ -236,7 +236,7 @@ function LastJob({
         <span className="job-progress">
           <span className="visually-hidden">{entryName(entry)}, </span>
           {job.stage !== 'completed' && <JobDot job={job} />}
-          <strong>Job #{job.number}</strong>
+          <strong>Last job</strong>
           {result && <span>· {result}</span>}
         </span>
         <span className="muted">
