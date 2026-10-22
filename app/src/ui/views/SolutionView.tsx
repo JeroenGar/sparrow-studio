@@ -156,7 +156,7 @@ export function SolutionView({
   return (
     <>
       <Canvas
-        label="Solution layout"
+        label="Layout"
         onAspect={setAspect}
         extent={[x0 - pad, y0 - pad, x1 + pad, y1 + pad]}
         focus={
@@ -278,7 +278,7 @@ export function SolutionView({
               </ul>
             </div>
           )}
-          <span className="label">Export solution</span>
+          <span className="label">Export layout</span>
           <div className="downloads">
             {(['svg', 'dxf', 'pdf'] as Format[]).map((format) => (
               <button
@@ -295,7 +295,7 @@ export function SolutionView({
         {onSheets && (
           <>
             <div className="list-head">
-              <span className="label">Sheets in this solution</span>
+              <span className="label">Sheets in this layout</span>
             </div>
             {layouts.map((l, i) => (
               <button
@@ -344,7 +344,7 @@ export function SolutionView({
         </div>
         <div className="pad stack">
           <ProRow>Lock placements and nest the rest again</ProRow>
-          <ProRow>Compare several solutions</ProRow>
+          <ProRow>Compare several results</ProRow>
           <button className="small" onClick={diagnostics}>
             Download diagnostics
           </button>
