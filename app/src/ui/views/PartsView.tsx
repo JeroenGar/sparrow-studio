@@ -1,51 +1,68 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { bounds } from '../../engine/geometry/normalize';
-import { netArea } from '../../engine/geometry/validate';
+import { netArea } from '../../engine/geometry/world';
 import { colors, shades } from '../../engine/colors';
 import { LIMITS, type Part, type RotationRule } from '../../engine/model';
 import type { DisplayUnit } from '../../engine/units';
-import { arrangeParts } from '../../project/layout';
+import type { Arrangement } from '../../project/layout';
 import {
   copyCount,
   differsFromDefaults,
+  followDefaults,
   ruleKey,
   resolvedParts,
-  setDefaultRotations,
-  setPartRotations,
+  setPartDefault,
+  setPartSetting,
+  type PartSetting,
+  type PartSettings,
+  type ProjectPart,
+  type ResolvedPart,
 } from '../../project/model';
-import { Canvas, ringsPath } from '../Canvas';
-import { ProRow } from '../ProTag';
+import { ringsPath } from '../Canvas';
+import { usesSparrowPro } from '../client';
+import { ProTag } from '../ProTag';
 import { useStudio } from '../context';
+import { Editable } from '../Editable';
 import { formatArea, formatLength } from '../format';
 import { ImportMenu } from '../ImportMenu';
 import { GrainIcon, grainPaths } from '../grain';
 import {
   ROTATION_LABELS,
   describeAngles,
+  nextRotation,
   parseAngles,
   rotationKind,
   rotationRule,
   type RotationKind,
 } from '../rotations';
 import { RunBar } from '../RunBar';
+import { outline } from '../../engine/geometry/contour';
+import { pole } from '../../engine/geometry/pole';
 
 type Menu = { partId: string; x: number; y: number };
 
-export function PartsView() {
-  const { project, edit, unit } = useStudio();
+/** The selected part, the part the canvas zooms to, and the open part menu. */
+export type PartSelection = ReturnType<typeof usePartSelection>;
+
+/** The part selection, kept for the shared canvas of Parts and Sheets. */
+export function usePartSelection() {
   const [selected, setSelected] = useState<string>();
   const [focus, setFocus] = useState<{ id: string; serial: number }>();
   const [menu, setMenu] = useState<Menu>();
-  const rows = useRef(new Map<string, HTMLElement>());
+  return { selected, setSelected, focus, setFocus, menu, setMenu };
+}
+
+/** The project's parts with their effective settings, and what changes them. */
+function usePartActions({ setSelected, setMenu }: PartSelection) {
+  const { project, edit } = useStudio();
   // Draw and list parts with their effective settings; ask the stored part whether a setting is its own.
   const parts = useMemo(() => resolvedParts(project), [project]);
+  const stored = (id: string) => project.parts.find((part) => part.id === id);
   const differs = (id: string) => {
-    const part = project.parts.find((stored) => stored.id === id);
+    const part = stored(id);
     return !!part && differsFromDefaults(part);
   };
-  const arrangement = useMemo(() => arrangeParts(parts), [parts]);
-  const chosen = parts.find((part) => part.id === selected);
-
+  const ownRotations = (id: string) => stored(id)?.rotations !== undefined;
   const updatePart = (id: string, change: { name?: string; quantity?: number }, key?: string) =>
     edit(
       (current) => ({
@@ -54,8 +71,12 @@ export function PartsView() {
       }),
       key,
     );
-  const setRotations = (id: string, rule: RotationRule | 'default', key?: string) =>
-    edit((current) => setPartRotations(current, [id], rule), key);
+  const setSetting = <K extends PartSetting>(
+    id: string,
+    setting: K,
+    value: PartSettings[K] | 'default',
+    key?: string,
+  ) => edit((current) => setPartSetting(current, [id], setting, value), key);
   const removePart = (id: string) => {
     edit((current) => ({ ...current, parts: current.parts.filter((part) => part.id !== id) }));
     setSelected(undefined);
@@ -69,15 +90,22 @@ export function PartsView() {
       `quantity:${part.id}`,
     );
   };
+  return { parts, stored, differs, ownRotations, updatePart, setSetting, removePart, setQuantity };
+}
+
+/** The Parts tab's list: each part type, its properties when selected, and starting a job. */
+export function PartsList({ selection }: { selection: PartSelection }) {
+  const { project, edit } = useStudio();
+  const { selected, setSelected, setFocus, setMenu } = selection;
+  const { parts, stored, differs, updatePart, setSetting, removePart, setQuantity } =
+    usePartActions(selection);
+  const rows = useRef(new Map<string, HTMLElement>());
+  const chosen = parts.find((part) => part.id === selected);
 
   // Selecting in the list zooms the canvas; selecting on the canvas scrolls the list.
   const selectFromList = (id: string) => {
     setSelected(id === selected ? undefined : id);
     setFocus((previous) => ({ id, serial: (previous?.serial ?? 0) + 1 }));
-    setMenu(undefined);
-  };
-  const selectFromCanvas = (id: string) => {
-    setSelected(id);
     setMenu(undefined);
   };
   useEffect(() => {
@@ -94,6 +122,9 @@ export function PartsView() {
       else if (event.key === '-' || event.key === '_') setQuantity(chosen, chosen.quantity - 1);
       else if (event.key === 'Delete' || event.key === 'Backspace') removePart(chosen.id);
       else if (event.key === 'Escape') setSelected(undefined);
+      // R cycles the rotations; with a modifier, it is the browser's, such as reloading.
+      else if (event.key.toLowerCase() === 'r' && !event.metaKey && !event.ctrlKey && !event.altKey)
+        setSetting(chosen.id, 'rotations', nextRotation(stored(chosen.id)?.rotations));
       else return;
       event.preventDefault();
     };
@@ -102,103 +133,126 @@ export function PartsView() {
   });
 
   const copies = copyCount(project.parts);
-  const focusBox = focus && arrangement.boxes.get(focus.id);
   return (
-    <div className="view">
-      <section className="list-panel" aria-label="Parts">
-        <div className="list-head">
-          <span className="label">
-            {project.parts.length} part {project.parts.length === 1 ? 'type' : 'types'} · {copies}{' '}
-            {copies === 1 ? 'copy' : 'copies'}
-          </span>
-          <ImportMenu kind="parts" />
-        </div>
-        <div className="list-scroll">
-          {!project.parts.length && <EmptyParts />}
-          {parts.map((part, index) => (
-            <div
-              key={part.id}
-              ref={(element) => {
-                if (element) rows.current.set(part.id, element);
-                else rows.current.delete(part.id);
-              }}
-            >
-              <PartRow
+    <section className="list-panel" aria-label="Parts">
+      <div className="list-head">
+        <span className="label">
+          {project.parts.length} part {project.parts.length === 1 ? 'type' : 'types'} · {copies}{' '}
+          {copies === 1 ? 'copy' : 'copies'}
+        </span>
+        <ImportMenu kind="parts" />
+      </div>
+      <div className="list-scroll">
+        {!project.parts.length && <EmptyParts />}
+        {parts.map((part, index) => (
+          <div
+            key={part.id}
+            ref={(element) => {
+              if (element) rows.current.set(part.id, element);
+              else rows.current.delete(part.id);
+            }}
+          >
+            <PartRow
+              part={part}
+              index={index}
+              differs={differs(part.id)}
+              selected={part.id === selected}
+              onSelect={() => selectFromList(part.id)}
+            />
+            {part.id === selected && (
+              <PartProperties
                 part={part}
-                index={index}
-                differs={differs(part.id)}
-                selected={part.id === selected}
-                onSelect={() => selectFromList(part.id)}
-              />
-              {part.id === selected && (
-                <PartProperties
-                  part={part}
-                  differs={differs(part.id)}
-                  defaultRule={project.partDefaults.rotations}
-                  onRotations={(rule, key) => setRotations(part.id, rule, key)}
-                  onChange={(change, key) => updatePart(part.id, change, key)}
-                  onQuantity={(quantity) => setQuantity(part, quantity)}
-                  onRemove={() => removePart(part.id)}
-                />
-              )}
-            </div>
-          ))}
-        </div>
-        <RunBar />
-      </section>
-      <Canvas
-        label="Parts at true scale"
-        extent={arrangement.extent}
-        focus={focusBox && { box: focusBox, key: `${focus.id}:${focus.serial}` }}
-        onBackgroundClick={() => {
-          setSelected(undefined);
-          setMenu(undefined);
-        }}
-        overlay={
-          <>
-            <Legend />
-            {menu && (
-              <PartMenu
-                menu={menu}
-                part={parts.find((part) => part.id === menu.partId)}
-                onClose={() => setMenu(undefined)}
-                onQuantity={setQuantity}
-                differs={menu && differs(menu.partId)}
-                defaultRule={project.partDefaults.rotations}
-                onRotation={(part, rule) => setRotations(part.id, rule)}
-                onProperties={(part) => {
-                  setSelected(part.id);
-                  setMenu(undefined);
-                }}
-                onRemove={removePart}
+                own={project.parts.find((stored) => stored.id === part.id)!}
+                defaults={project.partDefaults}
+                onSetting={(setting, value, key) => setSetting(part.id, setting, value, key)}
+                onFollowDefaults={() => edit((current) => followDefaults(current, [part.id]))}
+                onChange={(change, key) => updatePart(part.id, change, key)}
+                onQuantity={(quantity) => setQuantity(part, quantity)}
+                onRemove={() => removePart(part.id)}
               />
             )}
-          </>
-        }
-      >
-        {({ upp }) => (
-          <PartsDrawing
-            parts={parts}
-            differs={differs}
-            arrangement={arrangement}
-            upp={upp}
-            selected={selected}
-            unit={unit}
-            onSelect={selectFromCanvas}
-            onMenu={(partId, event) => {
-              event.preventDefault();
-              const rect = (
-                event.currentTarget.ownerSVGElement!.parentElement as HTMLElement
-              ).getBoundingClientRect();
-              setSelected(partId);
-              setMenu({ partId, x: event.clientX - rect.left, y: event.clientY - rect.top });
+          </div>
+        ))}
+      </div>
+      <RunBar />
+    </section>
+  );
+}
+
+/**
+ * The parts on the shared canvas of Parts and Sheets. While the Parts tab is open (`active`), a
+ * click selects a part, a right click opens its menu, and the list's choice is zoomed to;
+ * otherwise a click on one picks it for the Parts tab (`onPick`).
+ */
+export function usePartsLayer({
+  selection,
+  arrangement,
+  active,
+  onPick,
+}: {
+  selection: PartSelection;
+  arrangement: Arrangement;
+  active: boolean;
+  onPick: (id: string) => void;
+}) {
+  const { project, unit, readOnly } = useStudio();
+  const { selected, setSelected, focus, menu, setMenu } = selection;
+  const { parts, differs, ownRotations, setSetting, removePart, setQuantity } =
+    usePartActions(selection);
+  const focusBox = focus && arrangement.boxes.get(focus.id);
+  return {
+    focus: focusBox && { box: focusBox, key: `${focus.id}:${focus.serial}` },
+    clear: () => {
+      setSelected(undefined);
+      setMenu(undefined);
+    },
+    overlay: active && (
+      <>
+        <Legend />
+        {menu && !readOnly && (
+          <PartMenu
+            menu={menu}
+            part={parts.find((part) => part.id === menu.partId)}
+            onClose={() => setMenu(undefined)}
+            onQuantity={setQuantity}
+            ownRotations={ownRotations(menu.partId)}
+            defaultRule={project.partDefaults.rotations}
+            onRotation={(part, rule) => setSetting(part.id, 'rotations', rule)}
+            onProperties={(part) => {
+              setSelected(part.id);
+              setMenu(undefined);
             }}
+            onRemove={removePart}
           />
         )}
-      </Canvas>
-      <DefaultsPanel />
-    </div>
-  );
+      </>
+    ),
+    draw: (upp: number) => (
+      <PartsDrawing
+        parts={parts}
+        differs={differs}
+        ownRotations={ownRotations}
+        arrangement={arrangement}
+        upp={upp}
+        selected={active ? selected : undefined}
+        unit={unit}
+        onSelect={(id) => {
+          if (!active) return onPick(id);
+          setSelected(id);
+          setMenu(undefined);
+        }}
+        onMenu={(partId, event) => {
+          event.preventDefault();
+          if (!active) return onPick(partId);
+          const rect = (
+            event.currentTarget.ownerSVGElement!.parentElement as HTMLElement
+          ).getBoundingClientRect();
+          setSelected(partId);
+          setMenu({ partId, x: event.clientX - rect.left, y: event.clientY - rect.top });
+        }}
+      />
+    ),
+  };
 }
 
 function EmptyParts() {
@@ -209,16 +263,16 @@ function EmptyParts() {
       <p className="muted">
         Import DXF, SVG or sparrow JSON files, or take parts from another project.
       </p>
-      <div className="row-actions">
+      <Editable className="row-actions">
         <button onClick={() => openImport('parts', 'files')}>Import files…</button>
         <button onClick={() => openImport('parts', 'project')}>From another project…</button>
-      </div>
+      </Editable>
     </div>
   );
 }
 
 export function PartThumb({ part, index }: { part: Part; index: number }) {
-  const b = bounds(part.outer);
+  const b = bounds(outline(part.shape).outer);
   const size = Math.max(b[2] - b[0], b[3] - b[1]);
   const pad = size * 0.08;
   return (
@@ -228,7 +282,7 @@ export function PartThumb({ part, index }: { part: Part; index: number }) {
       aria-hidden="true"
     >
       <path
-        d={ringsPath([part.outer, ...part.holes])}
+        d={ringsPath([outline(part.shape).outer, ...outline(part.shape).holes])}
         fillRule="evenodd"
         fill={colors[index % colors.length]}
         stroke="var(--ink)"
@@ -245,14 +299,14 @@ function PartRow({
   selected,
   onSelect,
 }: {
-  part: Part;
+  part: ResolvedPart;
   index: number;
   differs: boolean;
   selected: boolean;
   onSelect: () => void;
 }) {
   const { unit } = useStudio();
-  const b = bounds(part.outer);
+  const b = bounds(outline(part.shape).outer);
   return (
     <button
       className={selected ? 'row selected' : 'row'}
@@ -265,6 +319,7 @@ function PartRow({
         <span className="muted mono">
           {formatLength(b[2] - b[0], unit)} × {formatLength(b[3] - b[1], unit)} {unit} ·{' '}
           {ROTATION_LABELS[rotationKind(part.rotations)]}
+          {part.reflection && ' · reflects'}
         </span>
       </span>
       {differs && <i className="differs-dot" title="Differs from the part defaults" />}
@@ -275,25 +330,32 @@ function PartRow({
 
 function PartProperties({
   part,
-  differs,
-  defaultRule,
-  onRotations,
+  own,
+  defaults,
+  onSetting,
+  onFollowDefaults,
   onChange,
   onQuantity,
   onRemove,
 }: {
-  part: Part;
-  differs: boolean;
-  defaultRule: RotationRule;
-  onRotations: (rule: RotationRule | 'default', key?: string) => void;
+  part: ResolvedPart;
+  /** The part as stored: a setting is present only when it is the part's own. */
+  own: ProjectPart;
+  defaults: PartSettings;
+  onSetting: <K extends PartSetting>(
+    setting: K,
+    value: PartSettings[K] | 'default',
+    key?: string,
+  ) => void;
+  onFollowDefaults: () => void;
   onChange: (change: Partial<Part>, key?: string) => void;
   onQuantity: (quantity: number) => void;
   onRemove: () => void;
 }) {
   const { unit } = useStudio();
-  const b = bounds(part.outer);
+  const b = bounds(outline(part.shape).outer);
   return (
-    <div className="properties">
+    <Editable className="properties">
       <label className="field">
         Name
         <input
@@ -327,21 +389,35 @@ function PartProperties({
       </div>
       <RotationField
         rule={part.rotations}
-        defaultRule={defaultRule}
-        usesDefault={!differs}
-        onChange={(rule, key) => onRotations(rule, key && `${key}:${part.id}`)}
+        defaultRule={defaults.rotations}
+        usesDefault={own.rotations === undefined}
+        onChange={(rule, key) => onSetting('rotations', rule, key && `${key}:${part.id}`)}
       />
-      {differs && (
+      <FlagField
+        setting="reflection"
+        value={part.reflection}
+        defaultValue={defaults.reflection}
+        usesDefault={own.reflection === undefined}
+        onChange={(value) => onSetting('reflection', value)}
+      />
+      {!!part.shape.holes?.length && (
+        <FlagField
+          setting="nestInHoles"
+          value={part.nestInHoles}
+          defaultValue={defaults.nestInHoles}
+          usesDefault={own.nestInHoles === undefined}
+          onChange={(value) => onSetting('nestInHoles', value)}
+        />
+      )}
+      {differsFromDefaults(own) && (
         <div className="differs-note">
           <i className="differs-dot" aria-hidden="true" />
           <span className="grow">Differs from the part defaults.</span>
-          <button className="small" onClick={() => onRotations('default')}>
+          <button className="small" onClick={onFollowDefaults}>
             Use the defaults
           </button>
         </div>
       )}
-      <ProRow>Allow reflection</ProRow>
-      <ProRow>Nest parts inside its holes</ProRow>
       <dl className="facts">
         <dt>Shape</dt>
         <dd>
@@ -350,14 +426,14 @@ function PartProperties({
         <dt>Area</dt>
         <dd>{formatArea(netArea(part), unit)}</dd>
         <dt>Holes</dt>
-        <dd>{part.holes.length || 'none'}</dd>
+        <dd>{part.shape.holes?.length || 'none'}</dd>
         <dt>Source</dt>
         <dd>{part.source.fileName ?? part.source.format.toUpperCase()}</dd>
       </dl>
       <button className="small danger" onClick={onRemove}>
         Remove part
       </button>
-    </div>
+    </Editable>
   );
 }
 
@@ -446,8 +522,86 @@ function RotationField({
   );
 }
 
+const FLAGS = {
+  reflection: {
+    label: 'Reflection',
+    on: 'Allowed',
+    off: 'Not allowed',
+    toggle: 'Allow reflection',
+  },
+  nestInHoles: {
+    label: 'Parts inside its holes',
+    on: 'Allowed',
+    off: 'Not allowed',
+    toggle: 'Nest parts inside holes',
+  },
+};
+
+/** What a setting does in this browser, where open-source sparrow solves. */
+function LocalNote({ setting }: { setting: keyof typeof FLAGS }) {
+  if (usesSparrowPro) return null;
+  return setting === 'reflection' ? (
+    <ProTag />
+  ) : (
+    <span className="muted small-note">In this browser, parts are not nested inside holes.</span>
+  );
+}
+
+/**
+ * A setting that is on or off. With `defaultValue`, it belongs to a part: the first choice is to
+ * follow the part defaults, and picking a value gives the part its own. Without, it is a default.
+ */
+function FlagField({
+  setting,
+  value,
+  defaultValue,
+  usesDefault = false,
+  onChange,
+}: {
+  setting: keyof typeof FLAGS;
+  value: boolean;
+  defaultValue?: boolean;
+  usesDefault?: boolean;
+  onChange: (value: boolean | 'default') => void;
+}) {
+  const names = FLAGS[setting];
+  if (defaultValue === undefined)
+    return (
+      <div className="flag-field">
+        <label className="choice">
+          <input
+            type="checkbox"
+            checked={value}
+            onChange={(event) => onChange(event.target.checked)}
+          />
+          {names.toggle}
+        </label>
+        <LocalNote setting={setting} />
+      </div>
+    );
+  return (
+    <label className="field">
+      <span className="field-label">
+        {names.label}
+        <LocalNote setting={setting} />
+      </span>
+      <select
+        value={usesDefault ? 'default' : value ? 'on' : 'off'}
+        onChange={(event) => {
+          const next = event.target.value;
+          onChange(next === 'default' ? 'default' : next === 'on');
+        }}
+      >
+        <option value="default">Default · {defaultValue ? names.on : names.off}</option>
+        <option value="on">{names.on}</option>
+        <option value="off">{names.off}</option>
+      </select>
+    </label>
+  );
+}
+
 /** The project's part defaults, which every part follows unless it has its own setting. */
-function DefaultsPanel() {
+export function DefaultsPanel() {
   const { project, edit } = useStudio();
   const differing = project.parts.filter(differsFromDefaults);
   return (
@@ -455,17 +609,29 @@ function DefaultsPanel() {
       <div className="list-head">
         <span className="label">Part defaults</span>
       </div>
-      <div className="properties plain">
+      <Editable className="properties plain">
         <p className="muted">Every part follows these unless you set it differently.</p>
         <RotationField
           rule={project.partDefaults.rotations}
           onChange={(rule, key) =>
             rule !== 'default' &&
-            edit((current) => setDefaultRotations(current, rule), key && `default-${key}`)
+            edit((current) => setPartDefault(current, 'rotations', rule), key && `default-${key}`)
           }
         />
-        <ProRow>Allow reflection</ProRow>
-        <ProRow>Nest parts inside holes</ProRow>
+        <FlagField
+          setting="reflection"
+          value={project.partDefaults.reflection}
+          onChange={(value) =>
+            value !== 'default' && edit((current) => setPartDefault(current, 'reflection', value))
+          }
+        />
+        <FlagField
+          setting="nestInHoles"
+          value={project.partDefaults.nestInHoles}
+          onChange={(value) =>
+            value !== 'default' && edit((current) => setPartDefault(current, 'nestInHoles', value))
+          }
+        />
         <div className="grain-key" aria-label="Grain lines">
           <span className="muted">Parts that differ show their grain line:</span>
           {(['fixed', 'half', 'quarter', 'free'] as const).map((kind) => (
@@ -494,10 +660,9 @@ function DefaultsPanel() {
                 className="small"
                 onClick={() =>
                   edit((current) =>
-                    setPartRotations(
+                    followDefaults(
                       current,
                       differing.map((part) => part.id),
-                      'default',
                     ),
                   )
                 }
@@ -507,7 +672,7 @@ function DefaultsPanel() {
             </>
           )}
         </div>
-      </div>
+      </Editable>
     </aside>
   );
 }
@@ -515,6 +680,7 @@ function DefaultsPanel() {
 function PartsDrawing({
   parts,
   differs,
+  ownRotations,
   arrangement,
   upp,
   selected,
@@ -522,9 +688,10 @@ function PartsDrawing({
   onSelect,
   onMenu,
 }: {
-  parts: Part[];
+  parts: ResolvedPart[];
   differs: (id: string) => boolean;
-  arrangement: ReturnType<typeof arrangeParts>;
+  ownRotations: (id: string) => boolean;
+  arrangement: Arrangement;
   upp: number;
   selected?: string;
   unit: DisplayUnit;
@@ -538,15 +705,18 @@ function PartsDrawing({
         const [dx, dy] = arrangement.offsets.get(part.id)!;
         const box = arrangement.boxes.get(part.id)!;
         const isSelected = part.id === selected;
-        const d = ringsPath([part.outer, ...part.holes], dx, dy);
-        const size = Math.min(box[2] - box[0], box[3] - box[1]);
+        const { outer, holes } = outline(part.shape);
+        const d = ringsPath([outer, ...holes], dx, dy);
+        // The grain line sits in the widest place of the material, which the middle of an
+        // irregular part need not be, and stays within it.
+        const { point, radius } = pole(outline(part.shape));
         // Only parts with their own rotations show a grain line, once large enough on screen:
         // it fades in from 30 px and is fully drawn at 60 px.
-        const detail = Math.max(0, Math.min(1, (size / upp - 30) / 30));
+        const detail = Math.max(0, Math.min(1, ((2 * radius) / upp - 30) / 30));
         const grain =
-          differs(part.id) &&
+          ownRotations(part.id) &&
           detail > 0 &&
-          grainPaths(part.rotations, (box[0] + box[2]) / 2, -(box[1] + box[3]) / 2, size * 0.45);
+          grainPaths(part.rotations, point[0] + dx, -(point[1] + dy), radius * 0.9);
         return (
           <g
             key={part.id}
@@ -574,7 +744,15 @@ function PartsDrawing({
               </g>
             )}
             <g transform={`translate(${box[2] + badge * 0.4} ${-box[3] - badge * 0.4})`}>
-              <circle r={badge} className="badge" />
+              {/* With reflection, the badge grows into a pill that holds its symbol below. */}
+              <rect
+                x={-badge}
+                y={-badge}
+                width={2 * badge}
+                height={part.reflection ? 4.3 * badge : 2 * badge}
+                rx={badge}
+                className="badge"
+              />
               <text className="badge-text" fontSize={10 * upp} textAnchor="middle" dy={3.5 * upp}>
                 ×{part.quantity}
               </text>
@@ -587,13 +765,18 @@ function PartsDrawing({
                   strokeWidth={1.5 * upp}
                 />
               )}
+              {part.reflection && (
+                <g transform={`translate(0 ${badge * 2.3})`}>
+                  <ReflectionSymbol size={badge * 1.2} upp={upp} />
+                </g>
+              )}
             </g>
-            {/* A name only where it fits under its part at this zoom. */}
+            {/* A name only where it fits under its part at this zoom, on its row's baseline. */}
             {(box[2] - box[0]) / upp > part.name.length * 7 && (
               <text
                 className="part-label"
                 x={(box[0] + box[2]) / 2}
-                y={-box[1] + 16 * upp}
+                y={-arrangement.rowBottoms.get(part.id)! + 16 * upp}
                 fontSize={12 * upp}
                 textAnchor="middle"
               >
@@ -612,11 +795,34 @@ function PartsDrawing({
   );
 }
 
+/** Two triangles mirrored across a dashed line: copies may be placed mirrored. */
+function ReflectionSymbol({ size, upp }: { size: number; upp: number }) {
+  const h = size / 2;
+  return (
+    <g className="reflection-symbol" pointerEvents="none">
+      <path d={`M${-h * 0.15},${-h}L${-h},${h * 0.7}L${-h * 0.15},${h * 0.7}Z`} />
+      <path d={`M${h * 0.15},${-h}L${h},${h * 0.7}L${h * 0.15},${h * 0.7}Z`} />
+      <path
+        d={`M0,${-h * 1.1}V${h * 1.1}`}
+        fill="none"
+        strokeWidth={upp}
+        strokeDasharray={`${1.5 * upp} ${1.5 * upp}`}
+      />
+    </g>
+  );
+}
+
 function Legend() {
   return (
     <div className="legend" aria-label="Legend">
       <span>
         <span className="legend-badge">×3</span>Quantity
+      </span>
+      <span>
+        <svg className="legend-symbol" viewBox="-7 -7 14 14" aria-hidden="true">
+          <ReflectionSymbol size={10} upp={0.6} />
+        </svg>
+        May be mirrored
       </span>
       <span>
         <i className="differs-dot" aria-hidden="true" />
@@ -631,7 +837,7 @@ function PartMenu({
   part,
   onClose,
   onQuantity,
-  differs,
+  ownRotations,
   defaultRule,
   onRotation,
   onProperties,
@@ -641,7 +847,8 @@ function PartMenu({
   part?: Part;
   onClose: () => void;
   onQuantity: (part: Part, quantity: number) => void;
-  differs?: boolean;
+  /** Whether the part has rotations of its own, rather than the default. */
+  ownRotations: boolean;
   defaultRule: RotationRule;
   onRotation: (part: Part, rule: RotationRule | 'default') => void;
   onProperties: (part: Part) => void;
@@ -679,7 +886,7 @@ function PartMenu({
       <label className="field">
         Rotations
         <select
-          value={differs ? kind : 'default'}
+          value={ownRotations ? kind : 'default'}
           onChange={(event) => {
             const next = event.target.value as Exclude<RotationKind, 'custom'> | 'default';
             onRotation(part, next === 'default' ? 'default' : rotationRule(next));
@@ -691,7 +898,7 @@ function PartMenu({
               {ROTATION_LABELS[option]}
             </option>
           ))}
-          {kind === 'custom' && differs && (
+          {kind === 'custom' && ownRotations && (
             <option value="custom" disabled>
               {ROTATION_LABELS.custom}
             </option>

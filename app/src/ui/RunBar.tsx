@@ -1,37 +1,120 @@
-import { copyCount, startBlockers } from '../project/model';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
+import { ApiError, withCode } from '../api/client';
+import {
+  copyCount,
+  describeSheets,
+  nextJobNumber,
+  startBlockers,
+  TAB_NAMES,
+  unseenTabs,
+} from '../project/model';
+import { projectRequest } from '../project/solution';
+import { backend, client, usesSparrowPro } from './client';
 import { useStudio } from './context';
-import { formatLength, formatSeconds } from './format';
+import { formatLength } from './format';
+import { ProTag } from './ProTag';
+import { useSubmitting } from './runs';
+import { explain } from './explain';
 
-/** Start nesting, at the bottom of every tab's list. While a run is going, it becomes Stop. */
+/** Why the backend refuses the project's job: an error to fix, or a feature it does not have. */
+type Refusal = { message: string; unavailable: boolean };
+
+/** Asks the backend whether it would accept the project's job, shortly after each change. */
+function useRefusal() {
+  const { project } = useStudio();
+  const request = useMemo(() => projectRequest(project), [project]);
+  const key = JSON.stringify(request);
+  const [checked, setChecked] = useState<{ key: string; refusal?: Refusal }>();
+  useEffect(() => {
+    let current = true;
+    const timer = setTimeout(() => {
+      client.validateJob(request).then(
+        () => current && setChecked({ key }),
+        (reason) =>
+          current &&
+          setChecked({
+            key,
+            refusal: {
+              message: explain(reason),
+              unavailable:
+                reason instanceof ApiError && !!withCode(reason.error, 'feature_unavailable'),
+            },
+          }),
+      );
+    }, 300);
+    return () => {
+      current = false;
+      clearTimeout(timer);
+    };
+    // The key stands for the request.
+  }, [key]);
+  return checked?.key === key ? { checking: false, refusal: checked.refusal } : { checking: true };
+}
+
+/**
+ * Start nesting, at the bottom of every tab's list: it starts the project's next job. Inputs that
+ * are only shown, such as a job's, are nested once saved as a project.
+ */
 export function RunBar() {
-  const { project, unit, running, startRun, stopRun, solver } = useStudio();
-  if (running)
+  const { readOnly } = useStudio();
+  if (readOnly)
     return (
       <div className="run-bar">
-        <button className="primary" onClick={stopRun}>
-          Stop
-        </button>
         <span className="muted">
-          {solver.state === 'Running'
-            ? `Running · ${formatSeconds(solver.elapsed)}`
-            : solver.state === 'Initializing'
-              ? 'Starting the solver…'
-              : 'Preparing the job…'}
+          To nest these inputs, or change them, save them as a new project.
         </span>
       </div>
     );
-  const blockers = startBlockers(project);
+  return <StartBar />;
+}
+
+function StartBar() {
+  const { projectId, project, unit, startRun, setTab, runner } = useStudio();
+  const submitting = useSubmitting(runner, projectId);
+  // The browser runs one job at a time.
+  const busy = useSyncExternalStore(runner.subscribe, () => !usesSparrowPro && runner.running());
+  const { checking, refusal } = useRefusal();
+
+  const blocker =
+    startBlockers(project)[0] ??
+    (busy ? 'A job is running in this browser, which runs one at a time.' : undefined);
+  // A new project's first run comes after a look through each input tab, one after the other.
+  const next = unseenTabs(project)[0];
+  if (!blocker && next)
+    return (
+      <div className="run-bar">
+        <button className="primary" onClick={() => setTab(next)}>
+          Next: {TAB_NAMES[next]}
+        </button>
+      </div>
+    );
   const copies = copyCount(project.parts);
   return (
     <div className="run-bar">
-      <button className="primary" disabled={blockers.length > 0} onClick={startRun}>
-        Start nesting
+      <button
+        className="primary"
+        disabled={!!blocker || checking || !!refusal || submitting}
+        onClick={startRun}
+      >
+        {submitting ? 'Starting…' : 'Start nesting'}
       </button>
-      <span className={blockers.length ? 'run-blocker' : 'muted'}>
-        {blockers.length
-          ? blockers[0]
-          : `${copies} ${copies === 1 ? 'part' : 'parts'} · strip ${formatLength(project.stock.strip.widthMm, unit)} ${unit} wide · solved in this browser`}
-      </span>
+      {blocker ? (
+        <span className="run-blocker">{blocker}</span>
+      ) : refusal?.unavailable ? (
+        <span className="run-blocker">
+          {refusal.message} <ProTag />
+        </span>
+      ) : refusal ? (
+        <span className="run-blocker">{refusal.message}</span>
+      ) : (
+        <span className="muted">
+          Starts job #{nextJobNumber(project)} · {copies} {copies === 1 ? 'part' : 'parts'} ·{' '}
+          {project.stock.packing === 'sheets'
+            ? describeSheets(project)
+            : `strip ${formatLength(project.stock.strip.widthMm, unit)} ${unit} wide`}{' '}
+          · {backend.solves}
+        </span>
+      )}
     </div>
   );
 }

@@ -1,11 +1,16 @@
 import { bounds } from '../engine/geometry/normalize';
+import { netArea } from '../engine/geometry/world';
 import type { Part } from '../engine/model';
+import { outline } from '../engine/geometry/contour';
+import type { SheetEntry, Stock } from './model';
 
 export type Box = [minX: number, minY: number, maxX: number, maxY: number];
 /** Where each part type is drawn on the Parts canvas, as an offset added to its own coordinates. */
 export type Arrangement = {
   offsets: Map<string, [number, number]>;
   boxes: Map<string, Box>;
+  /** The bottom of each part's row, where the names of its parts line up. */
+  rowBottoms: Map<string, number>;
   extent: Box;
 };
 
@@ -16,9 +21,10 @@ export type Arrangement = {
 export function arrangeParts(parts: Part[]): Arrangement {
   const offsets = new Map<string, [number, number]>();
   const boxes = new Map<string, Box>();
-  if (!parts.length) return { offsets, boxes, extent: [0, 0, 100, 100] };
+  const rowBottoms = new Map<string, number>();
+  if (!parts.length) return { offsets, boxes, rowBottoms, extent: [0, 0, 100, 100] };
   const sizes = parts.map((part) => {
-    const b = bounds(part.outer);
+    const b = bounds(outline(part.shape).outer);
     return { part, b, w: b[2] - b[0], h: b[3] - b[1] };
   });
   const dimensions = sizes.flatMap(({ w, h }) => [w, h]).sort((a, b) => a - b);
@@ -30,12 +36,17 @@ export function arrangeParts(parts: Part[]): Arrangement {
   let y = 0;
   let rowHeight = 0;
   let maxX = 0;
+  let row: string[] = [];
+  const endRow = () => row.forEach((id) => rowBottoms.set(id, y - rowHeight));
   for (const { part, b, w, h } of order) {
     if (x > 0 && x + w > rowWidth) {
+      endRow();
+      row = [];
       x = 0;
       y -= rowHeight + gap;
       rowHeight = 0;
     }
+    row.push(part.id);
     // Rows grow downward; the canvas y axis points up.
     const offset: [number, number] = [x - b[0], y - h - b[1]];
     offsets.set(part.id, offset);
@@ -44,9 +55,116 @@ export function arrangeParts(parts: Part[]): Arrangement {
     maxX = Math.max(maxX, x - gap);
     rowHeight = Math.max(rowHeight, h);
   }
+  endRow();
   // Shift everything up so the drawing starts at the origin and the rulers read from zero.
   const height = rowHeight - y;
+  for (const [id, bottom] of rowBottoms) rowBottoms.set(id, bottom + height);
   for (const [id, [dx, dy]] of offsets) offsets.set(id, [dx, dy + height]);
   for (const [id, [x0, y0, x1, y1]] of boxes) boxes.set(id, [x0, y0 + height, x1, y1 + height]);
-  return { offsets, boxes, extent: [0, 0, maxX, height] };
+  return { offsets, boxes, rowBottoms, extent: [0, 0, maxX, height] };
+}
+
+/** Boxes in rows of `columns`, left to right and top down, hanging from y = 0, `gap` apart. */
+export function inRows(own: Box[], columns: number, gap: number) {
+  const offsets: [number, number][] = [];
+  const boxes: Box[] = [];
+  const rows: number[] = [];
+  let top = 0;
+  for (let start = 0; start < own.length; start += columns) {
+    const row = own.slice(start, start + columns);
+    const height = Math.max(...row.map((box) => box[3] - box[1]));
+    let x = 0;
+    for (const box of row) {
+      // Rows hang from their top, and grow downward.
+      const offset: [number, number] = [x - box[0], top - box[3]];
+      offsets.push(offset);
+      boxes.push([box[0] + offset[0], box[1] + offset[1], box[2] + offset[0], box[3] + offset[1]]);
+      rows.push(start / columns);
+      x += box[2] - box[0] + gap;
+    }
+    top -= height + gap;
+  }
+  const extent: Box = own.length
+    ? [
+        Math.min(...boxes.map((box) => box[0])),
+        Math.min(...boxes.map((box) => box[1])),
+        Math.max(...boxes.map((box) => box[2])),
+        Math.max(...boxes.map((box) => box[3])),
+      ]
+    : [0, 0, 0, 0];
+  return { offsets, boxes, rows, extent };
+}
+
+/** The gap between boxes laid out in rows: a share of the largest. */
+export const rowGap = (own: Box[]) =>
+  Math.max(...own.map((box) => Math.max(box[2] - box[0], box[3] - box[1])), 1) * 0.12;
+
+/**
+ * Boxes in rows, as many to a row as fit them best into a view of `aspect`, width over height:
+ * the number that lets the view show them all the largest.
+ */
+export function inBestRows(own: Box[], aspect: number) {
+  const gap = rowGap(own);
+  let best: (ReturnType<typeof inRows> & { size: number }) | undefined;
+  for (let columns = 1; columns <= Math.max(own.length, 1); columns++) {
+    const rows = inRows(own, columns, gap);
+    const [x0, y0, x1, y1] = rows.extent;
+    // The height the view must show: the larger of the two, the width taken at the view's aspect.
+    const size = Math.max((x1 - x0) / aspect, y1 - y0);
+    if (!best || size < best.size) best = { ...rows, size };
+  }
+  const { size: _, ...rows } = best!;
+  return { ...rows, gap };
+}
+
+/**
+ * How far to the right of the parts their material lies on the shared canvas, as a share of the
+ * wider of the two: far enough apart to read as two, near enough to pan between. Tuned by eye.
+ */
+export const MATERIAL_DISTANCE = 0.12;
+/**
+ * The shape the sheets' rows aim for, width over height: about what the Sheets tab's canvas shows
+ * on a laptop. Tuned by eye.
+ */
+export const SHEETS_ASPECT = 1.5;
+
+/** Where the sheets go: in rows, in their order, shaped as `SHEETS_ASPECT` best allows. */
+export type SheetsPlace = ReturnType<typeof inBestRows>;
+/** Where the strip goes: its band, as wide as the strip and as long as drawn. */
+export type StripPlace = { box: Box; width: number; length: number };
+
+/**
+ * The shared canvas of the Parts and Sheets tabs, in the order of the tabs: the parts on the left,
+ * laid out as `arrangeParts` does, and to their right, `MATERIAL_DISTANCE` away and centred beside
+ * them, the sheets in rows, or the strip.
+ */
+export function arrangeMaterial(parts: Part[], stock: Stock) {
+  const arrangement = arrangeParts(parts);
+  const [, , partsWidth, partsHeight] = arrangement.extent;
+  if (stock.packing === 'strip') {
+    const widthMm = stock.strip.widthMm;
+    const width = Number.isFinite(widthMm) && widthMm > 0 ? widthMm : 1000;
+    const area = parts.reduce((sum, part) => sum + netArea(part) * part.quantity, 0);
+    // An impression of the length, not a promise: the solver finds the real one.
+    const length = Math.max(width * 1.6, (area / width) * 1.3);
+    const left = partsWidth + MATERIAL_DISTANCE * Math.max(partsWidth, length);
+    const bottom = (partsHeight - width) / 2;
+    const strip: StripPlace = { box: [left, bottom, left + length, bottom + width], width, length };
+    return { parts: arrangement, strip, material: strip.box };
+  }
+  const sheets = inBestRows(
+    stock.sheets.map((sheet) => bounds(outline(sheet.shape).outer) as Box),
+    SHEETS_ASPECT,
+  );
+  const [x0, y0, x1, y1] = sheets.extent;
+  const left = partsWidth + MATERIAL_DISTANCE * Math.max(partsWidth, x1 - x0);
+  const [dx, dy] = [left - x0, (partsHeight - (y1 - y0)) / 2 - y0];
+  const moved = (box: Box): Box => [box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy];
+  const placed: SheetsPlace = {
+    ...sheets,
+    offsets: sheets.offsets.map(([ox, oy]) => [ox + dx, oy + dy]),
+    boxes: sheets.boxes.map(moved),
+    extent: moved(sheets.extent),
+  };
+  return { parts: arrangement, sheets: placed, material: placed.extent };
 }

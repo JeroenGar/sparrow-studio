@@ -18,6 +18,20 @@ export type CanvasView = {
   upp: number;
 };
 
+/**
+ * A drawing tool: while one is given, the left button draws instead of panning, and the tool hears
+ * each press, move and release at a point in world coordinates. A press it returns `false` for
+ * pans as usual.
+ */
+export type CanvasTool = {
+  down?: (point: [number, number], event: ReactPointerEvent) => boolean | void;
+  move?: (point: [number, number], event: ReactPointerEvent) => void;
+  up?: (point: [number, number], event: ReactPointerEvent) => void;
+  double?: (point: [number, number]) => void;
+  /** A press that ended without a release, such as when the browser took the pointer. */
+  cancel?: () => void;
+};
+
 /** A world box (y up) as an SVG box (y down), padded and stretched to the element's aspect ratio. */
 function fitBox(box: Box, element: { width: number; height: number }, padding: number): ViewBox {
   const width = Math.max(box[2] - box[0], 1e-6);
@@ -43,15 +57,20 @@ export function Canvas({
   toolbar,
   overlay,
   onBackgroundClick,
+  tool,
+  onAspect,
   children,
 }: {
   extent: Box;
-  /** Zoom to this box whenever `key` changes. */
-  focus?: { box: Box; key: string };
+  /** Zoom to this box whenever `key` changes, with `margin` times its size around it (1.2 by default). */
+  focus?: { box: Box; key: string; margin?: number };
   label: string;
   toolbar?: ReactNode;
   overlay?: ReactNode;
   onBackgroundClick?: () => void;
+  tool?: CanvasTool;
+  /** Hears the drawing's width over its height, whenever it changes. */
+  onAspect?: (aspect: number) => void;
   children: (view: CanvasView) => ReactNode;
 }) {
   const container = useRef<HTMLDivElement>(null);
@@ -59,6 +78,35 @@ export function Canvas({
   const [view, setView] = useState<ViewBox>(() => fitBox(extent, size, 0.08));
   const drag = useRef<{ x: number; y: number; view: ViewBox; moved: boolean } | null>(null);
   const suppressClick = useRef(false);
+  const current = useRef(view);
+  current.current = view;
+  const sized = useRef(size);
+  sized.current = size;
+  // A view change the drawing asked for slides there, unless the person moves it meanwhile. It
+  // aims at a box in the world, so a resize on the way changes only how it frames that box.
+  const sliding = useRef(0);
+  const target = useRef<{ box: Box; pad: number } | undefined>(undefined);
+  const stop = () => {
+    cancelAnimationFrame(sliding.current);
+    target.current = undefined;
+  };
+  const slideTo = useCallback((box: Box, pad: number) => {
+    stop();
+    const to = fitBox(box, sized.current, pad);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return setView(to);
+    const from = current.current;
+    const start = performance.now();
+    target.current = { box, pad };
+    const step = (now: number) => {
+      const t = Math.min(1, (now - start) / 320);
+      const eased = 1 - (1 - t) ** 3;
+      setView(from.map((value, i) => value + (to[i] - value) * eased) as ViewBox);
+      if (t < 1) sliding.current = requestAnimationFrame(step);
+      else target.current = undefined;
+    };
+    sliding.current = requestAnimationFrame(step);
+  }, []);
+  useEffect(() => stop, []);
 
   useLayoutEffect(() => {
     const element = container.current;
@@ -71,17 +119,32 @@ export function Canvas({
     return () => observer.disconnect();
   }, []);
 
-  const fit = useCallback(() => setView(fitBox(extent, size, 0.08)), [extent, size]);
+  useEffect(() => onAspect?.(size.width / size.height), [size.width, size.height]);
+
+  const fit = useCallback(() => {
+    stop();
+    setView(fitBox(extent, size, 0.08));
+  }, [extent, size]);
   const extentKey = extent.join(',');
-  // Refit when the drawing or the element changes size.
-  useEffect(fit, [extentKey, size.width, size.height]);
+  // Refit when the element changes size, and slide to the drawing when it changes. An element
+  // resized while sliding, such as when a panel beside it goes, slides on to where it was going.
+  useEffect(() => {
+    if (target.current) slideTo(target.current.box, target.current.pad);
+    else fit();
+  }, [size.width, size.height]);
+  const fitted = useRef(extentKey);
+  useEffect(() => {
+    if (fitted.current === extentKey) return;
+    fitted.current = extentKey;
+    slideTo(extent, 0.08);
+  }, [extentKey]);
 
   useEffect(() => {
     if (!focus) return;
     const [x0, y0, x1, y1] = focus.box;
     // Frame the focused item with room around it, so its neighbours stay in view.
-    const grow = Math.max(x1 - x0, y1 - y0) * 1.2;
-    setView(fitBox([x0 - grow, y0 - grow, x1 + grow, y1 + grow], size, 0));
+    const grow = Math.max(x1 - x0, y1 - y0) * (focus.margin ?? 1.2);
+    slideTo([x0 - grow, y0 - grow, x1 + grow, y1 + grow], 0);
   }, [focus?.key]);
 
   const upp = view[2] / Math.max(size.width, 1);
@@ -90,6 +153,7 @@ export function Canvas({
     const rect = container.current!.getBoundingClientRect();
     const fx = clientX === undefined ? 0.5 : (clientX - rect.left) / rect.width;
     const fy = clientY === undefined ? 0.5 : (clientY - rect.top) / rect.height;
+    stop();
     setView(([x, y, w, h]) => {
       const nw = w * factor;
       const nh = h * factor;
@@ -113,11 +177,26 @@ export function Canvas({
     return () => element.removeEventListener('wheel', wheel);
   }, []);
 
+  /** The world point under the pointer. */
+  function at(event: { clientX: number; clientY: number }): [number, number] {
+    const rect = container.current!.getBoundingClientRect();
+    const x = view[0] + ((event.clientX - rect.left) / rect.width) * view[2];
+    const y = view[1] + ((event.clientY - rect.top) / rect.height) * view[3];
+    return [x, -y];
+  }
+
   function down(event: ReactPointerEvent) {
+    // A press holds the view still: a gesture draws or drags in the place it started.
+    if (event.button === 0 || event.button === 1) stop();
+    if (tool && event.button === 0 && tool.down?.(at(event), event) !== false) {
+      (event.currentTarget as Element).setPointerCapture(event.pointerId);
+      return;
+    }
     if (event.button !== 0 && event.button !== 1) return;
     drag.current = { x: event.clientX, y: event.clientY, view, moved: false };
   }
   function move(event: ReactPointerEvent) {
+    if (tool && !drag.current) tool.move?.(at(event), event);
     const state = drag.current;
     if (!state) return;
     const dx = event.clientX - state.x;
@@ -128,7 +207,12 @@ export function Canvas({
     const scale = state.view[2] / size.width;
     setView([state.view[0] - dx * scale, state.view[1] - dy * scale, state.view[2], state.view[3]]);
   }
-  function up() {
+  function up(event: ReactPointerEvent) {
+    if (tool && !drag.current && event.button === 0) {
+      tool.up?.(at(event), event);
+      suppressClick.current = true;
+      return;
+    }
     suppressClick.current = !!drag.current?.moved;
     drag.current = null;
   }
@@ -150,11 +234,15 @@ export function Canvas({
       </div>
       <div
         ref={container}
-        className="canvas-surface"
+        className={tool ? 'canvas-surface drawing' : 'canvas-surface'}
+        onDoubleClick={tool?.double && ((event) => tool.double!(at(event)))}
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
-        onPointerCancel={up}
+        onPointerCancel={() => {
+          tool?.cancel?.();
+          drag.current = null;
+        }}
         onClickCapture={(event) => {
           if (suppressClick.current) {
             event.stopPropagation();

@@ -1,65 +1,82 @@
 import { DOMParser, XMLSerializer, type Element as XMLElement } from '@xmldom/xmldom';
 import { loadSerialWasm } from '../wasm';
-import { DEFAULT_SETTINGS,newPart,type Part,type Point,type Ring } from '../model';
-import { area,bounds,inside,normalizeJob,normalizeRing,ringCrosses } from '../geometry/normalize';
+import { type Point,type Ring } from '../model';
+import { area,inside,normalizeRing,ringCrosses } from '../geometry/normalize';
 import { apply,multiply,append,bezier,type Matrix } from '../geometry/flatten';
-import { localize,type ImportReview } from './sparrow';
+import type { ImportReview } from './sparrow';
+import { defaultRoles,review,type Drawing } from './drawing';
+import { polygon,type Contour as FormatContour } from '../geometry/contour';
+import { contour,type Path } from './paths';
 
 // Initialized only for SVG imports, not other geometry-worker tasks.
 let svg_paths: typeof import('../../../../web/wasm/pkg/sparrow_web').svg_paths;
 export const initializeSVG=async()=>{const wasm=await loadSerialWasm();await wasm.default();svg_paths=wasm.svg_paths;};
-type Contour={ring:Ring;entityId:string;curved:boolean};
+/** A closed outline as a polygon, for topology and checks, and as the format's contour to keep. */
+type Contour={ring:Ring;entityId:string;curved:boolean;contour:FormatContour};
 type Command=['M'|'L'|'Q'|'C'|'Z',...number[]];
 type ResolvedSVG={height:number;paths:{id:string;commands:Command[];transform:Matrix;rule:'evenodd'|'nonzero'}[]};
-export type SVGOptions={scale:number;tolerance:number};
+/** `curves`: keep them as curves, or flatten them into the parts' shapes. */
+export type SVGOptions={scale:number;tolerance:number;curves?:'keep'|'flatten'};
 const attr=(e:XMLElement,name:string)=>e.hasAttribute(name)?e.getAttribute(name)!:undefined;
 
-function hierarchy(contours:Contour[]):number[] {
-  const rings=contours.map(c=>normalizeRing(c.ring)),areas=rings.map(r=>Math.abs(area(r))),parent=rings.map(()=>-1);
-  for(let i=0;i<rings.length;i++)for(let j=i+1;j<rings.length;j++) {
-    if(ringCrosses(rings[i],rings[j]))throw Error(`Contours ${contours[i].entityId} and ${contours[j].entityId} touch or intersect; topology is ambiguous.`);
-    const a=inside(rings[i][0],rings[j]),b=inside(rings[j][0],rings[i]);
-    if(a&&(parent[i]===-1||areas[j]<areas[parent[i]]))parent[i]=j;
-    if(b&&(parent[j]===-1||areas[i]<areas[parent[j]]))parent[j]=i;
-  }
-  return parent;
-}
+/**
+ * The sub-paths of one SVG path that its fill rule fills differently from what lies around them:
+ * the outline, and holes the fill leaves open. Under `nonzero`, a sub-path inside another with
+ * the same winding is filled anyway and drawn by its outer one alone.
+ */
 function compound(contours:Contour[],rule:'evenodd'|'nonzero'):Contour[] {
-  const parents=hierarchy(contours);
+  if(rule==='evenodd'||contours.length<2)return contours;
+  const rings=contours.map(c=>{try{return normalizeRing(c.ring);}catch{return undefined;}});
+  const parent=contours.map((_,i)=>{
+    let best=-1;
+    contours.forEach((_,j)=>{
+      const [a,b]=[rings[i],rings[j]];
+      if(i===j||!a||!b||ringCrosses(a,b)||!inside(a[0],b))return;
+      if(best<0||Math.abs(area(b))<Math.abs(area(rings[best]!)))best=j;
+    });
+    return best;
+  });
   return contours.filter((c,i)=>{
-    let winding=0,depth=0,p=parents[i];
-    while(p!==-1){winding+=Math.sign(area(contours[p].ring));depth++;p=parents[p];}
-    return rule==='evenodd' || (winding===0)!==(winding+Math.sign(area(c.ring))===0);
+    // An outline that is no valid polygon stays, for the import to report.
+    if(!rings[i])return true;
+    let winding=0,p=parent[i];
+    while(p!==-1){winding+=Math.sign(area(contours[p].ring));p=parent[p];}
+    return (winding===0)!==(winding+Math.sign(area(c.ring))===0);
   });
 }
-export function contoursToParts(contours:Contour[],fileName:string,format:'svg'|'dxf',tolerance:number,enclosed:'holes'|'parts'):Part[] {
-  const parent=hierarchy(contours),depth=parent.map((p)=>{let d=0;while(p!==-1){d++;p=parent[p];}return d;});
-  return contours.flatMap((c,i)=>{
-    if(enclosed==='holes'&&depth[i]%2===1)return [];
-    const holes=enclosed==='holes'?contours.filter((_,j)=>parent[j]===i).map(h=>h.ring):[];
-    const part=localize({...newPart(c.ring,c.entityId),holes,source:{format,fileName,entityId:c.entityId},
-      approximationToleranceMm:c.curved||contours.some((h,j)=>parent[j]===i&&h.curved)?tolerance:0});
-    return [part];
-  });
-}
-function pathContours(commands:Command[],m:Matrix,tolerance:number,id:string):Contour[] {
+function pathContours(commands:Command[],m:Matrix,tolerance:number,id:string,keep:boolean):Contour[] {
   const contours:Contour[]=[];let ring:Ring=[],start:Point=[0,0],current:Point=[0,0],curved=false,closed=false;
-  const finish=()=>{if(ring.length){if(!closed)throw Error('Open path cannot become a part. Close it or remove it in the source drawing.');contours.push({ring,entityId:id,curved});ring=[];}};
+  // The same outline in the format: its transformed start and segments, curves kept.
+  let path:Path={start:[0,0],segments:[]};
+  const finish=()=>{if(ring.length){if(!closed)throw Error('Open path cannot become a part. Close it or remove it in the source drawing.');contours.push({ring,entityId:id,curved:curved&&!keep,contour:keep?contour(path,ring):polygon(ring)});ring=[];}};
   for(const segment of commands) {
     const cmd=segment[0].toUpperCase(),v=segment.slice(1) as number[];
     if(!v.every(Number.isFinite))throw Error('Non-finite path command.');
+    const at=(i:number)=>apply(m,[v[i],v[i+1]]);
     switch(cmd) {
-      case 'M':finish();start=[v[0],v[1]];current=start;ring=[apply(m,start)];closed=false;curved=false;break;
-      case 'L':current=[v[0],v[1]];append(ring,apply(m,current));closed=false;break;
-      case 'C':bezier([current,[v[0],v[1]],[v[2],v[3]],[v[4],v[5]]].map(p=>apply(m,p as Point)),tolerance,ring);current=[v[4],v[5]];curved=true;closed=false;break;
-      case 'Q':bezier([current,[v[0],v[1]],[v[2],v[3]]].map(p=>apply(m,p as Point)),tolerance,ring);current=[v[2],v[3]];curved=true;closed=false;break;
+      case 'M':finish();start=[v[0],v[1]];current=start;ring=[apply(m,start)];path={start:apply(m,start),segments:[]};closed=false;curved=false;break;
+      case 'L':current=[v[0],v[1]];append(ring,apply(m,current));path.segments.push({type:'line',to:at(0)});closed=false;break;
+      case 'C':bezier([current,[v[0],v[1]],[v[2],v[3]],[v[4],v[5]]].map(p=>apply(m,p as Point)),tolerance,ring);path.segments.push({type:'cubic',control1:at(0),control2:at(2),to:at(4)});current=[v[4],v[5]];curved=true;closed=false;break;
+      case 'Q':bezier([current,[v[0],v[1]],[v[2],v[3]]].map(p=>apply(m,p as Point)),tolerance,ring);path.segments.push({type:'quadratic',control:at(0),to:at(2)});current=[v[2],v[3]];curved=true;closed=false;break;
       case 'Z':current=start;closed=true;break;
       default:throw Error(`Unsupported path command ${cmd}.`);
     }
   }
   finish();return contours;
 }
+/** An SVG read as parts. */
 export function importSVG(text:string,fileName:string,options:SVGOptions):ImportReview {
+  const drawing=traceSVG(text,fileName,options);
+  const parts=review(drawing,defaultRoles(drawing.layers));
+  if(!parts.document.parts.length&&!parts.issues?.length)throw Error('No visible closed vector outlines found.');
+  return parts;
+}
+
+/** The layer an SVG's outlines are on, until SVG groups become layers. */
+export const SVG_LAYER='drawing';
+
+/** Every closed outline of an SVG, where it is drawn, after each path's fill rule. */
+export function traceSVG(text:string,fileName:string,options:SVGOptions):Drawing {
   if(!Number.isFinite(options.scale)||options.scale<=0||!Number.isFinite(options.tolerance)||options.tolerance<=0||options.tolerance>100)throw Error('Scale and approximation tolerance must be positive finite numbers.');
   if(/<!DOCTYPE|<!ENTITY/i.test(text))throw Error('SVG entities and DOCTYPE declarations are forbidden.');
   if(/<\?xml-stylesheet\b/i.test(text))throw Error('External SVG stylesheets are unsupported. Embed styles in the SVG.');
@@ -96,15 +113,12 @@ export function importSVG(text:string,fileName:string,options:SVGOptions):Import
   const entities:Contour[][]=[];let totalVertices=0;
   for(const [i,path] of resolved.paths.entries()) {
     const id=path.id||`path ${i+1}`;
-    const contours=pathContours(path.commands,multiply(matrix,path.transform),options.tolerance,id);
+    const contours=pathContours(path.commands,multiply(matrix,path.transform),options.tolerance,id,options.curves==='keep');
     totalVertices+=contours.reduce((n,c)=>n+c.ring.length,0);
     if(totalVertices>100_000)throw Error('SVG exceeds 100,000 vertices.');
     entities.push(compound(contours,path.rule));
   }
   warnings.push('Closed contour interpretation: closed stroke-only outlines count; stroke thickness is not part size or kerf.');
-  const parts=entities.flatMap(contours=>contoursToParts(contours,fileName,'svg',options.tolerance,'holes'));
-  if(entities.some(e=>e.length>1))warnings.push('Compound contours may produce separate part types. Holes follow the source fill rule.');
-  if(parts.some(p=>p.holes.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
-  if(!parts.length)throw Error('No visible closed vector outlines found.');
-  return {document:normalizeJob({name:fileName.replace(/\.svg$/i,''),parts,settings:{...DEFAULT_SETTINGS}}),warnings};
+  const outlines=entities.flat().map(c=>({id:c.entityId,layer:SVG_LAYER,ring:c.ring,contour:c.contour,curved:c.curved}));
+  return {name:fileName,format:'svg',outlines,layers:outlines.length?[SVG_LAYER]:[],warnings,issues:[],tolerance:options.tolerance};
 }

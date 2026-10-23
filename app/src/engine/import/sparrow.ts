@@ -1,7 +1,14 @@
 import { DEFAULT_SETTINGS, newPart, type Job, type Part, type Ring } from '../model';
 import { bounds, normalizeJob, normalizeRing } from '../geometry/normalize';
+import { moveShape, outline, polygonShape } from '../geometry/contour';
+import type { ImportedSheet, Mark, Role } from './drawing';
 
-export type ImportReview = { document: Job; warnings: string[]; issues?:string[]; layers?:string[] };
+/**
+ * What an import would add: parts, and sheets with their defects; what it cannot use; and for
+ * drawings, their layers, the role each was read with, and how many outlines each holds.
+ */
+/** `stripWidthMm`: the width of the strip a job input nests into, when it says one. */
+export type ImportReview = { document: Job; stripWidthMm?: number; warnings: string[]; issues?:string[]; layers?:string[]; sheets?: ImportedSheet[]; roles?: Record<string,Role>; outlines?: Record<string,number>; marks?: Mark[] };
 export function record(value: unknown): Record<string,unknown> {
   if(!value || typeof value!=='object' || Array.isArray(value)) throw Error('Expected an object.');
   return value as Record<string,unknown>;
@@ -10,10 +17,10 @@ export function number(value: unknown): number {
   if(typeof value!=='number' || !Number.isFinite(value)) throw Error('Expected a finite number.');
   return value;
 }
+/** A part moved so its outline starts at the origin. */
 export function localize(part: Part): Part {
-  const [x,y]=bounds(part.outer);
-  const shift=(ring: Ring): Ring=>ring.map(p=>[p[0]-x,p[1]-y]);
-  return {...part,outer:shift(part.outer),holes:part.holes.map(shift)};
+  const [x,y]=bounds(outline(part.shape).outer);
+  return {...part,shape:moveShape(part.shape,[-x,-y])};
 }
 export function importSparrow(text: string,fileName: string,scale: number): ImportReview {
   if(!Number.isFinite(scale) || scale<=0) throw Error('Choose a positive millimeter scale.');
@@ -39,19 +46,12 @@ export function importSparrow(text: string,fileName: string,scale: number): Impo
     } else throw Error(`Item ${id}: ${String(shape.type)} is unsupported. Disjoint JSON items cannot be split without changing demand.`);
     const orientations=item.allowed_orientations;
     if(orientations!==undefined && orientations!==null && (!Array.isArray(orientations) || !orientations.length || !orientations.every(a=>typeof a==='number' && Number.isFinite(a)))) throw Error(`Item ${id}: allowed_orientations must be omitted for free rotation or a nonempty degree list.`);
-    return localize({...newPart(outer,`Part ${id}`),holes,quantity:number(item.demand),
+    return localize({...newPart(polygonShape(outer,holes),`Part ${id}`),quantity:number(item.demand),
       source:{format:'sparrow',fileName,entityId:String(id)},
       rotations: orientations==null?{kind:'continuous'}:{kind:'discrete',degrees:orientations as number[]}});
   });
-  return {document:normalizeJob({name:input.name,parts,settings:{...DEFAULT_SETTINGS,materialWidthMm:number(input.strip_height)*scale}}),
+  const stripWidthMm=number(input.strip_height)*scale;
+  return {document:normalizeJob({name:input.name,parts,settings:{...DEFAULT_SETTINGS,materialWidthMm:stripWidthMm}}),stripWidthMm,
     warnings:[...(input.solution!==undefined?['Stored native solution is ignored; warm starts are not supported.']:[]),
-      `One coordinate unit = ${scale} mm. Benchmark coordinates have no intrinsic manufacturing units.`,
-      ...(parts.some(p=>p.holes.length)?['Holes are preserved; nesting inside holes is not supported.']:[])]};
-}
-export function solverInput(doc: Job): string {
-  if(!doc.parts.some(part=>part.quantity>0))throw Error('Add at least one copy before nesting.');
-  return JSON.stringify({name:doc.name,strip_height:doc.settings.materialWidthMm,items:doc.parts.filter(part=>part.quantity>0).map((p,id)=>({
-    id,demand:p.quantity,allowed_orientations:p.rotations.kind==='continuous'?undefined:p.rotations.degrees,
-    shape:{type:'simple_polygon',data:p.outer},
-  }))});
+      `One coordinate unit = ${scale} mm. Benchmark coordinates have no intrinsic manufacturing units.`]};
 }

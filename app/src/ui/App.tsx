@@ -1,39 +1,55 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { newId } from '../engine/model';
-import { useSolver } from '../engine/workers/useSolver';
-import { geometryTask } from '../engine/workers/geometryTask';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { loadExample } from '../project/examples';
 import { parseProject, projectFileName, serializeProject } from '../project/file';
-import { addParts, newProject, projectJob, type ProjectDocument } from '../project/model';
+import { newProject, runningJobs, type ProjectDocument } from '../project/model';
+import { newProjectName } from '../project/names';
 import { readPreferences, writePreferences, type Preferences } from '../project/preferences';
-import { browserStore, VersionConflict, type StoredProject } from '../project/store';
-import { StudioContext, type Studio, type Tab } from './context';
+import { backend, client, usesSparrowPro } from './client';
 import { AboutDialog } from './dialogs/AboutDialog';
-import { Logo } from './Logo';
-import { ProDialog } from './dialogs/ProDialog';
+import { AccountDialog } from './dialogs/AccountDialog';
 import { ExamplesDialog } from './dialogs/ExamplesDialog';
-import { ImportFilesDialog } from './dialogs/ImportFilesDialog';
-import { ImportFromProjectDialog, type ProjectImport } from './dialogs/ImportFromProjectDialog';
 import { NameDialog } from './dialogs/NameDialog';
 import { PreferencesDialog } from './dialogs/PreferencesDialog';
-import { ProjectsDialog } from './dialogs/ProjectsDialog';
+import { ProDialog } from './dialogs/ProDialog';
+import { Dialog } from './Dialog';
 import { download } from './download';
-import { historyReducer, initialHistory } from './history';
+import { explain } from './explain';
+import { ProjectsPage } from './ProjectsPage';
 import { ChevronDown, Gear } from './icons';
-import { LiveView } from './views/LiveView';
-import { MachineView } from './views/MachineView';
-import { PartsView } from './views/PartsView';
-import { SettingsView } from './views/SettingsView';
-import { SheetsView } from './views/SheetsView';
-import { SolutionView } from './views/SolutionView';
+import { Logo } from './Logo';
+import { ProjectPage } from './ProjectPage';
+import { patiently } from './patiently';
+import { isMissing, isProjectLimit } from './projects';
+import { go, PROJECTS, href, useRoute } from './route';
+import { createRunner, useSubmitting } from './runs';
+import {
+  createWorkspace,
+  entryName,
+  entrySummary,
+  useWorkspace,
+  type OpenEntry,
+  type ProjectEntry,
+} from './workspace';
 
 const FIRST_EXAMPLE = 'albano.json';
 
-/** Loads or creates a project, then hands it to the studio. Switching projects remounts the studio. */
+/** Every project of the account, loaded once at startup, and the jobs running for them. */
+const workspace = createWorkspace(client);
+const runner = createRunner(client, workspace);
+
+type Dialogs =
+  | { type: 'new'; name: string }
+  | { type: 'examples' }
+  | { type: 'pro' }
+  | { type: 'account' }
+  | { type: 'preferences' }
+  | { type: 'about' }
+  | { type: 'rename'; id: string; name: string }
+  | { type: 'delete'; id: string };
+
+/** The page for the location: home, or a project, under the top bar. */
 export default function App() {
   const [preferences, setPreferencesState] = useState(readPreferences);
-  const [stored, setStored] = useState<StoredProject>();
-  const [error, setError] = useState('');
   const setPreferences = useCallback((change: Partial<Preferences>) => {
     setPreferencesState((current) => {
       const next = { ...current, ...change };
@@ -54,357 +70,227 @@ export default function App() {
     return () => query.removeEventListener('change', apply);
   }, [preferences.theme]);
 
-  const open = useCallback(
-    async (id: string) => {
-      const project = await browserStore.get(id);
-      if (!project) throw Error('This project no longer exists in this browser.');
-      setStored(project);
-      setPreferences({ lastProjectId: id });
-    },
-    [setPreferences],
-  );
-  const create = useCallback(
-    async (document: ProjectDocument) => {
-      const project = await browserStore.create(document);
-      setStored(project);
-      setPreferences({ lastProjectId: project.id });
-    },
-    [setPreferences],
-  );
-  const openLatest = useCallback(async () => {
-    // Open the most recent project that still reads; a draft-format project is skipped.
-    for (const project of await browserStore.list()) {
-      try {
-        return await open(project.id);
-      } catch {
-        continue;
-      }
-    }
-    await create(
-      await loadExample(FIRST_EXAMPLE, preferences.defaultMachine).catch(() =>
-        newProject('Untitled project'),
-      ),
-    );
-  }, [open, create, preferences.defaultMachine]);
+  const state = useWorkspace(workspace);
+  const route = useRoute();
+  const [dialog, setDialog] = useState<Dialogs>();
+  // The account is over the page it was opened on: going elsewhere, such as back, closes it.
+  const shownHash = href(route);
+  useEffect(() => setDialog((open) => (open?.type === 'account' ? undefined : open)), [shownHash]);
+  const running =
+    state.status === 'ready' && state.projects.some((entry) => entrySummary(entry)?.running.length);
+  const [error, setError] = useState('');
+  const fileInput = useRef<HTMLInputElement>(null);
+  const showError = useCallback((message: string) => setError(message), []);
+  const openPro = useCallback(() => setDialog({ type: 'pro' }), []);
+  /** Shows why something failed; a full account goes home, where projects can be deleted. */
+  const failed = (reason: unknown) => {
+    setError(explain(reason));
+    if (isProjectLimit(reason)) go(PROJECTS);
+  };
+  /** Creates a project and opens it. */
+  const create = async (document: ProjectDocument) => {
+    const id = await workspace.create(document);
+    setDialog(undefined);
+    go({ page: 'project', id, tab: 'parts' });
+  };
 
+  // The projects wait for startup, so a first example is not made beside a project made meanwhile.
+  const [starting, setStarting] = useState(true);
   useEffect(() => {
-    const last = readPreferences().lastProjectId;
-    (last ? open(last).catch(openLatest) : openLatest()).catch((reason: Error) =>
-      setError(reason.message),
-    );
+    const start = async () => {
+      try {
+        await workspace.load();
+      } catch {
+        // The page says why, with a way to try again.
+        return;
+      }
+      const loaded = workspace.get();
+      if (loaded.status !== 'ready' || loaded.projects.length) return;
+      // An account without projects starts with an example to try.
+      const example = await loadExample(FIRST_EXAMPLE, readPreferences().defaultMachine).catch(() =>
+        newProject(newProjectName()),
+      );
+      const id = await workspace.create(example);
+      go({ page: 'project', id, tab: 'parts' }, { replace: true });
+    };
+    start()
+      .catch(failed)
+      .finally(() => setStarting(false));
     // Load once, at startup.
   }, []);
 
-  if (!stored)
-    return (
-      <div className="boot">
-        <p>
-          {error ? `sparrow studio could not open a project: ${error}` : 'Opening sparrow studio…'}
-        </p>
-      </div>
-    );
-  return (
-    <StudioShell
-      key={`${stored.id}:${stored.version}`}
-      stored={stored}
-      preferences={preferences}
-      setPreferences={setPreferences}
-      open={open}
-      create={create}
-      openLatest={openLatest}
-    />
-  );
-}
-
-type Dialogs =
-  | { type: 'new' }
-  | { type: 'rename' }
-  | { type: 'projects' }
-  | { type: 'examples' }
-  | { type: 'pro' }
-  | { type: 'preferences' }
-  | { type: 'about' }
-  | { type: 'import-files' }
-  | { type: 'import-project'; kind: 'parts' | 'sheets' | 'machines' };
-
-const TABS: { id: Tab; label: string }[] = [
-  { id: 'parts', label: 'Parts' },
-  { id: 'sheets', label: 'Sheets' },
-  { id: 'machine', label: 'Machine' },
-  { id: 'settings', label: 'Settings' },
-  { id: 'live', label: 'Live' },
-  { id: 'solution', label: 'Solution' },
-];
-
-function StudioShell({
-  stored,
-  preferences,
-  setPreferences,
-  open,
-  create,
-  openLatest,
-}: {
-  stored: StoredProject;
-  preferences: Preferences;
-  setPreferences: (change: Partial<Preferences>) => void;
-  open: (id: string) => Promise<void>;
-  create: (document: ProjectDocument) => Promise<void>;
-  openLatest: () => Promise<void>;
-}) {
-  const [history, dispatch] = useReducer(historyReducer, stored.document, initialHistory);
-  const project = history.present;
-  const [tab, setTab] = useState<Tab>('parts');
-  const [dialog, setDialog] = useState<Dialogs>();
-  const [error, setError] = useState('');
-  const [saveState, setSaveState] = useState<'saved' | 'saving' | 'error' | 'conflict'>('saved');
-  const version = useRef(stored.version);
-  const saved = useRef(stored.document);
-  const solver = useSolver();
-  const [preparing, setPreparing] = useState(false);
-  const preparation = useRef(0);
-  const recording = useRef(false);
-  const revision = useRef(0);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const running = preparing || solver.state === 'Initializing' || solver.state === 'Running';
-  const runJob = solver.job;
-
-  const showError = useCallback((message: string) => setError(message), []);
-  const edit = useCallback(
-    (change: (project: ProjectDocument) => ProjectDocument, key?: string) =>
-      dispatch({
-        type: 'edit',
-        project: change(historyRef.current.present),
-        key,
-        at: performance.now(),
-      }),
-    [],
-  );
-  const historyRef = useRef(history);
-  historyRef.current = history;
-
-  // Save to browser storage shortly after each change, one save at a time, and when the page is hidden.
-  const latest = useRef(project);
-  latest.current = project;
-  const saving = useRef(false);
-  const flush = useCallback(async () => {
-    if (saving.current || latest.current === saved.current) return;
-    saving.current = true;
-    const document = latest.current;
-    try {
-      const next = await browserStore.save(stored.id, document, version.current);
-      version.current = next.version;
-      saved.current = document;
-    } catch (reason) {
-      setSaveState(reason instanceof VersionConflict ? 'conflict' : 'error');
-      setError(reason instanceof Error ? reason.message : String(reason));
-      return;
-    } finally {
-      saving.current = false;
-    }
-    if (latest.current !== saved.current) void flush();
-    else setSaveState('saved');
-  }, [stored.id]);
+  // Save at once when the page is hidden, and ask before leaving with changes not saved yet.
   useEffect(() => {
-    if (project === saved.current) return;
-    setSaveState((state) => (state === 'conflict' ? state : 'saving'));
-    const timer = setTimeout(() => void flush(), 400);
-    return () => clearTimeout(timer);
-  }, [project, flush]);
-  useEffect(() => {
-    const now = () => void flush();
+    const now = () => void workspace.flushAll();
     const hidden = () => document.visibilityState === 'hidden' && now();
     window.addEventListener('pagehide', now);
     document.addEventListener('visibilitychange', hidden);
     return () => {
       window.removeEventListener('pagehide', now);
       document.removeEventListener('visibilitychange', hidden);
-      now();
     };
-  }, [flush]);
-
-  async function startRun() {
-    if (running) return;
-    const attempt = ++preparation.current;
-    setPreparing(true);
-    try {
-      const reply = await geometryTask({
-        type: 'normalize',
-        runId: attempt,
-        documentRevision: 1,
-        document: projectJob(project),
-      });
-      // Stopped, or the studio closed, while the job was being prepared.
-      if (attempt !== preparation.current) return;
-      if (reply.type !== 'normalized') throw Error('Could not prepare the job.');
-      revision.current += 1;
-      recording.current = true;
-      setError('');
-      solver.start(reply.document, revision.current, project.settings.threads || undefined);
-      setTab('live');
-    } catch (reason) {
-      if (attempt === preparation.current)
-        setError(reason instanceof Error ? reason.message : String(reason));
-    } finally {
-      if (attempt === preparation.current) setPreparing(false);
-    }
-  }
-  function stopRun() {
-    if (preparing) {
-      preparation.current += 1;
-      setPreparing(false);
-    } else solver.stop();
-  }
-  useEffect(
-    () => () => {
-      preparation.current += 1;
-    },
-    [],
-  );
-
-  // When a run ends with a valid layout, it becomes the project's solution.
-  useEffect(() => {
-    if (!recording.current || running || !runJob) return;
-    if (solver.state !== 'Complete' && solver.state !== 'Stopped' && solver.state !== 'Error')
-      return;
-    recording.current = false;
-    const result = solver.result;
-    if (!result || solver.state === 'Error') return;
-    dispatch({
-      type: 'solutions',
-      solutions: [
-        {
-          id: newId(),
-          createdAt: new Date().toISOString(),
-          job: runJob,
-          result,
-          stopReason: solver.state === 'Complete' ? 'Complete' : 'Stopped',
-        },
-      ],
-    });
-    setTab((current) => (current === 'live' ? 'solution' : current));
-  }, [solver.state, solver.result, running, runJob]);
-
-  useEffect(() => {
-    if (!running) return;
-    const leave = (event: BeforeUnloadEvent) => event.preventDefault();
-    window.addEventListener('beforeunload', leave);
-    return () => window.removeEventListener('beforeunload', leave);
-  }, [running]);
-
-  useEffect(() => {
-    const key = (event: KeyboardEvent) => {
-      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'z') return;
-      if (
-        (event.target as HTMLElement).closest('input, textarea, select') ||
-        document.querySelector('dialog[open]')
-      )
-        return;
-      event.preventDefault();
-      dispatch({ type: event.shiftKey ? 'redo' : 'undo' });
-    };
-    window.addEventListener('keydown', key);
-    return () => window.removeEventListener('keydown', key);
   }, []);
-
-  const importContent = (content: ProjectImport) => {
-    edit((previous) => {
-      const current = addParts(
-        previous,
-        content.parts.map((part) => ({ ...part, id: newId() })),
-      );
-      return {
-        ...current,
-        stock: content.strip
-          ? {
-              ...current.stock,
-              strip: {
-                ...current.stock.strip,
-                name: content.strip.name,
-                widthMm: content.strip.widthMm,
-              },
-            }
-          : current.stock,
-        machines: [
-          ...current.machines,
-          ...content.machines.map((machine) => ({ ...machine, id: newId() })),
-        ],
-      };
-    });
-    setDialog(undefined);
-  };
-
-  const studio: Studio = useMemo(
-    () => ({
-      project,
-      edit,
-      unit: preferences.unit,
-      preferences,
-      setPreferences,
-      setTab,
-      openPro: () => setDialog({ type: 'pro' }),
-      openImport: (kind, source) =>
-        setDialog(
-          source === 'files' && kind === 'parts'
-            ? { type: 'import-files' }
-            : { type: 'import-project', kind },
-        ),
-      showError,
-      solver,
-      runJob,
-      running,
-      startRun: () => void startRun(),
-      stopRun,
-    }),
-    // startRun reads the current project; it is recreated with it.
-    [project, edit, preferences, setPreferences, showError, solver, runJob, running, preparing],
+  const unsaved = state.status === 'ready' && workspace.unsaved();
+  // Jobs in this browser end with the page, and a job being submitted could be lost with it.
+  const leaving = useSyncExternalStore(
+    runner.subscribe,
+    () => runner.pending() || (!usesSparrowPro && runner.running()),
   );
+  useEffect(() => {
+    if (!unsaved && !leaving) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [unsaved, leaving]);
 
-  const saveLabel = {
-    saved: 'Saved in this browser',
-    saving: 'Saving…',
-    error: 'Not saved',
-    conflict: 'Changed in another tab',
-  }[saveState];
+  const entry = 'id' in route ? workspace.find(route.id) : undefined;
+  const open = entry?.status === 'open' ? entry : undefined;
+  // A project shown is opened: the projects are listed without their documents.
+  const shownListed = entry?.status === 'listed' ? entry.id : undefined;
+  useEffect(() => {
+    if (shownListed) workspace.open(shownListed);
+  }, [shownListed]);
+
+  let page;
+  if (state.status === 'loading' || (starting && state.status === 'ready'))
+    page = <p className="boot">Opening sparrow studio…</p>;
+  else if (state.status === 'failed')
+    page = (
+      <div className="boot stack">
+        <p>sparrow studio could not load your projects: {state.error}</p>
+        <span>
+          <button onClick={() => void workspace.load().catch(() => {})}>Try again</button>
+        </span>
+      </div>
+    );
+  else if (route.page === 'projects')
+    page = (
+      <ProjectsPage
+        state={state}
+        onNew={() => setDialog({ type: 'new', name: newProjectName() })}
+        onExample={() => setDialog({ type: 'examples' })}
+        onOpenFile={() => fileInput.current?.click()}
+        onRetry={(id) => void workspace.reload(id)}
+        onDelete={(entry) => setDialog({ type: 'delete', id: entry.id })}
+        runner={runner}
+        unit={preferences.unit}
+      />
+    );
+  else if (!entry)
+    page = (
+      <div className="boot stack">
+        <p>This project is not here. It may have been deleted.</p>
+        <span>
+          <a href="#/">Go to your projects</a>
+        </span>
+      </div>
+    );
+  else if (entry.status === 'listed' || entry.status === 'loading')
+    page = <p className="boot">Opening {entry.name}…</p>;
+  else if (entry.status === 'failed')
+    page = (
+      <div className="boot stack">
+        <p>
+          Could not open {entry.name}: {entry.error}
+        </p>
+        <span className="row-actions">
+          <button onClick={() => void workspace.reload(entry.id)}>Try again</button>
+          <a href="#/">Go to your projects</a>
+        </span>
+      </div>
+    );
+  else
+    page = (
+      <ProjectPage
+        key={entry.id}
+        workspace={workspace}
+        entry={entry}
+        runner={runner}
+        shown={route.page === 'job' ? { job: route.number, view: route.view } : { tab: route.tab }}
+        preferences={preferences}
+        setPreferences={setPreferences}
+        openPro={openPro}
+        showError={showError}
+      />
+    );
+
   return (
-    <StudioContext.Provider value={studio}>
+    <>
       <div className="app">
         <header className="top-bar">
-          <button
-            className="brand"
-            title="About sparrow studio"
-            onClick={() => setDialog({ type: 'about' })}
-          >
+          <button className="brand" title="About" onClick={() => setDialog({ type: 'about' })}>
             <Logo name="sparrow-studio-wordmark" className="brand-wordmark" alt="sparrow studio" />
           </button>
-          <ProjectMenu
-            name={project.name}
-            canUndo={history.past.length > 0}
-            canRedo={history.future.length > 0}
-            onAction={(action) => {
-              if (action === 'undo' || action === 'redo') dispatch({ type: action });
-              else if (action === 'export')
-                download(
-                  projectFileName(project.name, 'sparrow-project.json'),
-                  serializeProject(project),
-                  'application/json',
-                );
-              else if (action === 'open-file') fileInput.current?.click();
-              else if (action === 'duplicate')
-                void create({ ...project, name: `${project.name} copy` }).catch((reason: Error) =>
-                  setError(reason.message),
-                );
-              else setDialog({ type: action });
-            }}
-          />
-          <span className={`save-state ${saveState}`} aria-live="polite">
-            {saveLabel}
-          </span>
-          {saveState === 'conflict' && (
-            <button className="small" onClick={() => void open(stored.id)}>
-              Reload
-            </button>
-          )}
+          <nav className="breadcrumb" aria-label="Breadcrumb">
+            {route.page === 'projects' ? (
+              <span className="crumb" aria-current="page">
+                Projects
+              </span>
+            ) : (
+              <>
+                <a className="crumb" href="#/">
+                  Projects
+                </a>
+                <span aria-hidden="true">›</span>
+                {route.page === 'job' ? (
+                  <>
+                    <a
+                      className="crumb"
+                      href={href({ page: 'project', id: route.id, tab: 'jobs' })}
+                    >
+                      {entry ? entryName(entry) : 'Project'}
+                    </a>
+                    <span aria-hidden="true">›</span>
+                    {route.view === 'inputs' ? (
+                      <>
+                        <a className="crumb" href={href({ ...route, view: 'layout' })}>
+                          #{route.number}
+                        </a>
+                        <span aria-hidden="true">›</span>
+                        <span className="crumb" aria-current="page">
+                          Inputs
+                        </span>
+                      </>
+                    ) : (
+                      <span className="crumb" aria-current="page">
+                        #{route.number}
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="crumb" aria-current="page">
+                    {entry ? entryName(entry) : 'Project'}
+                  </span>
+                )}
+                {open && <SaveState entry={open} />}
+              </>
+            )}
+          </nav>
           <span className="spacer" />
+          {/* A job's inputs are only shown: the project's menu would act on the project unseen. */}
+          {open && !(route.page === 'job' && route.view === 'inputs') && (
+            <ProjectMenu
+              canUndo={open.history.past.length > 0}
+              canRedo={open.history.future.length > 0}
+              onAction={(action) => {
+                const project = open.history.present;
+                if (action === 'undo') workspace.undo(open.id);
+                else if (action === 'redo') workspace.redo(open.id);
+                else if (action === 'rename')
+                  setDialog({ type: 'rename', id: open.id, name: project.name });
+                else if (action === 'delete') setDialog({ type: 'delete', id: open.id });
+                else if (action === 'export')
+                  download(
+                    projectFileName(project.name, 'sparrow-project.json'),
+                    serializeProject(project),
+                    'application/json',
+                  );
+                // A copy has the project's inputs; its jobs stay with the project.
+                else
+                  void create({ ...project, name: `${project.name} copy`, jobs: [] }).catch(failed);
+              }}
+            />
+          )}
           <button
             className="icon-button"
             aria-label="Preferences"
@@ -413,7 +299,11 @@ function StudioShell({
           >
             <Gear />
           </button>
-          <button onClick={() => setDialog({ type: 'pro' })}>Sign in</button>
+          {usesSparrowPro ? (
+            <AccountButton running={running} onClick={() => setDialog({ type: 'account' })} />
+          ) : (
+            <button onClick={() => setDialog({ type: 'pro' })}>Sign in</button>
+          )}
           <input
             ref={fileInput}
             hidden
@@ -424,31 +314,33 @@ function StudioShell({
               event.target.value = '';
               if (!file) return;
               try {
-                await create(parseProject(JSON.parse(await file.text())));
+                // An opened project file counts as new: its tabs are to be opened again.
+                await create({ ...parseProject(JSON.parse(await file.text())), seenTabs: [] });
               } catch (reason) {
-                setError(reason instanceof Error ? reason.message : String(reason));
+                failed(reason);
               }
             }}
           />
         </header>
-        <nav className="tabs" aria-label="Views">
-          {TABS.map((item) => (
-            <button
-              key={item.id}
-              className={item.id === tab ? 'tab active' : 'tab'}
-              aria-current={item.id === tab ? 'page' : undefined}
-              onClick={() => setTab(item.id)}
-            >
-              {item.id === 'live' && running && <i className="live-dot" aria-hidden="true" />}
-              {item.label}
-              {item.id === 'parts' && (
-                <span className="count">
-                  {project.parts.reduce((sum, part) => sum + part.quantity, 0)}
-                </span>
-              )}
-            </button>
-          ))}
-        </nav>
+        {state.status === 'ready' &&
+          state.projects.map(
+            (other) =>
+              other.status === 'open' &&
+              'message' in other.save &&
+              other.id !== entry?.id && (
+                <div key={other.id} className="error-banner" role="alert">
+                  <span>
+                    {other.history.present.name} is not saved: {other.save.message}
+                  </span>
+                  <a
+                    className="button small"
+                    href={href({ page: 'project', id: other.id, tab: 'parts' })}
+                  >
+                    Open it
+                  </a>
+                </div>
+              ),
+          )}
         {error && (
           <div className="error-banner" role="alert">
             <span>{error}</span>
@@ -457,59 +349,60 @@ function StudioShell({
             </button>
           </div>
         )}
-        <main className="main">
-          {tab === 'parts' && <PartsView />}
-          {tab === 'sheets' && <SheetsView />}
-          {tab === 'machine' && <MachineView />}
-          {tab === 'settings' && <SettingsView />}
-          {tab === 'live' && <LiveView />}
-          {tab === 'solution' && <SolutionView />}
-        </main>
+        {page}
       </div>
       {dialog?.type === 'new' && (
         <NameDialog
           title="New project"
-          initial="Untitled project"
+          initial={dialog.name}
           confirm="Create project"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) =>
-            void create(newProject(name, preferences.defaultMachine)).catch((reason: Error) =>
-              setError(reason.message),
-            )
+            void create(newProject(name, preferences.defaultMachine)).catch(failed)
           }
         />
       )}
       {dialog?.type === 'rename' && (
         <NameDialog
           title="Rename project"
-          initial={project.name}
+          initial={dialog.name}
           confirm="Rename"
           onClose={() => setDialog(undefined)}
           onConfirm={(name) => {
-            edit((current) => ({ ...current, name }));
+            workspace.edit(dialog.id, (current) => ({ ...current, name }));
             setDialog(undefined);
           }}
         />
       )}
-      {dialog?.type === 'projects' && (
-        <ProjectsDialog
-          currentId={stored.id}
+      {dialog?.type === 'delete' && (
+        <DeleteDialog
+          entry={workspace.find(dialog.id)}
           onClose={() => setDialog(undefined)}
-          onOpen={(id) => void open(id).catch((reason: Error) => setError(reason.message))}
-          onDeleted={() => void openLatest().catch((reason: Error) => setError(reason.message))}
+          onDelete={async (version) => {
+            const id = dialog.id;
+            if ('id' in route && route.id === id) go(PROJECTS, { replace: true });
+            setDialog(undefined);
+            await workspace.remove(id, version).catch(failed);
+          }}
         />
       )}
       {dialog?.type === 'examples' && (
         <ExamplesDialog
           onClose={() => setDialog(undefined)}
           onChoose={(file) =>
-            void loadExample(file, preferences.defaultMachine)
-              .then(create)
-              .catch((reason: Error) => setError(reason.message))
+            void loadExample(file, preferences.defaultMachine).then(create).catch(failed)
           }
         />
       )}
       {dialog?.type === 'pro' && <ProDialog onClose={() => setDialog(undefined)} />}
+      {dialog?.type === 'account' && state.status === 'ready' && (
+        <AccountDialog
+          projects={state.projects}
+          runner={runner}
+          onOpen={(id) => workspace.open(id)}
+          onClose={() => setDialog(undefined)}
+        />
+      )}
       {dialog?.type === 'about' && <AboutDialog onClose={() => setDialog(undefined)} />}
       {dialog?.type === 'preferences' && (
         <PreferencesDialog
@@ -518,57 +411,130 @@ function StudioShell({
           onClose={() => setDialog(undefined)}
         />
       )}
-      {dialog?.type === 'import-files' && (
-        <ImportFilesDialog
-          onClose={() => setDialog(undefined)}
-          onAdd={(parts, widthMm) => {
-            edit((previous) => {
-              const current = addParts(
-                previous,
-                parts.map((part) => ({ ...part, id: newId() })),
-              );
-              return {
-                ...current,
-                stock: widthMm
-                  ? { ...current.stock, strip: { ...current.stock.strip, widthMm } }
-                  : current.stock,
-              };
-            });
-            setDialog(undefined);
-            setTab('parts');
-          }}
-        />
-      )}
-      {dialog?.type === 'import-project' && (
-        <ImportFromProjectDialog
-          kind={dialog.kind}
-          currentId={stored.id}
-          onClose={() => setDialog(undefined)}
-          onImport={importContent}
-        />
-      )}
-    </StudioContext.Provider>
+    </>
   );
 }
 
-type MenuAction =
-  | 'new'
-  | 'projects'
-  | 'examples'
-  | 'rename'
-  | 'duplicate'
-  | 'export'
-  | 'open-file'
-  | 'undo'
-  | 'redo';
+/** Whether the project's edits are saved, and a way to load it again when another tab changed it. */
+function SaveState({ entry }: { entry: OpenEntry }) {
+  const { save } = entry;
+  const submitting = useSubmitting(runner, entry.id);
+  const label = {
+    saved: `Saved ${backend.saves}`,
+    saving: 'Saving…',
+    error: 'Not saved',
+    conflict: 'Changed in another tab',
+  }[save.state];
+  return (
+    <>
+      <span
+        className={`save-state ${save.state}`}
+        title={'message' in save ? save.message : undefined}
+        aria-live="polite"
+      >
+        · {label}
+      </span>
+      {save.state === 'conflict' && (
+        <button
+          className="small"
+          // Reloading while a job is submitted would leave it nowhere to be recorded.
+          disabled={submitting}
+          onClick={() => void workspace.reload(entry.id)}
+        >
+          Reload
+        </button>
+      )}
+    </>
+  );
+}
+
+/** Reading the version a project is deleted at, when its document does not open. */
+type Pin =
+  | { state: 'reading' }
+  | { state: 'read'; version: string }
+  | { state: 'failed'; message: string };
+
+/**
+ * Asks before deleting a project, with its jobs, as it is now: a listed project is opened first,
+ * and one whose document does not open is deleted at the version read when asked, so changes made
+ * elsewhere since are never deleted unseen. One the API no longer has goes from the list.
+ */
+function DeleteDialog({
+  entry,
+  onDelete,
+  onClose,
+}: {
+  entry: ProjectEntry | undefined;
+  onDelete: (version?: string) => void;
+  onClose: () => void;
+}) {
+  const [pin, setPin] = useState<Pin>({ state: 'reading' });
+  const [attempt, setAttempt] = useState(0);
+  const status = entry?.status;
+  const id = entry?.id;
+  useEffect(() => {
+    if (!id) return;
+    if (status === 'listed') workspace.open(id);
+    if (status !== 'failed') return;
+    let current = true;
+    setPin({ state: 'reading' });
+    patiently(() => client.getProject(id)).then(
+      ({ version }) => current && setPin({ state: 'read', version }),
+      (reason) => {
+        if (!current) return;
+        if (isMissing(reason)) workspace.forget(id);
+        else setPin({ state: 'failed', message: explain(reason) });
+      },
+    );
+    return () => {
+      current = false;
+    };
+  }, [id, status, attempt]);
+  // Gone meanwhile, such as deleted in another tab: nothing is left to ask about.
+  useEffect(() => {
+    if (!entry) onClose();
+  }, [entry, onClose]);
+  if (!entry) return null;
+  const version = entry.status === 'failed' && pin.state === 'read' ? pin.version : undefined;
+  const ready = entry.status === 'open' || !!version;
+  const failed = entry.status === 'failed' && pin.state === 'failed' ? pin.message : undefined;
+  const summary = entrySummary(entry);
+  const jobs = summary?.jobs ?? 0;
+  const running = summary?.running.length ?? 0;
+  return (
+    <Dialog
+      title="Delete project"
+      onClose={onClose}
+      actions={
+        <>
+          <button onClick={onClose}>Keep</button>
+          {failed ? (
+            <button onClick={() => setAttempt((n) => n + 1)}>Try again</button>
+          ) : (
+            <button className="danger" disabled={!ready} onClick={() => onDelete(version)}>
+              {ready ? 'Delete' : 'Opening…'}
+            </button>
+          )}
+        </>
+      }
+    >
+      <p>
+        Delete <strong>{entryName(entry)}</strong>
+        {jobs > 0 && ` and its ${jobs === 1 ? 'job' : `${jobs} jobs`}`}? This cannot be undone.
+        {running > 0 && ` Its running ${running === 1 ? 'job is' : 'jobs are'} stopped.`}
+      </p>
+      {failed && <p className="field-error">Could not read the project: {failed}</p>}
+    </Dialog>
+  );
+}
+
+type MenuAction = 'rename' | 'duplicate' | 'undo' | 'redo' | 'export' | 'delete';
 
 function ProjectMenu({
-  name,
   canUndo,
   canRedo,
   onAction,
 }: {
-  name: string;
   canUndo: boolean;
   canRedo: boolean;
   onAction: (action: MenuAction) => void;
@@ -594,23 +560,30 @@ function ProjectMenu({
     </button>
   );
   return (
-    <details className="menu" ref={menu}>
-      <summary className="button" aria-label={`Project: ${name}`}>
-        {name} <ChevronDown />
+    <details className="menu right" ref={menu}>
+      <summary className="button">
+        Project <ChevronDown />
       </summary>
       <div className="menu-list">
-        {item('new', 'New project…')}
-        {item('projects', 'Open project…')}
-        {item('examples', 'Open example…')}
-        <hr />
         {item('rename', 'Rename…')}
         {item('duplicate', 'Duplicate')}
         {item('undo', 'Undo', !canUndo)}
         {item('redo', 'Redo', !canRedo)}
         <hr />
         {item('export', 'Export project file')}
-        {item('open-file', 'Open project file…')}
+        <hr />
+        {item('delete', 'Delete project…')}
       </div>
     </details>
+  );
+}
+
+/** The account's button, which opens it over the page, with a dot while any of its jobs runs. */
+function AccountButton({ running, onClick }: { running: boolean; onClick: () => void }) {
+  return (
+    <button className="account-button" onClick={onClick}>
+      Account
+      {running && <i className="live-dot" role="img" aria-label="Jobs running" />}
+    </button>
   );
 }

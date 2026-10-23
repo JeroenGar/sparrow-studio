@@ -1,27 +1,33 @@
-/* Light: a soft eggshell, from the logo's cream. Dark: a warm near-black with cream ink.
-   The theme is resolved to light or dark in script, so dark is defined once. */
+/* Paper and brick: white paper and bark ink, the logo's, with the brick red of the studio label as the
+   one accent. The theme is resolved to light or dark in script, so dark is defined once. */
 :root {
   color-scheme: light;
-  --bg: #efebe4;
-  --panel: #fcfaf6;
-  --panel-soft: #f5f2ec;
-  --ink: #2a231d;
-  --muted: #6b6359;
-  --line: #ddd6ca;
-  --line-soft: #ebe6dd;
-  --control: #cbc2b3;
-  --accent: #3d2d20;
-  --accent-soft: #efe7da;
-  --accent-line: #cfbfa6;
-  --canvas: #f2eee7;
-  --grid: #e8e2d8;
-  --grid-major: #dcd3c4;
-  --bar: #f4ecdd;
-  --bar-ink: #3d2d20;
-  --bar-muted: #6e6152;
-  --bar-line: #e0d4c0;
-  --bar-control: rgba(255, 255, 255, 0.45);
-  --sheet: #fffdf9;
+  /* Warm paper, barely tinted towards the bark: the page, what lies on it, and softer insets. */
+  --bg: #f5f3ef;
+  --panel: #fffefc;
+  --panel-soft: #f9f7f3;
+  /* Bark, the logo's bird and letters: for text and the dark controls. */
+  --ink: #4a3020;
+  /* Secondary text: the ink, a fifth of the way to the paper, as readable as a mid grey. */
+  --muted: color-mix(in srgb, var(--ink) 80%, var(--panel));
+  --line: #e5e1da;
+  --line-soft: #eeebe5;
+  --control: #d2ccc2;
+  --accent: #b3261e;
+  /* The brick of the studio label, the same in both themes. */
+  --brand: #b3261e;
+  --accent-soft: #fbeceb;
+  --accent-line: #e9b4b0;
+  --canvas: #faf9f6;
+  --grid: #eeebe5;
+  --grid-major: #e2ded6;
+  --bar: #fffefc;
+  --bar-ink: #4a3020;
+  --bar-muted: color-mix(in srgb, var(--bar-ink) 80%, var(--bar));
+  --bar-line: #e5e1da;
+  --bar-control: rgba(0, 0, 0, 0.04);
+  /* Off-white, a shade under the canvas, so a sheet's holes show as the canvas through it. */
+  --sheet: #f0eee8;
   --pro: #9a3412;
   --pro-soft: #fbe8d6;
   --pro-line: #c2410c;
@@ -31,7 +37,9 @@
   --good-line: #86c29b;
   --overlap: rgba(220, 38, 38, 0.72);
   --differs: #e5372c;
-  --shadow: 0 8px 24px rgba(40, 30, 20, 0.14);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  /* A card's lift off the page, in place of a border. */
+  --card-shadow: 0 1px 2px rgba(74, 48, 32, 0.06), 0 6px 18px rgba(74, 48, 32, 0.05);
   --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-family:
     system-ui,
@@ -44,26 +52,27 @@
 }
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --bg: #1c1916;
-  --panel: #25211d;
-  --panel-soft: #2d2823;
+  --bg: #121212;
+  --panel: #1a1a1a;
+  --panel-soft: #202020;
   --ink: #f3e3c3;
-  --muted: #b5a893;
-  --line: #3e3730;
-  --line-soft: #312c27;
-  --control: #554b41;
-  --accent: #f3e3c3;
-  --accent-soft: rgba(243, 227, 195, 0.12);
-  --accent-line: rgba(243, 227, 195, 0.32);
-  --canvas: #1f1c19;
-  --grid: #29251f;
-  --grid-major: #353029;
-  --bar: #25211d;
+  /* On the dark paper the ink goes further towards it, as far as the grey it replaces. */
+  --muted: color-mix(in srgb, var(--ink) 65%, var(--panel));
+  --line: #2c2c2c;
+  --line-soft: #232323;
+  --control: #3d3d3d;
+  --accent: #ff6b5e;
+  --accent-soft: rgba(255, 107, 94, 0.14);
+  --accent-line: rgba(255, 107, 94, 0.4);
+  --canvas: #151515;
+  --grid: #212121;
+  --grid-major: #2b2b2b;
+  --bar: #1a1a1a;
   --bar-ink: #f3e3c3;
-  --bar-muted: #b5a893;
-  --bar-line: #3e3730;
-  --bar-control: rgba(243, 227, 195, 0.08);
-  --sheet: #322c26;
+  --bar-muted: color-mix(in srgb, var(--bar-ink) 65%, var(--bar));
+  --bar-line: #2c2c2c;
+  --bar-control: rgba(255, 255, 255, 0.06);
+  --sheet: #242424;
   --pro: #fdba74;
   --pro-soft: #3a2b1d;
   --pro-line: #c2610c;
@@ -72,6 +81,7 @@
   --good-soft: #1f2a21;
   --good-line: #2f6b43;
   --shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 /* Logos come in a light and a dark version; show the one for the theme. */
 :root[data-theme='dark'] .logo-light,
@@ -220,6 +230,25 @@ input[aria-invalid='true'] {
 .choice input {
   margin-top: 2px;
 }
+.flag-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px 8px;
+}
+.flag-field .small-note {
+  flex-basis: 100%;
+}
+.field-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.small-note {
+  font-size: 12px;
+}
 .choice.disabled {
   color: var(--muted);
 }
@@ -270,6 +299,20 @@ input[aria-invalid='true'] {
   background: var(--pro-soft);
   border-radius: 6px;
   padding: 6px 8px;
+}
+.notice p,
+.notice ul {
+  margin: 0;
+}
+.notice ul {
+  padding-left: 16px;
+}
+.notice.warning {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+}
+.warning-text {
+  color: var(--danger);
 }
 
 /* The sparrow pro marker: visible, disabled-looking, and leads to signing in. */
@@ -355,9 +398,10 @@ input[aria-invalid='true'] {
   padding: 8px 16px;
   color: var(--bar-ink);
   background: var(--bar);
-  border-bottom: 1px solid var(--bar-line);
+  /* A line under the bar in the brick of the studio label. */
+  border-bottom: 3px solid var(--brand);
 }
-/* Controls on the cream bar take its warm tones. */
+/* Controls on the bar take its tones. */
 .top-bar > button,
 .top-bar .menu > summary {
   color: var(--bar-ink);
@@ -384,6 +428,32 @@ input[aria-invalid='true'] {
   color: var(--bar-ink);
   background: transparent;
 }
+/* Where the page is: home, a project, and later a job of it. */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--bar-muted);
+}
+.breadcrumb a {
+  color: var(--bar-muted);
+  text-decoration: none;
+}
+.breadcrumb a:hover {
+  color: var(--accent);
+}
+.crumb[aria-current='page'] {
+  color: var(--bar-ink);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu.right .menu-list {
+  left: auto;
+  right: 0;
+}
 /* The wordmark's SVG is drawn at top-bar size: 32px tall. */
 .brand-wordmark {
   height: 32px;
@@ -407,6 +477,9 @@ input[aria-invalid='true'] {
   overflow-x: auto;
 }
 .tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   border: 0;
   border-radius: 0;
   border-bottom: 2px solid transparent;
@@ -414,6 +487,8 @@ input[aria-invalid='true'] {
   min-height: 44px;
   color: var(--muted);
   padding: 0 14px;
+  text-decoration: none;
+  white-space: nowrap;
 }
 .tab:hover:not(:disabled) {
   background: transparent;
@@ -432,11 +507,28 @@ input[aria-invalid='true'] {
   border-radius: 10px;
   padding: 1px 7px;
 }
+/* Something running: a dot in the brick of the studio label, pulsing gently. */
 .live-dot {
+  flex: none;
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #16a34a;
+  background: var(--brand);
+  animation: live 1.6s ease-in-out infinite;
+}
+@keyframes live {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--brand) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 5px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
 }
 .error-banner {
   display: flex;
@@ -463,6 +555,7 @@ input[aria-invalid='true'] {
 /* The list side of each view */
 .list-panel {
   flex: 0 0 340px;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -697,6 +790,16 @@ input[aria-invalid='true'] {
 .badge {
   fill: var(--ink);
 }
+.reflection-symbol {
+  fill: var(--panel);
+  stroke: var(--panel);
+}
+.legend-symbol {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--ink);
+}
 .badge-text {
   fill: var(--panel);
   font-family: var(--mono);
@@ -737,6 +840,102 @@ input[aria-invalid='true'] {
   height: 12px;
   border-radius: 2px;
   background: var(--overlap);
+}
+.canvas-surface.drawing {
+  cursor: crosshair;
+}
+.row-actions button[aria-pressed='true'] {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+.drop-before {
+  box-shadow: inset 0 3px 0 var(--ink);
+}
+.drop-after {
+  box-shadow: inset 0 -3px 0 var(--ink);
+}
+/* The shared canvas of Parts and Sheets: the other tab's shapes, faded at the edge of the view. */
+.out-of-focus {
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.out-of-focus:hover {
+  opacity: 0.55;
+}
+/* A sheet's place in the nesting order, and the sheets of it in stock. */
+.order-badge {
+  fill: var(--ink);
+}
+.order-badge.selected {
+  fill: var(--accent);
+}
+.order-badge-text {
+  fill: var(--panel);
+  font-family: var(--mono);
+  font-weight: 650;
+}
+.stock-badge {
+  fill: var(--panel);
+  stroke: var(--ink);
+}
+.stock-badge-text {
+  fill: var(--ink);
+  font-family: var(--mono);
+}
+.sheet-edge.behind {
+  stroke: var(--control);
+}
+.sheet-label.selected {
+  fill: var(--accent);
+  font-weight: 600;
+}
+.layer-roles {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 6px 16px;
+}
+.layer-roles legend,
+.layer-roles > .muted {
+  grid-column: 1 / -1;
+}
+.layer-role {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.defect-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+.sheet-edge.selected {
+  stroke: var(--accent);
+}
+.defect.draft {
+  fill-opacity: 0.4;
+  stroke-dasharray: 4 3;
+}
+.sheet-label {
+  fill: var(--muted);
+  font-family: var(--mono);
+}
+.defect {
+  fill: color-mix(in srgb, var(--danger) 22%, transparent);
+  stroke: var(--danger);
+}
+.order {
+  min-width: 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  text-align: right;
+}
+.sheet-thumb {
+  fill: var(--sheet);
+  stroke: var(--ink);
 }
 .strip-thumb {
   fill: var(--sheet);
@@ -1210,15 +1409,472 @@ input[aria-invalid='true'] {
 }
 
 .about-logo {
-  height: 80px;
+  height: 48px;
+  max-width: 100%;
   width: auto;
   align-self: center;
   margin-block: 8px;
 }
 .about-links {
-  margin: 0;
-  padding-left: 18px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 4px 8px;
+  font-size: 13px;
+}
+
+/* The projects as cards. */
+.home {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding: 26px 32px;
+}
+.home-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.home-head h1 {
+  margin: 0 6px 0 0;
+  font-size: 22px;
+  font-weight: 650;
+}
+.search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 260px;
+  max-width: 100%;
+  padding: 0 10px;
+  border: 1px solid var(--control);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--muted);
+}
+.search svg {
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+}
+.search input:not([type='checkbox']):not([type='radio']) {
+  flex: 1;
+  border: 0;
+  padding: 0;
+  outline: 0;
+  background: transparent;
+}
+.search:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.project-grid {
+  display: grid;
+  /* As many as fit, each 340 px at least: three on a laptop, more on a wide screen. */
+  grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr));
+  gap: 20px;
+}
+.home-count {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+/* A project's newest job, set in at the foot of its card, apart from the project above it. */
+.last-job {
+  margin: auto 12px 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 10px 7px 7px;
+  background: var(--bg);
+  border-radius: 9px;
+  color: inherit;
+  text-decoration: none;
+  font-size: 13px;
+}
+/* What a click opens is outlined under the pointer: the card's project, or its last job alone. */
+.last-job:hover {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.last-job.running {
+  background: var(--accent-soft);
+}
+.last-job:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.last-job .job-thumb {
+  /* As wide as its sheets at this height, up to five to one, narrower where the text needs room. */
+  flex: 0 1 auto;
+  min-width: 44px;
+  width: auto;
+  height: 44px;
+  aspect-ratio: 5;
+  background: var(--panel);
+  border: 0;
+  border-radius: 6px;
+}
+/* The text keeps room to be read; the picture gives way first. */
+.last-job-text {
+  flex: 1 0 150px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.last-job-text > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* The chevron says the row goes somewhere: the job. */
+.last-job > svg {
+  flex: none;
+  color: var(--muted);
+}
+.last-job:hover > svg {
+  color: var(--ink);
+}
+.project-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-radius: 12px;
+  box-shadow: var(--card-shadow);
+  overflow: hidden;
+}
+.card-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+.project-card:has(> .card-link:hover) {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+.card-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.card-thumb {
+  display: block;
+  width: 100%;
+  height: 150px;
+  padding: 16px 20px;
+  background: var(--panel-soft);
+}
+.card-body {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  padding: 12px 14px;
+}
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.card-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Deleting is at hand on the card, without taking the eye from its drawing. */
+.card-delete {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  opacity: 0;
+}
+.project-card:hover .card-delete,
+.card-delete:focus-visible,
+.project-card:not(:has(.card-link)) .card-delete {
+  opacity: 1;
+}
+@media (hover: none) {
+  .card-delete {
+    opacity: 1;
+  }
+}
+
+/* Jobs: how each stands, and the project changed since. */
+.status-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--control);
+}
+.status-dot.failed {
+  background: var(--danger);
+}
+.changed-notice {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 16px 12px;
+  padding: 10px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: 8px;
+}
+.changed-notice .button,
+.changed-notice button {
+  border-color: var(--accent-line);
+}
+.row.static {
+  cursor: default;
+}
+.stack.tight {
+  gap: 2px;
+}
+a.button.primary {
+  background: var(--ink);
+  color: var(--panel);
+  border-color: var(--ink);
+}
+
+/* The account's button on the top bar, with a dot while a job runs. */
+.account-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+/* The account's credits and email, over its jobs. */
+.account-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px 40px;
+  padding: 16px 18px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.account-figure {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.account-amount {
+  font-size: 26px;
+  line-height: 1.1;
+}
+/* A dialog over most of the page, such as the account's. */
+.dialog.large {
+  width: min(1120px, calc(100vw - 32px));
+  height: calc(100vh - 64px);
+}
+
+/* Every job of the account, newest first, in one table with a row for each month. */
+.account-jobs {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 13px;
+}
+.account-jobs col.started {
+  width: 150px;
+}
+.account-jobs col.credits {
+  width: 140px;
+}
+.account-jobs th,
+.account-jobs td {
+  padding: 9px 16px;
+  text-align: left;
+  font-weight: 400;
+  border-top: 1px solid var(--line-soft);
+  vertical-align: middle;
+}
+.account-jobs thead th {
+  border-top: 0;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.account-jobs tr.month > * {
+  padding-top: 12px;
+  background: var(--panel-soft);
+  border-top-color: var(--line);
+  font-weight: 650;
+}
+.account-jobs tr.month .muted {
+  font-weight: 400;
+}
+.account-jobs tr.running > td {
+  background: var(--accent-soft);
+}
+.account-jobs a {
+  color: var(--ink);
+  font-weight: 600;
+  text-decoration: none;
+}
+.account-jobs a:hover {
+  color: var(--accent);
+}
+.account-jobs .numeric {
+  text-align: right;
+  font-family: var(--mono);
+  white-space: nowrap;
+}
+.account-more {
+  display: flex;
+  justify-content: center;
+}
+.job-progress {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.job-thumb {
+  position: relative;
+  display: block;
+  width: 96px;
+  height: 32px;
+  border-radius: 4px;
+  background: var(--panel-soft);
+  border: 1px solid var(--line-soft);
+}
+.job-thumb svg,
+svg.job-thumb {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+.thumb-badge {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  padding: 0 4px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--panel);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 15px;
+}
+
+/* Read out, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* A job's details, on the right of its layout, as the part defaults are on the right of Parts. */
+.list-panel.narrow {
+  flex-basis: 290px;
+}
+a.row {
+  color: inherit;
+  text-decoration: none;
+}
+.inspector {
+  flex: 0 0 310px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border-left: 1px solid var(--line);
+}
+.inspector-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.inspector-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 10px;
+}
+.inspector-scroll > p {
+  margin: 12px 16px;
+}
+.inspector-scroll > .notice {
+  margin: 0 16px 12px;
+}
+.inspector-foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--line-soft);
+}
+.part-chips {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.part-chip {
+  min-height: 28px;
+  max-width: 100%;
+  padding: 2px 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  text-align: left;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.part-chip i {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  border: 1px solid var(--ink);
+}
+.part-chip[aria-pressed='true'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* Controls that change the project: disabled where it is only shown, such as a job's inputs. */
+/* No weight of its own: the classes it carries, such as properties, style it as before. */
+:where(fieldset.editable) {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+}
+/* A preview of a job's inputs, shown above its tabs. */
+.preview-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 10px 20px;
+  background: var(--accent-soft);
+  border-bottom: 1px solid var(--accent-line);
+}
+.preview-banner .button,
+.preview-banner button:not(.primary) {
+  border-color: var(--accent-line);
 }

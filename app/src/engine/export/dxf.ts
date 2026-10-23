@@ -1,19 +1,24 @@
-import parseString from 'dxf/lib/parseString';
 import {DxfWriter,LWPolylineFlags,Units,point2d,point3d} from '@tarikjabiri/dxf';
-import type {WorldPart} from '../geometry/validate';
-import {SHEET_LAYER,type Job,type Ring} from '../model';
+import type {WorldPart} from '../geometry/world';
+import {SHEET_LAYER,type Job,type Point,type Ring,type Sheet} from '../model';
+import {flattenContour,type Contour} from '../geometry/contour';
+import {bounds} from '../geometry/normalize';
 
 export const STUDIO_CREDIT='nested with sparrow studio · https://sparrowstudio.app';
 
-export function exportDXF(doc:Job,world:WorldPart[],sheetLengthMm:number):string {
-  const sheetWidth=doc.settings.materialWidthMm;
-  const sheet:Ring=[[0,0],[sheetLengthMm,0],[sheetLengthMm,sheetWidth],[0,sheetWidth]];
-  const rings=[sheet,...world.flatMap(p=>[p.outer,...p.holes])];
+/** The layout as DXF: on its sheets, with their defects and cuts, or else on the strip up to `stripLengthMm`. */
+export function exportDXF(doc:Job,world:WorldPart[],stripLengthMm:number,sheets?:Sheet[]):string {
+  if(sheets&&!sheets.length)sheets=undefined;
+  const stripWidth=doc.settings.materialWidthMm;
+  const material:Ring[]=sheets
+    ?sheets.flatMap(sheet=>[sheet.shape.outer,...(sheet.shape.holes??[]),...sheet.defects]).map(c=>flattenContour(c,.001))
+    :[[[0,0],[stripLengthMm,0],[stripLengthMm,stripWidth],[0,stripWidth]]];
+  const rings=[...material,...world.flatMap(p=>[p.outer,...p.holes])];
   if(rings.some(ring=>ring.length<3||ring.flat().some(v=>!Number.isFinite(v))))throw Error('DXF contour is invalid.');
   const [minX,minY,maxX,maxY]=rings.flat().reduce((b,[x,y])=>[Math.min(b[0],x),Math.min(b[1],y),Math.max(b[2],x),Math.max(b[3],y)],[Infinity,Infinity,-Infinity,-Infinity]);
   // Attribution in ASCII above all contours: Autodesk renders the \U+00B7 escape for '·' as '?'.
   const credit=STUDIO_CREDIT.replace('·','-');
-  const textHeight=Math.min(sheetWidth*.025,(maxX-minX)/(credit.length*.65)),textY=maxY+textHeight;
+  const textHeight=Math.min((maxY-minY)*.025,(maxX-minX)/(credit.length*.65)),textY=maxY+textHeight;
   // Extents allow a full text height per character, since substituted fonts render wider than the sizing estimate.
   const ext=[minX,minY,Math.max(maxX,minX+credit.length*textHeight),textY+textHeight];
   const [width,height]=[ext[2]-ext[0],ext[3]-ext[1]];
@@ -25,25 +30,24 @@ export function exportDXF(doc:Job,world:WorldPart[],sheetLengthMm:number):string
   // Autodesk Viewer clips the drawing to the saved view. The library fits that view to approximate
   // bounds with a fixed 2:1 aspect, so frame the exact extents, with a 5% margin, ourselves.
   Object.assign(dxf.modelSpace,{centerView:()=>point3d(ext[0]+width/2,ext[1]+height/2),viewHeight:()=>Math.max(height,width/2)*1.1});
-  for(const [layer,color] of [[SHEET_LAYER,8],['PARTS',7],['HOLES',7],['SPARROW_INFO',7]] as const)dxf.addLayer(layer,color);
+  for(const [layer,color] of [[SHEET_LAYER,8],['PARTS',7],['SPARROW_INFO',7]] as const)dxf.addLayer(layer,color);
   const polyline=(ring:Ring,layerName:string)=>dxf.addLWPolyline(ring.map(([x,y])=>({point:point2d(x,y)})),{flags:LWPolylineFlags.Closed,layerName});
-  polyline(sheet,SHEET_LAYER);
-  for(const p of world){polyline(p.outer,'PARTS');for(const hole of p.holes)polyline(hole,'HOLES');}
-  dxf.addText(point3d(minX,textY),textHeight,credit,{layerName:'SPARROW_INFO'});
-  const text=dxf.stringify();
-
-  const parsed=parseString(text) as {header:{insUnits:number};entities:{type:string;closed:boolean;layer:string;string?:string;vertices:{x:number;y:number}[]}[]};
-  if(parsed.header.insUnits!==4)throw Error('Serialized DXF lost its millimeter units.');
-  let at=0;
-  const ring=(layer:string):Ring=>{
-    const entity=parsed.entities[at++];
-    if(entity?.type!=='LWPOLYLINE'||!entity.closed||entity.layer!==layer)throw Error('Serialized DXF lost a closed contour or layer.');
-    return entity.vertices.map(p=>[p.x,p.y]);
+  // Arcs stay arcs, as polyline bulges, and circles circles; other curves become fine polylines.
+  const contour=(c:Contour,layerName:string)=>{
+    if(c.type==='circle')return dxf.addCircle(point3d(c.center[0],c.center[1]),c.radius,{layerName});
+    if(c.type!=='path'||c.segments.some(s=>s.type!=='line'&&s.type!=='arc'))return polyline(flattenContour(c,.001),layerName);
+    const vertices:{point:Point;bulge:number}[]=[];let at=c.start as Point;
+    for(const s of c.segments){if(s.type!=='line'&&s.type!=='arc')continue;vertices.push({point:at,bulge:s.type==='arc'?s.bulge:0});at=s.to as Point;}
+    if(at[0]!==c.start[0]||at[1]!==c.start[1])vertices.push({point:at,bulge:0});
+    dxf.addLWPolyline(vertices.map(({point:[x,y],bulge})=>({point:point2d(x,y),bulge})),{flags:LWPolylineFlags.Closed,layerName});
   };
-  if(JSON.stringify(ring(SHEET_LAYER))!==JSON.stringify(sheet))throw Error('Serialized DXF changed the sheet.');
-  const reparsed=world.map(p=>({...p,outer:ring('PARTS'),holes:p.holes.map(()=>ring('HOLES'))}));
-  const note=parsed.entities[at++];
-  if(note?.type!=='TEXT'||note.layer!=='SPARROW_INFO'||note.string!==credit)throw Error('Serialized DXF lost its attribution.');
-  if(at!==parsed.entities.length||JSON.stringify(reparsed)!==JSON.stringify(world))throw Error('Serialized DXF changed layout coordinates.');
-  return text;
+  if(!sheets)polyline(material[0],SHEET_LAYER);
+  else for(const sheet of sheets) {
+    for(const c of [sheet.shape.outer,...(sheet.shape.holes??[]),...sheet.defects])contour(c,SHEET_LAYER);
+    if(sheet.cutX!==null){const [,y0,,y1]=bounds(flattenContour(sheet.shape.outer,.001));dxf.addLine(point3d(sheet.cutX,y0),point3d(sheet.cutX,y1),{layerName:SHEET_LAYER});}
+  }
+  // Holes on their part's layer: an outline inside another of the same layer is its hole.
+  for(const p of world){contour(p.shape.outer,'PARTS');for(const hole of p.shape.holes??[])contour(hole,'PARTS');}
+  dxf.addText(point3d(minX,textY),textHeight,credit,{layerName:'SPARROW_INFO'});
+  return dxf.stringify();
 }

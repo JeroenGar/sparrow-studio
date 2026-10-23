@@ -1,11 +1,11 @@
 import parseString from 'dxf/lib/parseString';
-import bSpline from 'dxf/lib/util/bSpline';
-import {pointSegmentDistance} from '../geometry/validate';
-import {DEFAULT_SETTINGS,SHEET_LAYER,type Point,type Ring} from '../model';
-import {apply,multiply,append,ellipse,type Matrix} from '../geometry/flatten';
-import {bounds,normalizeJob,normalizeRing,ringCrosses} from '../geometry/normalize';
-import {contoursToParts} from './svg';
+import {pointSegmentDistance} from '../geometry/world';
+import {type Point,type Ring} from '../model';
+import {apply,multiply,append,bulge,ellipse,nurbs,type Matrix} from '../geometry/flatten';
+import {polygon,type Contour as FormatContour} from '../geometry/contour';
+import {contour,lines,moveEnds,reverse,similar,transformPath,type Path} from './paths';
 import type {ImportReview} from './sparrow';
+import {defaultRoles,review,type Drawing,type Outline,type Role} from './drawing';
 
 type DxfPoint={x:number;y:number;z?:number;bulge?:number};
 type DxfEntity={type:string;handle:string;layer?:string;x?:number;y?:number;z?:number;
@@ -16,9 +16,10 @@ type DxfEntity={type:string;handle:string;layer?:string;x?:number;y?:number;z?:n
 type DxfFile={entities:DxfEntity[];blocks:{name:string;x?:number;y?:number;entities:DxfEntity[]}[]};
 type Group=[number,string];
 type DxfRecord={type:string;groups:Group[];children:DxfRecord[];id:string;layer:string};
-type Contour={ring:Ring;entityId:string;curved:boolean};
-type Chain={points:Ring;id:string;curved:boolean};
-export type DXFOptions={scale:number;tolerance:number;enclosed:'holes'|'parts';layers?:string[]};
+/** An open piece of an outline, joined to others on its layer at its ends. */
+type Chain={points:Ring;id:string;layer:string;curved:boolean;path:Path};
+/** `curves`: keep them as curves, or flatten them into the parts' shapes. */
+export type DXFOptions={scale:number;tolerance:number;enclosed:'holes'|'parts';layers?:string[];curves?:'keep'|'flatten'};
 const value=(r:DxfRecord,code:number)=>r.groups.find(g=>g[0]===code)?.[1];
 function finite(text:string|undefined,fallback?:number):number {
   if(text===undefined&&fallback!==undefined)return fallback;
@@ -79,55 +80,7 @@ function guard(r:DxfRecord) {
     if(!Number.isInteger(count)||count<2||count>5000||count!==r.groups.filter(g=>g[0]===10).length)throw Error('Invalid LWPOLYLINE vertex count.');
   }
 }
-function bulge(from:Point,to:Point,b:number,tolerance:number,output:Ring) {
-  if(!Number.isFinite(b))throw Error('Non-finite polyline bulge.');
-  const dx=to[0]-from[0],dy=to[1]-from[1],chord=Math.hypot(dx,dy);
-  if(b===0||chord*Math.abs(b)/2<=tolerance) {append(output,to);return;}
-  if(chord===0)throw Error('A bulged edge has coincident endpoints.');
-  const k=(1-b*b)/(4*b),center:Point=[(from[0]+to[0])/2-dy*k,(from[1]+to[1])/2+dx*k],radius=chord*(1+b*b)/(4*Math.abs(b));
-  ellipse(center,[radius,0],[0,radius],Math.atan2(from[1]-center[1],from[0]-center[0]),4*Math.atan(b),tolerance,output);
-  output[output.length-1]=to;
-}
-function spline(entity:DxfEntity,tolerance:number):Ring {
-  const points=entity.controlPoints??[],knots=entity.knots??[],degree=entity.degree??0;
-  if(!Number.isInteger(degree)||degree<1||degree>3||points.length<=degree||points.length>5000)throw Error('SPLINE needs degree 1–3 and a valid control-point count.');
-  const weights=entity.weights??points.map(()=>1);
-  if(weights.length!==points.length||weights.some(w=>!Number.isFinite(w)||w<=0))throw Error('SPLINE weights must be finite and positive.');
-  if(knots.length!==points.length+degree+1||knots.some((v,i)=>!Number.isFinite(v)||i>0&&v<knots[i-1]))throw Error('Invalid SPLINE knot vector.');
-  if(points.some(p=>![p.x,p.y,p.z??0].every(Number.isFinite)||(p.z??0)!==0))throw Error('Invalid or nonplanar SPLINE control points.');
-  const low=knots[degree],high=knots[points.length];if(!(high>low))throw Error('Empty SPLINE parameter domain.');
-  const spans=[...new Set(knots.slice(degree,points.length+1))];
-  if(spans.slice(1,-1).some(k=>knots.filter(v=>v===k).length>degree))throw Error('Discontinuous SPLINE cannot form one contour.');
-  // Evaluate each polynomial knot span in homogeneous coordinates using dxf.
-  // Degrees 1–3 can all be represented exactly as cubic rational Beziers.
-  const homogeneous=points.map((p,i)=>[p.x*weights[i],p.y*weights[i],weights[i]]);
-  const project=(p:number[]):Point=>[p[0]/p[2],p[1]/p[2]];
-  const output:Ring=[];
-  const flatten=(control:number[][],budget:number,depth=0)=>{
-    if(depth>32)throw Error('SPLINE subdivision exceeded its depth limit.');
-    const projected=control.map(project);
-    if(projected.slice(1,-1).every(p=>pointSegmentDistance(p,projected[0],projected[3])<=budget)) {append(output,projected[3]);return;}
-    const left=[control[0]],right=[control[3]];let row=control;
-    while(row.length>1){row=row.slice(1).map((p,i)=>p.map((v,j)=>(v+row[i][j])/2));left.push(row[0]);right.unshift(row[row.length-1]);}
-    flatten(left,budget,depth+1);flatten(right,budget,depth+1);
-  };
-  for(let i=1;i<spans.length;i++) {
-    const samples=[0,1/3,2/3,1].map(t=>bSpline(Math.max(0,Math.min(1,(spans[i-1]+t*(spans[i]-spans[i-1])-low)/(high-low))),degree,homogeneous,knots));
-    const [p0,a,b,p3]=samples;
-    const p1=p0.map((v,j)=>(2*(27*a[j]-8*v-p3[j])-(27*b[j]-v-8*p3[j]))/18);
-    const p2=p0.map((v,j)=>(2*(27*b[j]-v-8*p3[j])-(27*a[j]-8*v-p3[j]))/18);
-    const control=[p0,p1,p2,p3];
-    if(control.some(p=>p.some(v=>!Number.isFinite(v))||p[2]<=0))throw Error('Invalid SPLINE span.');
-    // dxf rounds evaluations to nine decimal places; reserve an error budget
-    // before applying the rational Bezier convex-hull subdivision bound.
-    const precision=1e-7*(1+Math.max(...control.flatMap(p=>project(p).map(Math.abs))))/Math.min(...control.map(p=>p[2]));
-    if(precision>=tolerance)throw Error('Requested tolerance is below SPLINE evaluation precision.');
-    if(!output.length)append(output,project(p0));
-    flatten(control,tolerance-precision);
-  }
-  return output;
-}
-function join(chains:Chain[],issues:string[]):{contours:Contour[];gaps:number;adjustment:number} {
+function join(chains:Chain[],issues:Drawing['issues'],keep:boolean):{outlines:Outline[];gaps:number;adjustment:number} {
   const endpoints=chains.flatMap((c,i)=>[{p:c.points[0],edge:i,end:0},{p:c.points[c.points.length-1],edge:i,end:1}]);
   const neighbors=endpoints.map(()=>[] as number[]),cells=new Map<string,number[]>();
   const tolerance=.01;
@@ -138,7 +91,7 @@ function join(chains:Chain[],issues:string[]):{contours:Contour[];gaps:number;ad
     }
     const key=`${x},${y}`;cells.set(key,[...(cells.get(key)??[]),i]);
   }
-  const visited=new Set<number>(),contours:Contour[]=[];let gaps=0,adjustment=0;
+  const visited=new Set<number>(),outlines:Outline[]=[];let gaps=0,adjustment=0;
   for(let i=0;i<chains.length;i++) {
     if(visited.has(i))continue;
     const component=new Set<number>([i]),queue=[i];
@@ -147,9 +100,10 @@ function join(chains:Chain[],issues:string[]):{contours:Contour[];gaps:number;ad
     }
     for(const edge of component)visited.add(edge);
     if([...component].some(edge=>neighbors[edge*2].length!==1||neighbors[edge*2+1].length!==1)) {
-      issues.push(`${[...component].map(e=>chains[e].id).join(', ')}: open ends or ambiguous junctions within 0.01 mm. Exclude these contours or repair the source.`);continue;
+      issues.push({layer:chains[i].layer,message:`${[...component].map(e=>chains[e].id).join(', ')}: open ends or ambiguous junctions within 0.01 mm. Exclude these contours or repair the source.`});continue;
     }
     let current=i*2;const ring:Ring=[];let curved=false,componentAdjustment=0;
+    const path:Path={start:[0,0],segments:[]};
     const walked=new Set<number>();
     do {
       const edge=endpoints[current].edge;if(walked.has(edge))throw Error('DXF chain traversal revisited an edge.');walked.add(edge);
@@ -161,23 +115,37 @@ function join(chains:Chain[],issues:string[]):{contours:Contour[];gaps:number;ad
       const gap=Math.hypot(exit[0]-exitNeighbor[0],exit[1]-exitNeighbor[1]);
       if(gap>0){gaps++;adjustment=Math.max(adjustment,gap/2);componentAdjustment=Math.max(componentAdjustment,gap/2);}
       for(const p of [entryPoint,...points.slice(1,-1),exitPoint])append(ring,p);
+      // The same piece in the format, run the way the walk goes, its ends where the pieces meet.
+      const piece=moveEnds(current%2?reverse(chain.path):chain.path,entryPoint,exitPoint);
+      if(!path.segments.length)path.start=entryPoint;
+      path.segments.push(...piece.segments);
       curved ||= chain.curved;current=neighbors[exitIndex][0];
     }while(current!==i*2);
     if(walked.size!==component.size)throw Error('DXF component did not form a single closed chain.');
-    contours.push({ring,entityId:[...component].map(e=>chains[e].id).join(' + '),curved:curved||componentAdjustment>0});
+    // Closing a gap moves a curve's ends, and with them all of a large arc: contours with gaps over
+    // a micrometre keep their approximation.
+    outlines.push({ring,id:[...component].map(e=>chains[e].id).join(' + '),layer:chains[i].layer,curved:curved||componentAdjustment>0,contour:keep&&componentAdjustment<=1e-6?contour(path,ring):polygon(ring)});
   }
-  return {contours,gaps,adjustment};
+  return {outlines,gaps,adjustment};
 }
+/** A DXF read as parts, its chosen layers' outlines, or all but studio's sheet layer. */
 export function importDXF(text:string,fileName:string,options:DXFOptions):ImportReview {
+  const drawing=traceDXF(text,fileName,options);
+  const roles:Record<string,Role>=options.layers?Object.fromEntries(drawing.layers.map(layer=>[layer,options.layers!.includes(layer)?'parts':'ignored'])):defaultRoles(drawing.layers);
+  return review(drawing,roles,{holes:options.enclosed==='holes'});
+}
+
+/** Every closed outline of a DXF, on every layer, where it is drawn: lines joined within a layer. */
+export function traceDXF(text:string,fileName:string,options:Pick<DXFOptions,'scale'|'tolerance'|'curves'>):Drawing {
   if(!Number.isFinite(options.scale)||options.scale<=0||!Number.isFinite(options.tolerance)||options.tolerance<=0)throw Error('Choose positive scale and approximation tolerance.');
   const source=scan(text),{records,units}=source,parsed=parseString(source.text) as DxfFile;
   const unitScales:Record<number,number>={1:25.4,2:304.8,4:1,5:10,6:1000,7:1_000_000,9:.0254,10:914.4,13:.001,14:100,15:10000};
-  const scale=unitScales[units]??options.scale,warnings:string[]=[],issues:string[]=[],unsupported=new Map<string,number>();
+  const scale=unitScales[units]??options.scale,warnings:string[]=[],issues:Drawing['issues']=[],unsupported=new Map<string,number>();
   warnings.push(unitScales[units]?`DXF INSUNITS ${units}: one unit = ${scale} mm.`:`Missing or unsupported DXF INSUNITS ${units}. Using the selected ${scale} mm per drawing unit.`);
   const byHandle=new Map(records.map(r=>[r.id,r])),blocks=new Map(parsed.blocks.map(b=>[b.name,b]));
   const supported=['LINE','ARC','CIRCLE','ELLIPSE','LWPOLYLINE','POLYLINE','SPLINE','INSERT'];
   for(const r of records)if(!supported.includes(r.type)&&!['BLOCK','ENDBLK'].includes(r.type))unsupported.set(r.type,(unsupported.get(r.type)??0)+1);
-  const layers:string[]=[],contours:Contour[]=[],chains:Chain[]=[];let totalVertices=0,expanded=0;
+  const layers:string[]=[],outlines:Outline[]=[],chains:Chain[]=[];let totalVertices=0,expanded=0;
   const visit=(entity:DxfEntity,parent:Matrix,inheritedLayer:string,path:string[])=>{
     if(++expanded>10_000)throw Error('DXF exceeds 10,000 expanded entities.');
     const r=byHandle.get(entity.handle);if(!r||!supported.includes(entity.type))return;
@@ -204,16 +172,19 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
         }
         return;
       }
-      if(options.layers?!options.layers.includes(layer):layer===SHEET_LAYER)return;
       const matrix=entity.extrusionZ===-1&&['CIRCLE','ARC','LWPOLYLINE','POLYLINE'].includes(entity.type)?multiply(parent,[-1,0,0,1,0,0]):parent;
       const tolerance=options.tolerance/Math.hypot(matrix[0],matrix[1],matrix[2],matrix[3]);
       const point=(p:DxfPoint|undefined):Point=>{
         if(!p||![p.x,p.y,p.z??0].every(Number.isFinite)||p.z&&p.z!==0)throw Error('Invalid or nonplanar coordinates.');
         return [p.x,p.y];
       };
-      let ring:Ring,closed=false,curved=false;
-      if(entity.type==='LINE')ring=[point(entity.start),point(entity.end)];
-      else if(entity.type==='SPLINE'){ring=spline(entity,tolerance);curved=true;}
+      // `local` is the outline in the format, curves kept, in the entity's own coordinates.
+      let ring:Ring,closed=false,curved=false,local:Path|undefined,circle:{center:Point;radius:number}|undefined;
+      if(entity.type==='LINE'){ring=[point(entity.start),point(entity.end)];local={start:ring[0],segments:[{type:'line',to:ring[1]}]};}
+      else if(entity.type==='SPLINE'){const points=(entity.controlPoints??[]).map(point);ring=nurbs({points,knots:entity.knots??[],degree:entity.degree??0,weights:entity.weights},tolerance);curved=true;
+        // The job format takes clamped curves only, whose ends are their first and last control points.
+        const knots=entity.knots!,degree=entity.degree!,clamped=knots.slice(0,degree+1).every(k=>k===knots[0])&&knots.slice(-degree-1).every(k=>k===knots[knots.length-1]);
+        if(clamped)local={start:points[0],segments:[{type:'nurbs',degree,control_points:points.slice(1),knots,...(entity.weights&&{weights:entity.weights})}]};}
       else if(['ARC','CIRCLE','ELLIPSE'].includes(entity.type)) {
         const center=point({x:entity.x!,y:entity.y!});let u:Point,v:Point;
         if(entity.type==='ELLIPSE') {
@@ -230,31 +201,38 @@ export function importDXF(text:string,fileName:string,options:DXFOptions):Import
         if(!Number.isFinite(start)||!Number.isFinite(sweep)||sweep===0)throw Error('Curve needs distinct finite start and end angles.');
         ring=[[center[0]+u[0]*Math.cos(start)+v[0]*Math.sin(start),center[1]+u[1]*Math.cos(start)+v[1]*Math.sin(start)]];
         ellipse(center,u,v,start,sweep,tolerance,ring);curved=true;if(closed)ring.pop();
+        if(entity.type==='CIRCLE')circle={center,radius:u[0]};
+        else if(entity.type==='ARC')local={start:ring[0],segments:[{type:'arc',to:[center[0]+u[0]*Math.cos(start+sweep),center[1]+u[0]*Math.sin(start+sweep)],bulge:Math.tan(sweep/4)}]};
       }else {
         const vertices=entity.vertices??[];
         if(vertices.length<2||vertices.length>5000)throw Error('Polyline needs 2–5,000 vertices.');
-        const points=vertices.map(point);closed=!!entity.closed;ring=[points[0]];
-        for(let i=0;i<points.length-(closed?0:1);i++) {const b=vertices[i].bulge??0;bulge(points[i],points[(i+1)%points.length],b,tolerance,ring);curved ||= b!==0;}
+        const points=vertices.map(point);closed=!!entity.closed;ring=[points[0]];local={start:points[0],segments:[]};
+        for(let i=0;i<points.length-(closed?0:1);i++) {const b=vertices[i].bulge??0,to=points[(i+1)%points.length];bulge(points[i],to,b,tolerance,ring);curved ||= b!==0;local.segments.push(b?{type:'arc',to,bulge:b}:{type:'line',to});}
         if(closed)ring.pop();
         if(r.groups.some(([code,v])=>[40,41,43].includes(code)&&finite(v)!==0))warnings.push(`${r.id}: polyline width is ignored; the centerline is the contour.`);
       }
       ring=ring.map(p=>apply(matrix,p));
+      // Curves are kept where the transformation keeps them exact; otherwise their approximation is.
+      const kept=options.curves==='keep'?transformPath(local??lines(ring),matrix)??undefined:undefined;
+      const piece=local&&kept?kept:lines(ring);
+      const exact=!!kept&&!!local;
+      const scale=Math.hypot(matrix[0],matrix[1]);
+      const keptCircle=options.curves==='keep'&&circle&&similar(matrix)?{type:'circle' as const,center:apply(matrix,circle.center),radius:circle.radius*scale}:undefined;
       if(ring.some(p=>!p.every(v=>Number.isFinite(v)&&Math.abs(v)<=100_000)))throw Error('Coordinates exceed the 100,000 mm limit.');
       totalVertices+=ring.length;if(totalVertices>100_000)throw Error('DXF exceeds 100,000 vertices.');
-      if(closed)contours.push({ring,entityId:r.id,curved});else chains.push({points:ring,id:r.id,curved});
-    }catch(error){if(expanded>10_000||totalVertices>100_000)throw error;issues.push(`${r.id} on ${layer}: ${error instanceof Error?error.message:String(error)}`);}
+      if(closed)outlines.push({ring,id:r.id,layer,curved:curved&&!exact&&!keptCircle,contour:keptCircle??(exact?contour(piece,ring):polygon(ring))});
+      else chains.push({points:ring,id:r.id,layer,curved:curved&&!exact,path:piece});
+    }catch(error){if(expanded>10_000||totalVertices>100_000)throw error;issues.push({layer,message:`${r.id} on ${layer}: ${error instanceof Error?error.message:String(error)}`});}
   };
   for(const entity of parsed.entities)visit(entity,[scale,0,0,scale,0,0],'0',[]);
   layers.sort();
-  const joined=join(chains,issues);contours.push(...joined.contours);
-  if(joined.gaps)warnings.push(`Joined ${joined.gaps} gaps within 0.01 mm; largest endpoint adjustment ${joined.adjustment} mm. Confirm this preview before importing.`);
-  const valid:Contour[]=[];
-  for(const c of contours)try{valid.push({...c,ring:normalizeRing(c.ring)});}catch(e){issues.push(`${c.entityId}: ${String(e)}`);}
-  const rejected=new Set<number>();
-  for(let i=0;i<valid.length;i++)for(let j=0;j<i;j++)if(ringCrosses(valid[i].ring,valid[j].ring)){rejected.add(i);rejected.add(j);issues.push(`${valid[i].entityId} and ${valid[j].entityId}: intersecting or duplicate loops.`);}
-  const parts=contoursToParts(valid.filter((_,i)=>!rejected.has(i)),fileName,'dxf',options.tolerance+joined.adjustment,options.enclosed);
+  // Pieces join only with pieces on their own layer.
+  let gaps=0,adjustment=0;
+  for(const layer of layers) {
+    const joined=join(chains.filter(chain=>chain.layer===layer),issues,options.curves==='keep');
+    outlines.push(...joined.outlines);gaps+=joined.gaps;adjustment=Math.max(adjustment,joined.adjustment);
+  }
+  if(gaps)warnings.push(`Joined ${gaps} gaps within 0.01 mm; largest endpoint adjustment ${adjustment} mm. Confirm this preview before importing.`);
   for(const [type,count] of unsupported)warnings.push(`Excluded ${count} unsupported ${type} entities.`);
-  if(parts.some(p=>p.holes.length))warnings.push('Holes are preserved; nesting inside holes is not supported.');
-  const document={name:fileName.replace(/\.dxf$/i,''),parts,settings:{...DEFAULT_SETTINGS}};
-  return {document:parts.length?normalizeJob(document):document,warnings,issues,layers};
+  return {name:fileName,format:'dxf',outlines,layers,warnings,issues,tolerance:options.tolerance+adjustment};
 }

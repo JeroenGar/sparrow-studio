@@ -2,25 +2,41 @@ import { useRef, useState } from 'react';
 import { bounds } from '../../engine/geometry/normalize';
 import { colors } from '../../engine/colors';
 import type { ImportReview } from '../../engine/import/sparrow';
-import { defaultDXFLayers, type Part } from '../../engine/model';
+import type { Part } from '../../engine/model';
+import type { ImportedSheet, Role } from '../../engine/import/drawing';
 import type { ImportFile } from '../../engine/workers/protocol';
 import { geometryTask } from '../../engine/workers/geometryTask';
 import { ringsPath } from '../Canvas';
+import { usesSparrowPro } from '../client';
 import { useStudio } from '../context';
 import { Dialog } from '../Dialog';
 import { formatLength, inputLength, parseLength } from '../format';
+import { outline } from '../../engine/geometry/contour';
 
-type Options = { scale: number; tolerance: number; enclosed: 'holes' | 'parts'; layers?: string[] };
+/** How the files are read: units, accuracy, each layer's role once chosen, and merging copies. */
+type Options = { scale: number; tolerance: number; roles?: Record<string, Role>; merge: boolean };
+
+const ROLE_NAMES: Record<Role, string> = {
+  parts: 'Parts',
+  sheets: 'Sheets',
+  defects: 'Defects of sheets',
+  ignored: 'Leave out',
+};
 
 const MAX_FILE = 10 * 1024 * 1024;
 const MAX_BATCH = 25 * 1024 * 1024;
 
-/** Import parts from drawing files, after a preview of units, contours and warnings. */
+/**
+ * Import parts, sheets and their defects from files, after a preview. Each layer of a drawing
+ * has a role, suggested from its name, else `kind`, the content the import was opened for.
+ */
 export function ImportFilesDialog({
+  kind,
   onAdd,
   onClose,
 }: {
-  onAdd: (parts: Part[], stripWidthMm?: number) => void;
+  kind: 'parts' | 'sheets';
+  onAdd: (parts: Part[], sheets: ImportedSheet[], stripWidthMm?: number) => void;
   onClose: () => void;
 }) {
   const { unit } = useStudio();
@@ -28,8 +44,9 @@ export function ImportFilesDialog({
   const [files, setFiles] = useState<ImportFile[]>();
   const [scale, setScale] = useState(1);
   const [toleranceText, setToleranceText] = useState(inputLength(0.01, unit));
-  const [enclosed, setEnclosed] = useState<'holes' | 'parts'>('holes');
-  const [layers, setLayers] = useState<string[]>();
+  // Unset until the first preview suggests them.
+  const [roles, setRoles] = useState<Record<string, Role>>();
+  const [merge, setMerge] = useState(true);
   // A preview remembers what it was made from; it is outdated as soon as any of that changes.
   const [reviewed, setReviewed] = useState<{
     files: ImportFile[];
@@ -44,7 +61,7 @@ export function ImportFilesDialog({
 
   const tolerance = parseLength(toleranceText, unit);
   const toleranceValid = Number.isFinite(tolerance) && tolerance > 0 && tolerance <= 100;
-  const options: Options = { scale, tolerance, enclosed, layers };
+  const options: Options = { scale, tolerance, roles, merge };
   const review = reviewed?.review;
   const stale =
     !!reviewed &&
@@ -64,11 +81,11 @@ export function ImportFilesDialog({
     const read = await Promise.all(
       batch.map(async (file) => ({ name: file.name, text: await file.text() })),
     );
-    // New files start with every layer.
+    // New files start with suggested roles.
     setFiles(read);
-    setLayers(undefined);
+    setRoles(undefined);
     setReviewed(undefined);
-    void preview(read, { ...options, layers: undefined });
+    void preview(read, { ...options, roles: undefined });
   }
 
   async function preview(list: ImportFile[], chosen: Options) {
@@ -82,11 +99,17 @@ export function ImportFilesDialog({
         runId: request,
         documentRevision: 1,
         files: list,
+        kind,
         ...chosen,
+        // Sparrow Pro nests curves as they are; open-source sparrow nests polygons.
+        curves: usesSparrowPro ? 'keep' : 'flatten',
       });
       if (request !== latest.current) return;
       if (reply.type !== 'import-review') throw Error('Could not read these files.');
-      setReviewed({ files: list, options: chosen, review: reply.review });
+      // The roles the files were read with, suggested ones included, are the ones shown.
+      const used = { ...chosen, roles: reply.review.roles };
+      setRoles(used.roles);
+      setReviewed({ files: list, options: used, review: reply.review });
     } catch (reason) {
       if (request !== latest.current) return;
       setReviewed(undefined);
@@ -97,22 +120,36 @@ export function ImportFilesDialog({
   }
 
   const hasDrawings = !!files?.some((file) => !file.text.trimStart().startsWith('{'));
-  const hasDXF = !!files?.some((file) => !['<', '{'].includes(file.text.trimStart()[0]));
-  const isInstance = files?.length === 1 && files[0].text.trimStart().startsWith('{');
   const availableLayers = review?.layers ?? [];
+  const parts = review?.document.parts ?? [];
+  const sheets = review?.sheets ?? [];
   const blocked =
     !review ||
     stale ||
     busy ||
-    !review.document.parts.length ||
+    !(parts.length + sheets.length) ||
     (!!review.issues?.length && !exclude);
-  const parts = review?.document.parts ?? [];
+  const copies = parts.reduce((sum, part) => sum + part.quantity, 0);
+  const sheetCount = sheets.reduce((sum, sheet) => sum + sheet.quantity, 0);
+  const adding = [
+    parts.length && `${copies} ${copies === 1 ? 'part' : 'parts'}`,
+    sheets.length && `${sheetCount} ${sheetCount === 1 ? 'sheet' : 'sheets'}`,
+  ]
+    .filter(Boolean)
+    .join(' and ');
+  // A role chosen for a layer takes effect at once.
+  const setRole = (layer: string, role: Role) => {
+    if (!files) return;
+    const next = { ...roles, [layer]: role };
+    setRoles(next);
+    void preview(files, { ...options, roles: next });
+  };
 
   return (
     <Dialog
-      title="Import parts from files"
+      title="Import from files"
       onClose={onClose}
-      wide
+      size="wide"
       actions={
         <>
           <button onClick={onClose}>Cancel</button>
@@ -128,14 +165,9 @@ export function ImportFilesDialog({
             <button
               className="primary"
               disabled={blocked}
-              onClick={() =>
-                onAdd(
-                  parts,
-                  isInstance && useWidth ? review!.document.settings.materialWidthMm : undefined,
-                )
-              }
+              onClick={() => onAdd(parts, sheets, useWidth ? review!.stripWidthMm : undefined)}
             >
-              Add {parts.length} {parts.length === 1 ? 'part' : 'parts'}
+              {adding ? `Add ${adding}` : 'Add'}
             </button>
           )}
         </>
@@ -179,7 +211,7 @@ export function ImportFilesDialog({
             </select>
             <span className="muted">Used when a file has no units of its own.</span>
           </label>
-          {hasDrawings && (
+          {hasDrawings && !usesSparrowPro && (
             <label className="field">
               Curve accuracy, {unit}
               <input
@@ -194,38 +226,44 @@ export function ImportFilesDialog({
               <span className="muted">Curves become straight segments within this distance.</span>
             </label>
           )}
-          {hasDXF && (
-            <label className="field">
-              Contours inside contours
-              <select
-                value={enclosed}
-                onChange={(event) => setEnclosed(event.target.value as 'holes' | 'parts')}
-              >
-                <option value="holes">Are holes</option>
-                <option value="parts">Are separate parts</option>
-              </select>
+          {hasDrawings && (
+            <label className="choice">
+              <input
+                type="checkbox"
+                checked={merge}
+                onChange={(event) => {
+                  setMerge(event.target.checked);
+                  if (files) void preview(files, { ...options, merge: event.target.checked });
+                }}
+              />
+              Count identical outlines as one item with a quantity
             </label>
           )}
-          {availableLayers.length > 0 && (
-            <fieldset className="field">
-              <legend>DXF layers</legend>
+          {availableLayers.length > 0 && roles && (
+            <fieldset className="field layer-roles">
+              <legend>Layers</legend>
               {availableLayers.map((layer) => (
-                <label key={layer} className="choice">
-                  <input
-                    type="checkbox"
-                    checked={(layers ?? defaultDXFLayers(availableLayers)).includes(layer)}
-                    onChange={(event) => {
-                      const current = layers ?? defaultDXFLayers(availableLayers);
-                      setLayers(
-                        event.target.checked
-                          ? [...current, layer]
-                          : current.filter((name) => name !== layer),
-                      );
-                    }}
-                  />
-                  {layer}
+                <label key={layer} className="layer-role">
+                  <span className="grow">
+                    {layer}
+                    <span className="muted mono"> · {review?.outlines?.[layer] ?? 0} outlines</span>
+                  </span>
+                  <select
+                    value={roles[layer] ?? 'ignored'}
+                    onChange={(event) => setRole(layer, event.target.value as Role)}
+                  >
+                    {(Object.keys(ROLE_NAMES) as Role[]).map((role) => (
+                      <option key={role} value={role}>
+                        {ROLE_NAMES[role]}
+                      </option>
+                    ))}
+                  </select>
                 </label>
               ))}
+              <span className="muted">
+                Holes are outlines on the same layer entirely inside another. Defects keep their
+                place and belong to the sheets they overlap.
+              </span>
             </fieldset>
           )}
         </div>
@@ -235,13 +273,49 @@ export function ImportFilesDialog({
       {review && !stale && (
         <>
           <p>
-            {parts.length} part {parts.length === 1 ? 'type' : 'types'} ·{' '}
-            {parts.reduce((sum, part) => sum + part.quantity, 0)} copies ·{' '}
-            {parts.reduce((sum, part) => sum + part.holes.length, 0)} holes
+            {parts.length} part {parts.length === 1 ? 'type' : 'types'} · {copies}{' '}
+            {copies === 1 ? 'copy' : 'copies'} ·{' '}
+            {parts.reduce((sum, part) => sum + (part.shape.holes?.length ?? 0), 0)} holes
+            {sheets.length > 0 &&
+              ` · ${sheetCount} ${sheetCount === 1 ? 'sheet' : 'sheets'} with ${sheets.reduce((n, sheet) => n + sheet.defects.length * sheet.quantity, 0)} defects`}
           </p>
           <div className="import-preview">
+            {sheets.map((sheet, index) => {
+              const { outer, holes } = outline(sheet.shape);
+              const b = bounds(outer);
+              const size = Math.max(b[2] - b[0], b[3] - b[1]);
+              const defects = sheet.defects.map((defect) => outline({ outer: defect }).outer);
+              return (
+                <div key={`sheet-${index}`} className="import-part">
+                  <svg
+                    viewBox={`${b[0] - size * 0.05} ${-b[3] - size * 0.05} ${size * 1.1} ${size * 1.1}`}
+                    aria-hidden="true"
+                  >
+                    <path
+                      d={ringsPath([outer, ...holes])}
+                      fillRule="evenodd"
+                      fill="var(--sheet)"
+                      stroke="var(--ink)"
+                      strokeWidth={size * 0.02}
+                    />
+                    {defects.length > 0 && (
+                      <path d={ringsPath(defects)} className="defect" strokeWidth={size * 0.01} />
+                    )}
+                  </svg>
+                  <span>
+                    {sheet.name}
+                    <span className="muted block mono">
+                      {formatLength(b[2] - b[0], unit)} × {formatLength(b[3] - b[1], unit)} {unit} ·
+                      ×{sheet.quantity}
+                      {sheet.defects.length > 0 && ` · ${sheet.defects.length} defects`}
+                    </span>
+                  </span>
+                </div>
+              );
+            })}
             {parts.map((part, index) => {
-              const b = bounds(part.outer);
+              const { outer, holes } = outline(part.shape);
+              const b = bounds(outer);
               const size = Math.max(b[2] - b[0], b[3] - b[1]);
               return (
                 <div key={part.id} className="import-part">
@@ -250,7 +324,7 @@ export function ImportFilesDialog({
                     aria-hidden="true"
                   >
                     <path
-                      d={ringsPath([part.outer, ...part.holes])}
+                      d={ringsPath([outer, ...holes])}
                       fillRule="evenodd"
                       fill={colors[index % colors.length]}
                       stroke="var(--ink)"
@@ -277,7 +351,7 @@ export function ImportFilesDialog({
           )}
           {!!review.issues?.length && (
             <>
-              <p className="field-error">These contours cannot be imported:</p>
+              <p className="field-error">These cannot be imported:</p>
               <ul className="warnings">
                 {review.issues.map((issue, index) => (
                   <li key={index}>{issue}</li>
@@ -289,19 +363,18 @@ export function ImportFilesDialog({
                   checked={exclude}
                   onChange={(event) => setExclude(event.target.checked)}
                 />
-                Leave out the contours listed above
+                Leave them out and import the rest
               </label>
             </>
           )}
-          {isInstance && (
+          {review.stripWidthMm !== undefined && (
             <label className="choice">
               <input
                 type="checkbox"
                 checked={useWidth}
                 onChange={(event) => setUseWidth(event.target.checked)}
               />
-              Also use its strip width,{' '}
-              {formatLength(review.document.settings.materialWidthMm, unit)} {unit}
+              Also use its strip width, {formatLength(review.stripWidthMm, unit)} {unit}
             </label>
           )}
         </>

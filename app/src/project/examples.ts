@@ -1,5 +1,5 @@
 import { scalePart } from '../engine/geometry/normalize';
-import { netArea } from '../engine/geometry/validate';
+import { netArea } from '../engine/geometry/world';
 import type { Job } from '../engine/model';
 import { geometryTask } from '../engine/workers/geometryTask';
 import {
@@ -76,7 +76,11 @@ export async function loadExample(file: string, machine?: MachinePreset): Promis
     {
       ...project,
       partDefaults: { ...project.partDefaults, rotations },
-      stock: { ...project.stock, strip: { ...project.stock.strip, widthMm: width } },
+      stock: {
+        ...project.stock,
+        packing: 'strip',
+        strip: { ...project.stock.strip, widthMm: width },
+      },
     },
     job.parts,
   );

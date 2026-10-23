@@ -25,6 +25,7 @@ pub fn thread_count() -> usize {
 
 mod svg;
 mod logging;
+pub mod job;
 
 #[cfg(feature = "benchmark")]
 pub mod benchmark;
@@ -163,4 +164,108 @@ impl Terminator for WebTerminator {
         if self.timed { self.inner.new_timeout(timeout); }
     }
     fn timeout_at(&self) -> Option<Instant> { self.inner.timeout_at() }
+}
+
+/// Checks a job input in the Sparrow Pro format: `null` when the local backend can run it, and
+/// otherwise the API's error code with its field errors, as JSON.
+#[wasm_bindgen]
+pub fn check_job(input: &str) -> String {
+    match serde_json::from_str::<sparrow_pro_schema::v1::Input>(input) {
+        Err(error) => json!({"code": "invalid_job_input", "field_errors": [{"param": "/input", "message": error.to_string()}]}),
+        Ok(input) => match job::check(&input) {
+            Ok(()) => serde_json::Value::Null,
+            Err(refusal) => serde_json::to_value(refusal).expect("refusals serialize"),
+        },
+    }.to_string()
+}
+
+/// Runs a checked job input in the Sparrow Pro format with open-source sparrow. `callback`
+/// receives JSON messages: `started`, then `snapshot` for each better feasible layout and
+/// `search` for the layout being worked on, a few times a second, then `finished`. A failure is
+/// returned as JSON with the API's job error `code` and a `message`.
+#[wasm_bindgen]
+pub fn run_job(input: &str, time_limit_seconds: u32, auto_termination: bool, seed: f64, callback: js_sys::Function) -> Result<(), JsValue> {
+    console_error_panic_hook::set_once();
+    logging::init();
+    let started_at = Instant::now();
+    let fail = |code: &str, message: String| JsValue::from_str(&json!({"code": code, "message": message}).to_string());
+    let input: sparrow_pro_schema::v1::Input = serde_json::from_str(input)
+        .map_err(|error| fail("invalid_job_input", error.to_string()))?;
+    if let Err(refusal) = job::check(&input) {
+        return Err(fail("invalid_job_input", format!("The input was refused: {:?}", refusal.field_errors)));
+    }
+    let job::Instance { instance: external, separation, mapping, raised_boundary } = job::instance(&input);
+    let seconds = time_limit_seconds.max(1) as f64;
+    let mut config = DEFAULT_SPARROW_CONFIG;
+    if auto_termination {
+        config.expl_cfg.max_conseq_failed_attempts = Some(DEFAULT_MAX_CONSEQ_FAILS_EXPL);
+        config.cmpr_cfg.shrink_decay = ShrinkDecayStrategy::FailureBased(DEFAULT_FAIL_DECAY_RATIO_CMPR);
+    }
+    let threads = thread_count();
+    config.expl_cfg.separator_config.n_workers = config.expl_cfg.separator_config.n_workers.min(threads);
+    config.cmpr_cfg.separator_config.n_workers = config.cmpr_cfg.separator_config.n_workers.min(threads);
+    config.expl_cfg.time_limit = Duration::from_secs_f64(seconds * 0.8);
+    config.cmpr_cfg.time_limit = Duration::from_secs_f64(seconds * 0.2);
+    config.min_item_separation = (separation > 0.0).then_some(separation);
+    let importer = Importer::new(config.cde_config, config.poly_simpl_tolerance, config.min_item_separation, config.narrow_concavity_cutoff_ratio);
+    let instance = import_instance(&importer, &external)
+        .map_err(|error| fail("invalid_job_input", format!("Open-source sparrow could not read a part: {error}")))?;
+    let diagnostics: Vec<_> = raised_boundary.map(|(requested, used)|
+        json!({"kind": "boundary_separation_raised", "requested": requested, "used": used})).into_iter().collect();
+    let mut listener = JobListener { callback, mapping, started_at, last_search: None, phase: None, attempts: [0, 0] };
+    listener.send(json!({"type": "started", "diagnostics": diagnostics}));
+    optimize(instance, Xoshiro256PlusPlus::seed_from_u64(seed as u64), &mut listener,
+        &mut BasicTerminator::new(), &config.expl_cfg, &config.cmpr_cfg, None)
+        .map_err(|error| fail("no_feasible_solution", format!("Part {} fits nowhere on the strip, in any permitted rotation.", input.parts[error.item_id].id)))?;
+    let used = started_at.elapsed().as_secs_f64();
+    let termination = if !auto_termination || used >= seconds * 0.98 { "time_limit" } else { "auto_terminated" };
+    listener.send(json!({"type": "finished", "termination": termination, "replay": listener.replay()}));
+    Ok(())
+}
+
+struct JobListener {
+    callback: js_sys::Function,
+    mapping: job::Mapping,
+    started_at: Instant,
+    last_search: Option<Instant>,
+    phase: Option<OptimizationPhase>,
+    attempts: [u64; 2],
+}
+
+impl JobListener {
+    fn replay(&self) -> serde_json::Value {
+        json!({"exploration_attempts": self.attempts[0], "compression_attempts": self.attempts[1]})
+    }
+
+    fn send(&self, value: serde_json::Value) {
+        self.callback.call1(&JsValue::NULL, &JsValue::from_str(&value.to_string()))
+            .expect("worker callback must accept job messages");
+    }
+}
+
+impl SolutionListener for JobListener {
+    fn report_phase(&mut self, phase: OptimizationPhase) { self.phase = Some(phase); }
+
+    fn report_separation_result(&mut self, _result: sparrow::util::listener::SeparationResult) {
+        self.attempts[matches!(self.phase, Some(OptimizationPhase::Compression)) as usize] += 1;
+    }
+
+    fn report(&mut self, report: ReportType, solution: &SPSolution, instance: &SPInstance) {
+        let feasible = matches!(report, ReportType::ExplFeas | ReportType::CmprFeas | ReportType::Final);
+        let now = Instant::now();
+        // The search moves many times a second; 20 layouts a second show it moving smoothly.
+        if !feasible && self.last_search.is_some_and(|last| now.duration_since(last) < Duration::from_millis(50)) {
+            return;
+        }
+        let external = export(instance, solution, self.started_at);
+        let elapsed_seconds = now.duration_since(self.started_at).as_secs_f64();
+        let solution = self.mapping.solution(&external);
+        if feasible {
+            self.send(json!({"type": "snapshot", "elapsed_seconds": elapsed_seconds, "solution": solution,
+                "stats": self.mapping.stats(&external), "replay": self.replay()}));
+        } else {
+            self.last_search = Some(now);
+            self.send(json!({"type": "search", "elapsed_seconds": elapsed_seconds, "solution": solution}));
+        }
+    }
 }

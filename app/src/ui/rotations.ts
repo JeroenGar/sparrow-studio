@@ -47,3 +47,15 @@ export function parseAngles(text: string): RotationRule | undefined {
   if (!degrees.length || !degrees.every(Number.isFinite)) return undefined;
   return { kind: 'discrete', degrees: [...new Set(degrees.map(turn))].sort((a, b) => a - b) };
 }
+
+const CYCLE = ['fixed', 'half', 'quarter', 'free'] as const;
+
+/**
+ * The rotations after a part's own, or after the defaults when it has none: the defaults, then
+ * fixed, half-turns, quarter-turns, free, and the defaults again. Custom angles go to the defaults.
+ */
+export function nextRotation(own: RotationRule | undefined): RotationRule | 'default' {
+  if (!own) return rotationRule(CYCLE[0]);
+  const at = CYCLE.indexOf(rotationKind(own) as (typeof CYCLE)[number]);
+  return at >= 0 && at < CYCLE.length - 1 ? rotationRule(CYCLE[at + 1]) : 'default';
+}

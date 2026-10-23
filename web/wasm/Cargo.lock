@@ -1067,6 +1067,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sparrow-pro-schema"
+version = "0.0.0"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "sparrow-web"
 version = "0.1.0"
 dependencies = [
@@ -1076,8 +1083,10 @@ dependencies = [
  "log",
  "rand",
  "rayon",
+ "serde",
  "serde_json",
  "sparrow",
+ "sparrow-pro-schema",
  "usvg",
  "wasm-bindgen",
  "wasm-bindgen-rayon",

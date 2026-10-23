@@ -1,10 +1,6 @@
-// Pastel part colours. Hues step by the golden angle, so neighbours in a list never look alike,
-// and lightness alternates between two levels. Each colour has a darker shade for patterns.
-const hex=(h:number,s:number,l:number)=>{
-  const f=(n:number)=>{const k=(n+h/30)%12,c=l-s*Math.min(l,1-l)*Math.max(-1,Math.min(k-3,9-k,1));return Math.round(c*255).toString(16).padStart(2,'0');};
-  return `#${f(0)}${f(8)}${f(4)}`;
-};
-const COUNT=30;
-const hues=Array.from({length:COUNT},(_,i)=>(i*137.508)%360);
-export const colors=hues.map((h,i)=>hex(h,.62,i%2?.76:.84));
-export const shades=hues.map((h,i)=>hex(h,.45,i%2?.5:.56));
+// Brick tints part colours: light tints of the studio label's brick, apricot and butter, with sage,
+// slate and mauve in turn so a full sheet never turns all red. Each colour has a darker shade for
+// patterns.
+export const colors=['#e8aaa0','#c3d6ae','#f2c9a4','#b3bed4','#efdfa6','#d1b1cb','#a9c8c4','#dbcab0'];
+const darker=(hex:string)=>'#'+[1,3,5].map(i=>Math.round(parseInt(hex.slice(i,i+2),16)*.58).toString(16).padStart(2,'0')).join('');
+export const shades=colors.map(darker);

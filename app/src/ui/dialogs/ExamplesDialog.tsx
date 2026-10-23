@@ -19,7 +19,7 @@ export function ExamplesDialog({
   }, []);
   const groups = [...new Set(examples?.map((example) => example.group))];
   return (
-    <Dialog title="Open an example" onClose={onClose} wide>
+    <Dialog title="Open an example" onClose={onClose} size="wide">
       <p className="muted">
         Benchmark instances from nesting research, scaled to a typical part size. Each opens as a
         new project.
